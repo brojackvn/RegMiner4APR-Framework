@@ -1,0 +1,18 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/cactoos/func/RepeatedFunc.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/cactoos/func/RepeatedFunc.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/cactoos/func/RepeatedFunc.java	2024-09-16 17:27:21.926378618 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/cactoos/func/RepeatedFunc.java	2024-09-16 17:27:21.894378315 +1000
+@@ -67,6 +68,14 @@
+         for (int idx = 0; idx < this.times; ++idx) {
+             result = this.func.apply(input);
+         }
++        if (result == null) {
++            throw new IllegalArgumentException(
++                new FormattedText(
++                    "Repeat counter is equal or less than zero: %d",
++                    this.times
++                ).asString()
++            );
++        }
+         return result;
+     }
+ 

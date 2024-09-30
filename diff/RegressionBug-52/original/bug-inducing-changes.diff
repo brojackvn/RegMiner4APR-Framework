@@ -1,0 +1,777 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/ConcurrentHeapThetaBuffer.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/ConcurrentHeapThetaBuffer.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/ConcurrentHeapThetaBuffer.java	2024-09-08 01:36:18.721840859 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/ConcurrentHeapThetaBuffer.java	2024-09-08 01:36:18.693840663 +1000
+@@ -83,6 +83,11 @@
+   }
+ 
+   @Override
++  public boolean hasMemory() {
++    return shared.hasMemory();
++  }
++
++  @Override
+   public boolean isDirect() {
+     return shared.isDirect();
+   }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/ConcurrentSharedThetaSketch.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/ConcurrentSharedThetaSketch.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/ConcurrentSharedThetaSketch.java	2024-09-08 01:36:18.721840859 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/ConcurrentSharedThetaSketch.java	2024-09-08 01:36:18.693840663 +1000
+@@ -112,6 +112,8 @@
+ 
+   double getUpperBound(int numStdDev);
+ 
++  boolean hasMemory();
++
+   boolean isDirect();
+ 
+   boolean isEmpty();
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/DirectCompactOrderedSketch.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/DirectCompactOrderedSketch.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/DirectCompactOrderedSketch.java	2024-09-08 01:36:18.721840859 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/DirectCompactOrderedSketch.java	2024-09-08 01:36:18.693840663 +1000
+@@ -53,10 +53,11 @@
+    * @return a DirectCompactOrderedSketch.
+    */
+   static DirectCompactOrderedSketch compact(final UpdateSketch sketch, final WritableMemory dstMem) {
+-    final long thetaLong = sketch.getThetaLong();
+-    final boolean empty = sketch.isEmpty();
+     final int curCount = sketch.getRetainedEntries(true);
+-    //checkEmptyState(empty, curCount, thetaLong);
++    long thetaLong = sketch.getThetaLong();
++    boolean empty = sketch.isEmpty();
++    thetaLong = thetaOnCompact(empty, curCount, thetaLong);
++    empty = emptyOnCompact(curCount, thetaLong);
+     final int preLongs = computeCompactPreLongs(thetaLong, empty, curCount);
+     final short seedHash = sketch.getSeedHash();
+     final long[] cache = sketch.getCache();
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/DirectCompactUnorderedSketch.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/DirectCompactUnorderedSketch.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/DirectCompactUnorderedSketch.java	2024-09-08 01:36:18.721840859 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/DirectCompactUnorderedSketch.java	2024-09-08 01:36:18.693840663 +1000
+@@ -53,10 +53,11 @@
+    */
+   static DirectCompactUnorderedSketch compact(final UpdateSketch sketch,
+       final WritableMemory dstMem) {
+-    final long thetaLong = sketch.getThetaLong();
+-    final boolean empty = sketch.isEmpty();
+     final int curCount = sketch.getRetainedEntries(true);
+-    //checkEmptyState(empty, curCount, thetaLong);
++    long thetaLong = sketch.getThetaLong();
++    boolean empty = sketch.isEmpty();
++    thetaLong = thetaOnCompact(empty, curCount, thetaLong);
++    empty = emptyOnCompact(curCount, thetaLong);
+     final int preLongs = computeCompactPreLongs(thetaLong, empty, curCount);
+     final short seedHash = sketch.getSeedHash();
+     final long[] cache = sketch.getCache();
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/HeapAlphaSketch.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/HeapAlphaSketch.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/HeapAlphaSketch.java	2024-09-08 01:36:18.721840859 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/HeapAlphaSketch.java	2024-09-08 01:36:18.693840663 +1000
+@@ -53,7 +53,7 @@
+   private int hashTableThreshold_;  //never serialized
+   private int curCount_ = 0;
+   private long thetaLong_;
+-  private boolean empty_ = true;
++  boolean empty_ = true;
+ 
+   private long[] cache_;
+   private boolean dirty_ = false;
+@@ -287,6 +287,11 @@
+   }
+ 
+   @Override
++  void setEmpty(final boolean empty) {
++    empty_ = empty;
++  }
++
++  @Override
+   UpdateReturnState hashUpdate(final long hash) {
+     HashOperations.checkHashCorruption(hash);
+     empty_ = false;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/HeapCompactOrderedSketch.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/HeapCompactOrderedSketch.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/HeapCompactOrderedSketch.java	2024-09-08 01:36:18.721840859 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/HeapCompactOrderedSketch.java	2024-09-08 01:36:18.693840663 +1000
+@@ -77,10 +77,11 @@
+    * @return a CompactSketch
+    */
+   static CompactSketch compact(final UpdateSketch sketch) {
+-    final long thetaLong = sketch.getThetaLong();
+-    final boolean empty = sketch.isEmpty();
+     final int curCount = sketch.getRetainedEntries(true);
+-    //checkEmptyState(empty, curCount, thetaLong);
++    long thetaLong = sketch.getThetaLong();
++    boolean empty = sketch.isEmpty();
++    thetaLong = thetaOnCompact(empty, curCount, thetaLong);
++    empty = emptyOnCompact(curCount, thetaLong);
+     final short seedHash = sketch.getSeedHash();
+     final long[] cache = sketch.getCache();
+     final boolean ordered = true;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/HeapCompactUnorderedSketch.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/HeapCompactUnorderedSketch.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/HeapCompactUnorderedSketch.java	2024-09-08 01:36:18.721840859 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/HeapCompactUnorderedSketch.java	2024-09-08 01:36:18.693840663 +1000
+@@ -77,10 +77,11 @@
+    * @return a CompactSketch
+    */
+   static CompactSketch compact(final UpdateSketch sketch) {
+-    final long thetaLong = sketch.getThetaLong();
+-    final boolean empty = sketch.isEmpty();
+     final int curCount = sketch.getRetainedEntries(true);
+-    //checkEmptyState(empty, curCount, thetaLong);
++    long thetaLong = sketch.getThetaLong();
++    boolean empty = sketch.isEmpty();
++    thetaLong = thetaOnCompact(empty, curCount, thetaLong);
++    empty = emptyOnCompact(curCount, thetaLong);
+     final short seedHash = sketch.getSeedHash();
+     final long[] cache = sketch.getCache();
+     final boolean ordered = false;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/HeapQuickSelectSketch.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/HeapQuickSelectSketch.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/HeapQuickSelectSketch.java	2024-09-08 01:36:18.721840859 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/HeapQuickSelectSketch.java	2024-09-08 01:36:18.693840663 +1000
+@@ -254,6 +254,11 @@
+     return numEntries > hashTableThreshold_;
+   }
+ 
++  @Override
++  void setEmpty(final boolean empty) {
++    empty_ = empty;
++  }
++
+   //Must resize. Changes lgArrLongs_ and cache_. theta and count don't change.
+   // Used by hashUpdate()
+   private final void resizeCache() {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/HeapUpdateSketch.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/HeapUpdateSketch.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/HeapUpdateSketch.java	2024-09-08 01:36:18.721840859 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/HeapUpdateSketch.java	2024-09-08 01:36:18.693840663 +1000
+@@ -90,6 +90,9 @@
+     return Util.computeSeedHash(getSeed());
+   }
+ 
++  //for set operations
++  abstract void setEmpty(boolean empty);
++
+   byte[] toByteArray(final int preLongs, final byte familyID) {
+     if (isDirty()) { rebuild(); }
+     final int preBytes = (preLongs << 3) & 0X3F;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/PairwiseSetOperations.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/PairwiseSetOperations.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/PairwiseSetOperations.java	2024-09-08 01:36:18.721840859 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/PairwiseSetOperations.java	2024-09-08 01:36:18.693840663 +1000
+@@ -136,8 +136,8 @@
+     //Both sketches are valid with matching seedhashes and ordered
+     //Full Union operation:
+     long thetaLong = Math.min(skA.getThetaLong(), skB.getThetaLong()); //Theta rule
+-    final long[] cacheA = (skA.isDirect()) ? skA.getCache() : skA.getCache().clone();
+-    final long[] cacheB = (skB.isDirect()) ? skB.getCache() : skB.getCache().clone();
++    final long[] cacheA = (skA.hasMemory()) ? skA.getCache() : skA.getCache().clone();
++    final long[] cacheB = (skB.hasMemory()) ? skB.getCache() : skB.getCache().clone();
+     final int aLen = cacheA.length;
+     final int bLen = cacheB.length;
+ 
+@@ -205,7 +205,7 @@
+     int curCount = csk.getRetainedEntries(true);
+     long thetaLong = csk.getThetaLong();
+     if (curCount > k) { //cutback to k
+-      final long[] cache = (csk.isDirect()) ? csk.getCache() : csk.getCache().clone();
++      final long[] cache = (csk.hasMemory()) ? csk.getCache() : csk.getCache().clone();
+       thetaLong = cache[k];
+       final long[] arr = Arrays.copyOf(cache, k);
+       curCount = k;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/SetOperation.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/SetOperation.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/SetOperation.java	2024-09-08 01:36:18.721840859 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/SetOperation.java	2024-09-08 01:36:18.693840663 +1000
+@@ -12,6 +12,8 @@
+ import static com.yahoo.sketches.Util.ceilingPowerOf2;
+ import static com.yahoo.sketches.theta.PreambleUtil.FAMILY_BYTE;
+ import static com.yahoo.sketches.theta.PreambleUtil.SER_VER_BYTE;
++import static com.yahoo.sketches.theta.Sketch.emptyOnCompact;
++import static com.yahoo.sketches.theta.Sketch.thetaOnCompact;
+ import static java.lang.Math.max;
+ 
+ import com.yahoo.memory.Memory;
+@@ -222,14 +224,12 @@
+   abstract boolean isEmpty();
+ 
+   //used only by the set operations
+-  static final CompactSketch createCompactSketch(final long[] compactCache, final boolean empty,
+-      final short seedHash, int curCount, long thetaLong, final boolean dstOrdered,
++  static final CompactSketch createCompactSketch(final long[] compactCache, boolean empty,
++      final short seedHash, final int curCount, long thetaLong, final boolean dstOrdered,
+       final WritableMemory dstMem) {
+-    if (empty) {
+-      curCount = 0;
+-      thetaLong = Long.MAX_VALUE;
+-    }
+-    //checkEmptyState(empty, curCount, thetaLong);
++    thetaLong = thetaOnCompact(empty, curCount, thetaLong);
++    empty = emptyOnCompact(curCount, thetaLong);
++
+     CompactSketch sketchOut = null;
+     final int sw = (dstOrdered ? 2 : 0) | ((dstMem != null) ? 1 : 0);
+     switch (sw) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/Sketch.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/Sketch.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/Sketch.java	2024-09-08 01:36:18.721840859 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/Sketch.java	2024-09-08 01:36:18.693840663 +1000
+@@ -557,40 +557,31 @@
+     }
+   }
+ 
+-  //  /**
+-  //   * Checks for an illegal state of the empty flag. The truth table is as follows:
+-  //   * <pre>
+-  //   *  Empty CurCount Theta State    Comments
+-  //   *    T      0       1.0   OK     The Normal Empty State
+-  //   *    T      0      <1.0   Error  This can be an initial on-heap state if p < 1.0,
+-  //   *                                  but should stored as a Normal Empty State.
+-  //   *    T     !0       1.0   Error  Empty and curCount !0 should never co-exist
+-  //   *    T     !0      <1.0   Error  Empty and curCount !0 should never co-exist
+-  //   *    F      0       1.0   Error  This conflicts with the normal empty state
+-  //   *    F      0      <1.0   OK     This can result from set operations
+-  //   *    F     !0       1.0   OK     This corresponds to a sketch in exact mode
+-  //   *    F     !0      <1.0   OK     This corresponds to a sketch in estimation mode
+-  //   * </pre>
+-  //   *
+-  //   * @param empty the state of the empty flag
+-  //   * @param curCount the current number of retained entries
+-  //   * @param thetaLong the value of theta as a long
+-  //   */
+-  //  static final void checkEmptyState(final boolean empty, final int curCount, final long thetaLong) {
+-  //    final boolean thLT1 = thetaLong < Long.MAX_VALUE;
+-  //    final boolean zeroCount = curCount == 0;
+-  //    final boolean error = (empty && !zeroCount) || (zeroCount && (empty ^ !thLT1));
+-  //    if (error) {
+-  //      throw new SketchesStateException("Improper Empty State: Empty: " + empty
+-  //          + ", CurCount=0: " + zeroCount + " Theta<1.0: " + thLT1);
+-  //    }
+-  //  }
+-  //
+-  //  static final boolean fixEmpty(final boolean empty, final int curCount, final long thetaLong) {
+-  //    if (curCount > 0) { return false; }
+-  //    if ((curCount == 0) && (thetaLong == Long.MAX_VALUE)) { return true; }
+-  //    return empty;
+-  //  }
++  /*
++   * The truth table for empty, curCount and theta on compact is as follows:
++   * <pre>
++   * Num Theta CurCount Empty State  Comments
++   *  0    1.0     0      T     OK   The Normal Empty State
++   *  1    1.0     0      F   Error  This conflicts with the normal empty state
++   *  2    1.0    !0      T   Error  Empty and curCount !0 should never co-exist
++   *  3    1.0    !0      F     OK   This corresponds to a sketch in exact mode
++   *  4   <1.0     0      T   Error  This can be an initial UpdateSketch state if p < 1.0,
++   *                                   but should compacted as {Th = 1.0, 0, T}.
++   *  5   <1.0     0      F     OK   This can result from set operations
++   *  6   <1.0    !0      T   Error  Empty and curCount !0 should never co-exist
++   *  7   <1.0    !0      F     OK   This corresponds to a sketch in estimation mode
++   * </pre>
++   * <p>thetaOnCompact() checks for only #4 and corrects theta.
++   * <p>emptyOnCompact() corrects for #1, 2, 6 if they occur
++   * <p>First apply thetaOnCompact() then emptyOnCompact().
++   */
++  static final long thetaOnCompact(final boolean empty, final int curCount, final long thetaLong) {
++    return (empty && (curCount == 0) && (thetaLong < Long.MAX_VALUE)) ? Long.MAX_VALUE : thetaLong;
++  }
++
++  static final boolean emptyOnCompact(final int curCount, final long thetaLong) {
++    return ((curCount == 0) && (thetaLong == Long.MAX_VALUE));
++  }
+ 
+   static final double estimate(final long thetaLong, final int curCount, final boolean empty) {
+     if (estMode(thetaLong, empty)) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/UnionImpl.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/UnionImpl.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/UnionImpl.java	2024-09-08 01:36:18.721840859 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/UnionImpl.java	2024-09-08 01:36:18.693840663 +1000
+@@ -49,8 +49,7 @@
+    */
+   private final UpdateSketch gadget_;
+   private final short seedHash_; //eliminates having to compute the seedHash on every update.
+-  private long unionThetaLong_ = Long.MAX_VALUE; //when on-heap, this is the only copy
+-  private boolean unionEmpty_ = true;
++  private long unionThetaLong_; //when on-heap, this is the only copy
+ 
+   private UnionImpl(final UpdateSketch gadget, final long seed) {
+     gadget_ = gadget;
+@@ -116,7 +115,6 @@
+     final UpdateSketch gadget = HeapQuickSelectSketch.heapifyInstance(srcMem, seed);
+     final UnionImpl unionImpl = new UnionImpl(gadget, seed);
+     unionImpl.unionThetaLong_ = srcMem.getLong(UNION_THETA_LONG);
+-    unionImpl.unionEmpty_ = PreambleUtil.isEmpty(srcMem);
+     return unionImpl;
+   }
+ 
+@@ -133,7 +131,6 @@
+     final UpdateSketch gadget = DirectQuickSelectSketchR.fastReadOnlyWrap(srcMem, seed);
+     final UnionImpl unionImpl = new UnionImpl(gadget, seed);
+     unionImpl.unionThetaLong_ = srcMem.getLong(UNION_THETA_LONG);
+-    unionImpl.unionEmpty_ = PreambleUtil.isEmpty(srcMem);
+     return unionImpl;
+   }
+ 
+@@ -150,7 +147,6 @@
+     final UpdateSketch gadget = DirectQuickSelectSketch.fastWritableWrap(srcMem, seed);
+     final UnionImpl unionImpl = new UnionImpl(gadget, seed);
+     unionImpl.unionThetaLong_ = srcMem.getLong(UNION_THETA_LONG);
+-    unionImpl.unionEmpty_ = PreambleUtil.isEmpty(srcMem);
+     return unionImpl;
+   }
+ 
+@@ -167,7 +163,6 @@
+     final UpdateSketch gadget = DirectQuickSelectSketchR.readOnlyWrap(srcMem, seed);
+     final UnionImpl unionImpl = new UnionImpl(gadget, seed);
+     unionImpl.unionThetaLong_ = srcMem.getLong(UNION_THETA_LONG);
+-    unionImpl.unionEmpty_ = PreambleUtil.isEmpty(srcMem);
+     return unionImpl;
+   }
+ 
+@@ -184,7 +179,6 @@
+     final UpdateSketch gadget = DirectQuickSelectSketch.writableWrap(srcMem, seed);
+     final UnionImpl unionImpl = new UnionImpl(gadget, seed);
+     unionImpl.unionThetaLong_ = srcMem.getLong(UNION_THETA_LONG);
+-    unionImpl.unionEmpty_ = PreambleUtil.isEmpty(srcMem);
+     return unionImpl;
+   }
+ 
+@@ -198,7 +192,7 @@
+     final int gadgetCurCount = gadget_.getRetainedEntries(true);
+     final int k = 1 << gadget_.getLgNomLongs();
+     final long[] gadgetCacheCopy =
+-        (gadget_.isDirect()) ? gadget_.getCache() : gadget_.getCache().clone();
++        (gadget_.hasMemory()) ? gadget_.getCache() : gadget_.getCache().clone();
+ 
+     //Pull back to k
+     final long curGadgetThetaLong = gadget_.getThetaLong();
+@@ -206,10 +200,10 @@
+         ? selectExcludingZeros(gadgetCacheCopy, gadgetCurCount, k + 1) : curGadgetThetaLong;
+ 
+     //Finalize Theta and curCount
+-    final long unionThetaLong = (gadget_.isDirect())
++    final long unionThetaLong = (gadget_.hasMemory())
+         ? gadget_.getMemory().getLong(UNION_THETA_LONG) : unionThetaLong_;
+ 
+-    long minThetaLong = min(min(curGadgetThetaLong, adjGadgetThetaLong), unionThetaLong);
++    final long minThetaLong = min(min(curGadgetThetaLong, adjGadgetThetaLong), unionThetaLong);
+     final int curCountOut = (minThetaLong < curGadgetThetaLong)
+         ? HashOperations.count(gadgetCacheCopy, minThetaLong)
+         : gadgetCurCount;
+@@ -217,8 +211,7 @@
+     //Compact the cache
+     final long[] compactCacheOut =
+         compactCache(gadgetCacheCopy, curCountOut, minThetaLong, dstOrdered);
+-    final boolean empty = gadget_.isEmpty() && unionEmpty_;
+-    if (empty) { minThetaLong = Long.MAX_VALUE; }
++    final boolean empty = gadget_.isEmpty();
+     return createCompactSketch(
+         compactCacheOut, empty, seedHash_, curCountOut, minThetaLong, dstOrdered, dstMem);
+   }
+@@ -227,16 +220,13 @@
+   public void reset() {
+     gadget_.reset();
+     unionThetaLong_ = gadget_.getThetaLong();
+-    unionEmpty_ = true;
+   }
+ 
+   @Override
+   public byte[] toByteArray() {
+     final byte[] gadgetByteArr = gadget_.toByteArray();
+-    final WritableMemory wmem = WritableMemory.wrap(gadgetByteArr);
+-    wmem.putLong(UNION_THETA_LONG, unionThetaLong_); // union theta
+-    final boolean empty = gadget_.isEmpty() && unionEmpty_;
+-    if (!empty) { PreambleUtil.clearEmpty(wmem); }
++    final WritableMemory mem = WritableMemory.wrap(gadgetByteArr);
++    mem.putLong(UNION_THETA_LONG, unionThetaLong_); // union theta
+     return gadgetByteArr;
+   }
+ 
+@@ -258,14 +248,13 @@
+     Util.checkSeedHashes(seedHash_, sketchIn.getSeedHash());
+     Sketch.checkSketchAndMemoryFlags(sketchIn);
+ 
+-
+     final long thetaLongIn = sketchIn.getThetaLong();
+     unionThetaLong_ = min(unionThetaLong_, thetaLongIn); //Theta rule with incoming
+     final int curCountIn = sketchIn.getRetainedEntries(true);
+     if (curCountIn > 0) {
+       if (sketchIn.isOrdered()) { //Only true if Compact. Use early stop
+         //Ordered, thus compact
+-        if (sketchIn.isDirect()) {
++        if (sketchIn.hasMemory()) {
+           final Memory skMem = ((CompactSketch) sketchIn).getMemory();
+           final int preambleLongs = skMem.getByte(PREAMBLE_LONGS_BYTE) & 0X3F;
+           for (int i = 0; i < curCountIn; i++ ) {
+@@ -295,15 +284,14 @@
+         }
+       }
+     }
+-    unionThetaLong_ = min(unionThetaLong_, gadget_.getThetaLong()); //theta rule
+-    final int gCurCount = gadget_.getRetainedEntries();
+-    unionEmpty_ = (gCurCount == 0) && (unionThetaLong_ == Long.MAX_VALUE); //empty rule
+-    if (gadget_.isDirect()) {
+-      final WritableMemory wmem = (WritableMemory)gadget_.getMemory();
+-      wmem.putLong(UNION_THETA_LONG, unionThetaLong_);
+-      if (unionEmpty_) { PreambleUtil.setEmpty(wmem); }
++    unionThetaLong_ = min(unionThetaLong_, gadget_.getThetaLong()); //Theta rule with gadget
++    final boolean empty = gadget_.isEmpty() && sketchIn.isEmpty(); //Empty rule
++    if (gadget_.hasMemory()) {
++      final WritableMemory wmem = (WritableMemory) gadget_.getMemory();
++      //OK to modify empty but NOT thetaLong
++      if (empty) { PreambleUtil.setEmpty(wmem); }
+       else { PreambleUtil.clearEmpty(wmem); }
+-    }
++    } else { ((HeapUpdateSketch) gadget_).setEmpty(empty); }
+   }
+ 
+   @Override
+@@ -401,7 +389,7 @@
+ 
+   @Override
+   boolean isEmpty() {
+-    return gadget_.isEmpty() && unionEmpty_;
++    return gadget_.isEmpty();
+   }
+ 
+   //no seedHash, assumes given seed is correct. No p, no empty flag, no concept of direct
+@@ -417,15 +405,15 @@
+       if (hashIn >= unionThetaLong_) { break; } // "early stop"
+       gadget_.hashUpdate(hashIn); //backdoor update, hash function is bypassed
+     }
+-    unionThetaLong_ = min(unionThetaLong_, gadget_.getThetaLong()); //theta rule
+-    final int gCurCount = gadget_.getRetainedEntries();
+-    unionEmpty_ = (gCurCount == 0) && (unionThetaLong_ == Long.MAX_VALUE); //empty rule
+-    if (gadget_.isDirect()) {
+-      final WritableMemory wmem = (WritableMemory)gadget_.getMemory();
+-      wmem.putLong(UNION_THETA_LONG, unionThetaLong_);
+-      if (unionEmpty_) { PreambleUtil.setEmpty(wmem); }
++    unionThetaLong_ = min(unionThetaLong_, gadget_.getThetaLong()); //Theta rule
++    final boolean emptyIn = (curCount == 0) && (thetaLongIn == Long.MAX_VALUE);
++    final boolean empty = gadget_.isEmpty() && emptyIn; //Empty rule
++    if (gadget_.hasMemory()) {
++      final WritableMemory wmem = (WritableMemory) gadget_.getMemory();
++      //OK to modify empty but NOT thetaLong
++      if (empty) { PreambleUtil.setEmpty(wmem); }
+       else { PreambleUtil.clearEmpty(wmem); }
+-    }
++    } else { ((HeapUpdateSketch) gadget_).setEmpty(empty); }
+   }
+ 
+   //has seedHash and p, could have 0 entries & theta,
+@@ -451,15 +439,15 @@
+       if (hashIn >= unionThetaLong_) { break; } // "early stop"
+       gadget_.hashUpdate(hashIn); //backdoor update, hash function is bypassed
+     }
+-    unionThetaLong_ = min(unionThetaLong_, gadget_.getThetaLong()); //theta rule
+-    final int gCurCount = gadget_.getRetainedEntries();
+-    unionEmpty_ = (gCurCount == 0) && (unionThetaLong_ == Long.MAX_VALUE); //empty rule
+-    if (gadget_.isDirect()) {
+-      final WritableMemory wmem = (WritableMemory)gadget_.getMemory();
+-      wmem.putLong(UNION_THETA_LONG, unionThetaLong_);
+-      if (unionEmpty_) { PreambleUtil.setEmpty(wmem); }
++    unionThetaLong_ = min(unionThetaLong_, gadget_.getThetaLong());
++    final boolean emptyIn = (curCount == 0) && (thetaLongIn == Long.MAX_VALUE);
++    final boolean empty = gadget_.isEmpty() && emptyIn; //Empty rule
++    if (gadget_.hasMemory()) {
++      final WritableMemory wmem = (WritableMemory) gadget_.getMemory();
++      //OK to modify empty but NOT thetaLong
++      if (empty) { PreambleUtil.setEmpty(wmem); }
+       else { PreambleUtil.clearEmpty(wmem); }
+-    }
++    } else { ((HeapUpdateSketch) gadget_).setEmpty(empty); }
+   }
+ 
+   //has seedHash, p, could have 0 entries & theta,
+@@ -508,15 +496,15 @@
+         gadget_.hashUpdate(hashIn); //backdoor update, hash function is bypassed
+       }
+     }
+-    unionThetaLong_ = min(unionThetaLong_, gadget_.getThetaLong()); //theta rule
+-    final int gCurCount = gadget_.getRetainedEntries();
+-    unionEmpty_ = (gCurCount == 0) && (unionThetaLong_ == Long.MAX_VALUE); //empty rule
+-    if (gadget_.isDirect()) {
+-      final WritableMemory wmem = (WritableMemory)gadget_.getMemory();
+-      wmem.putLong(UNION_THETA_LONG, unionThetaLong_);
+-      if (unionEmpty_) { PreambleUtil.setEmpty(wmem); }
++    unionThetaLong_ = min(unionThetaLong_, gadget_.getThetaLong()); //sync thetaLongs
++    final boolean emptyIn = (curCount == 0) && (thetaLongIn == Long.MAX_VALUE);
++    final boolean empty = gadget_.isEmpty() && emptyIn; //Empty rule
++    if (gadget_.hasMemory()) {
++      final WritableMemory wmem = (WritableMemory) gadget_.getMemory();
++      //OK to modify empty but NOT thetaLong
++      if (empty) { PreambleUtil.setEmpty(wmem); }
+       else { PreambleUtil.clearEmpty(wmem); }
+-    }
++    } else { ((HeapUpdateSketch) gadget_).setEmpty(empty); }
+   }
+ 
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/yahoo/sketches/theta/ConcurrentDirectQuickSelectSketchTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/yahoo/sketches/theta/ConcurrentDirectQuickSelectSketchTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/yahoo/sketches/theta/ConcurrentDirectQuickSelectSketchTest.java	2024-09-08 01:36:18.725840887 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/yahoo/sketches/theta/ConcurrentDirectQuickSelectSketchTest.java	2024-09-08 01:36:18.697840691 +1000
+@@ -126,6 +126,7 @@
+       assertEquals(local.getClass().getSimpleName(), "ConcurrentHeapThetaBuffer");
+       int curCount1 = shared.getRetainedEntries(true);
+       assertTrue(local.isDirect());
++      assertTrue(local.hasMemory());
+       assertEquals(local.getCurrentPreambleLongs(false), 3);
+ 
+       UpdateSketch sharedHeap = Sketches.heapifyUpdateSketch(mem);
+@@ -142,6 +143,7 @@
+       int cacheCount = HashOperations.count(cache, thetaLong);
+       assertEquals(curCount1, cacheCount);
+       assertFalse(sharedHeap.isDirect());
++      assertFalse(sharedHeap.hasMemory());
+     }
+   }
+ 
+@@ -334,6 +336,7 @@
+ 
+       assertEquals(local.getClass().getSimpleName(), "ConcurrentHeapThetaBuffer");
+       assertTrue(local.isDirect());
++      assertTrue(local.hasMemory());
+ 
+       for (int i=0; i<u; i++) { local.update(i); }
+       waitForBgPropagationToComplete();
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/yahoo/sketches/theta/ConcurrentHeapQuickSelectSketchTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/yahoo/sketches/theta/ConcurrentHeapQuickSelectSketchTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/yahoo/sketches/theta/ConcurrentHeapQuickSelectSketchTest.java	2024-09-08 01:36:18.725840887 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/yahoo/sketches/theta/ConcurrentHeapQuickSelectSketchTest.java	2024-09-08 01:36:18.697840691 +1000
+@@ -232,6 +232,7 @@
+     double localUB  = local.getUpperBound(2);
+     assertEquals(local.isEstimationMode(), estimating);
+     assertFalse(local.isDirect());
++    assertFalse(local.hasMemory());
+ 
+     byte[]  serArr = shared.toByteArray();
+ 
+@@ -267,6 +268,7 @@
+ 
+     assertEquals(local.getClass().getSimpleName(), "ConcurrentHeapThetaBuffer");
+     assertFalse(local.isDirect());
++    assertFalse(local.hasMemory());
+ 
+     for (int i=0; i<u; i++) {
+       local.update(i);
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/yahoo/sketches/theta/DirectQuickSelectSketchTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/yahoo/sketches/theta/DirectQuickSelectSketchTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/yahoo/sketches/theta/DirectQuickSelectSketchTest.java	2024-09-08 01:36:18.725840887 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/yahoo/sketches/theta/DirectQuickSelectSketchTest.java	2024-09-08 01:36:18.697840691 +1000
+@@ -115,6 +115,7 @@
+       assertEquals(sk1.getClass().getSimpleName(), "DirectQuickSelectSketch");
+       int curCount1 = sk1.getRetainedEntries(true);
+       assertTrue(sk1.isDirect());
++      assertTrue(sk1.hasMemory());
+       assertFalse(sk1.isDirty());
+       assertTrue(sk1.hasMemory());
+       assertEquals(sk1.getCurrentPreambleLongs(false), 3);
+@@ -133,6 +134,7 @@
+       int cacheCount = HashOperations.count(cache, thetaLong);
+       assertEquals(curCount1, cacheCount);
+       assertFalse(sk2.isDirect());
++      assertFalse(sk2.hasMemory());
+       assertFalse(sk2.isDirty());
+     }
+   }
+@@ -287,6 +289,7 @@
+ 
+       assertEquals(usk.getClass().getSimpleName(), "DirectQuickSelectSketch");
+       assertTrue(usk.isDirect());
++      assertTrue(usk.hasMemory());
+       assertFalse(usk.isCompact());
+       assertFalse(usk.isOrdered());
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/yahoo/sketches/theta/EmptyTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/yahoo/sketches/theta/EmptyTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/yahoo/sketches/theta/EmptyTest.java	2024-09-08 01:36:18.725840887 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/yahoo/sketches/theta/EmptyTest.java	2024-09-08 01:36:18.697840691 +1000
+@@ -79,9 +79,10 @@
+   public void checkPsampling() {
+     UpdateSketch sk1 = Sketches.updateSketchBuilder().setP(.5F).build();
+     assertTrue(sk1.isEmpty());
+-    //However, an empty P-sampling sketch where T < 1.0 and has never seen data is also empty
+-    // and will have a full preamble of 24 bytes.
+-    assertEquals(sk1.compact().toByteArray().length, 24);
++    //An empty P-sampling sketch where T < 1.0 and has never seen data is also empty
++    // and will have a full preamble of 24 bytes.  But when compacted, theta returns to 1.0, so
++    // it will be stored as only 8 bytes.
++    assertEquals(sk1.compact().toByteArray().length, 8);
+   }
+ 
+   /**
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/yahoo/sketches/theta/ForwardCompatibilityTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/yahoo/sketches/theta/ForwardCompatibilityTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/yahoo/sketches/theta/ForwardCompatibilityTest.java	2024-09-08 01:36:18.725840887 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/yahoo/sketches/theta/ForwardCompatibilityTest.java	2024-09-08 01:36:18.697840691 +1000
+@@ -47,6 +47,7 @@
+     assertEquals(sketch.isEmpty(), true);
+     assertEquals(sketch.isEstimationMode(), false);
+     assertEquals(sketch.isDirect(), false);
++    assertEquals(sketch.hasMemory(), false);
+     assertEquals(sketch.isCompact(), true);
+     assertEquals(sketch.isOrdered(), true);
+     String name = sketch.getClass().getSimpleName();
+@@ -99,6 +100,7 @@
+     assertEquals(sketch.isEmpty(), false);
+     assertEquals(sketch.isEstimationMode(), false);
+     assertEquals(sketch.isDirect(), false);
++    assertEquals(sketch.hasMemory(), false);
+     assertEquals(sketch.isCompact(), true);
+     assertEquals(sketch.isOrdered(), true);
+     assertEquals(sketch.getEstimate(), 1.0);
+@@ -127,6 +129,7 @@
+     assertEquals(sketch.isEmpty(), true);
+     assertEquals(sketch.isEstimationMode(), false);
+     assertEquals(sketch.isDirect(), false);
++    assertEquals(sketch.hasMemory(), false);
+     assertEquals(sketch.isCompact(), true);
+     assertEquals(sketch.isOrdered(), true);
+     String name = sketch.getClass().getSimpleName();
+@@ -154,6 +157,7 @@
+     assertEquals(sketch.isEmpty(), true); //was forced true
+     assertEquals(sketch.isEstimationMode(), false);
+     assertEquals(sketch.isDirect(), false);
++    assertEquals(sketch.hasMemory(), false);
+     assertEquals(sketch.isCompact(), true);
+     assertEquals(sketch.isOrdered(), true);
+     String name = sketch.getClass().getSimpleName();
+@@ -181,6 +185,7 @@
+     assertEquals(sketch.isEmpty(), true); //forced true
+     assertEquals(sketch.isEstimationMode(), false);
+     assertEquals(sketch.isDirect(), false);
++    assertEquals(sketch.hasMemory(), false);
+     assertEquals(sketch.isCompact(), true);
+     assertEquals(sketch.isOrdered(), true);
+     String name = sketch.getClass().getSimpleName();
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/yahoo/sketches/theta/HeapQuickSelectSketchTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/yahoo/sketches/theta/HeapQuickSelectSketchTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/yahoo/sketches/theta/HeapQuickSelectSketchTest.java	2024-09-08 01:36:18.725840887 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/yahoo/sketches/theta/HeapQuickSelectSketchTest.java	2024-09-08 01:36:18.697840691 +1000
+@@ -207,6 +207,7 @@
+ 
+     assertEquals(usk.getClass().getSimpleName(), "HeapQuickSelectSketch");
+     assertFalse(usk.isDirect());
++    assertFalse(usk.hasMemory());
+     assertFalse(usk.isCompact());
+     assertFalse(usk.isOrdered());
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/yahoo/sketches/theta/PairwiseCornerCasesTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/yahoo/sketches/theta/PairwiseCornerCasesTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/yahoo/sketches/theta/PairwiseCornerCasesTest.java	2024-09-08 01:36:18.725840887 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/yahoo/sketches/theta/PairwiseCornerCasesTest.java	2024-09-08 01:36:18.697840691 +1000
+@@ -7,7 +7,7 @@
+ 
+ import static com.yahoo.sketches.theta.PairwiseCornerCasesTest.State.EMPTY;
+ import static com.yahoo.sketches.theta.PairwiseCornerCasesTest.State.EST_HEAP;
+-import static com.yahoo.sketches.theta.PairwiseCornerCasesTest.State.EST_HEAP_UNORDERED;
++import static com.yahoo.sketches.theta.PairwiseCornerCasesTest.State.EST_MEMORY_UNORDERED;
+ import static com.yahoo.sketches.theta.PairwiseCornerCasesTest.State.NULL;
+ import static org.testng.Assert.assertEquals;
+ import static org.testng.Assert.assertNull;
+@@ -86,15 +86,15 @@
+     int k = 64;
+     for (State stateA : State.values()) {
+       for (State stateB : State.values()) {
+-        if ((stateA == EST_HEAP_UNORDERED) || (stateB == EST_HEAP_UNORDERED)) { continue; }
++        if ((stateA == EST_MEMORY_UNORDERED) || (stateB == EST_MEMORY_UNORDERED)) { continue; }
+         cornerCaseChecks(stateA, stateB, k);
+       }
+     }
+   }
+ 
+-  @Test
++  //@Test
+   public void checkNull_CNT0_THLT1() {
+-    cornerCaseChecks(State.EXACT, State.CNT0_THLT1, 64);
++    cornerCaseChecks(State.NULL, State.CNT0_THLT1, 64);
+   }
+ 
+   private static void cornerCaseChecks(State stateA, State stateB, int k) {
+@@ -126,6 +126,7 @@
+     } else {
+       Assert.assertEquals(pwEst, stdEst, 0.0);
+     }
++
+     Assert.assertEquals(pwEmpty, stdEmpty);
+     Assert.assertEquals(pwTheta, stdTheta, 0.0);
+     Assert.assertEquals(pwEnt, stdEnt);
+@@ -186,7 +187,7 @@
+     CompactSketch skNull = generate(NULL, k);
+     CompactSketch skEmpty = generate(EMPTY, k);
+     CompactSketch skHeap = generate(EST_HEAP, k);
+-    CompactSketch skHeapUO = generate(EST_HEAP_UNORDERED, k);
++    CompactSketch skHeapUO = generate(EST_MEMORY_UNORDERED, k);
+ 
+     try {
+       PairwiseSetOperations.union(skNull, skHeapUO, k);
+@@ -326,6 +327,7 @@
+     assertEquals(csk.getRetainedEntries(), 0);
+     assertEquals(csk.getThetaLong(), Long.MAX_VALUE);
+     assertEquals(csk.isDirect(), false);
++    assertEquals(csk.hasMemory(), false);
+     assertEquals(csk.isOrdered(), true);
+ 
+     csk = generate(State.EXACT, k);
+@@ -334,6 +336,7 @@
+     assertEquals(csk.getRetainedEntries(), k);
+     assertEquals(csk.getThetaLong(), Long.MAX_VALUE);
+     assertEquals(csk.isDirect(), false);
++    assertEquals(csk.hasMemory(), false);
+     assertEquals(csk.isOrdered(), true);
+ 
+     csk = generate(State.EST_HEAP, k);
+@@ -342,6 +345,7 @@
+     assertEquals(csk.getRetainedEntries() > k, true);
+     assertEquals(csk.getThetaLong() < Long.MAX_VALUE, true);
+     assertEquals(csk.isDirect(), false);
++    assertEquals(csk.hasMemory(), false);
+     assertEquals(csk.isOrdered(), true);
+ 
+     csk = generate(State.CNT0_THLT1, k);
+@@ -350,18 +354,20 @@
+     assertEquals(csk.getRetainedEntries(), 0);
+     assertEquals(csk.getThetaLong() < Long.MAX_VALUE, true);
+     assertEquals(csk.isDirect(), false);
++    assertEquals(csk.hasMemory(), false);
+     assertEquals(csk.isOrdered(), true);
+ 
+-    csk = generate(State.EST_HEAP_UNORDERED, k);
++    csk = generate(State.EST_MEMORY_UNORDERED, k);
+     assertEquals(csk.isEmpty(), false);
+     assertEquals(csk.isEstimationMode(), true);
+     assertEquals(csk.getRetainedEntries() > k, true);
+     assertEquals(csk.getThetaLong() < Long.MAX_VALUE, true);
+     assertEquals(csk.isDirect(), false);
++    assertEquals(csk.hasMemory(), true);
+     assertEquals(csk.isOrdered(), false);
+   }
+ 
+-  enum State {NULL, EMPTY, EXACT, EST_HEAP, CNT0_THLT1, EST_HEAP_UNORDERED}
++  enum State {NULL, EMPTY, EXACT, EST_HEAP, CNT0_THLT1, EST_MEMORY_UNORDERED}
+ 
+   private static CompactSketch generate(State state, int k) {
+     UpdateSketch sk = null;
+@@ -399,7 +405,7 @@
+         csk = sk.compact(true, null);
+         break;
+       }
+-      case EST_HEAP_UNORDERED : {
++      case EST_MEMORY_UNORDERED : {
+         sk = Sketches.updateSketchBuilder().setNominalEntries(k).build();
+         for (int i = 0; i < (4 * k); i++) {
+           sk.update(i);
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/yahoo/sketches/theta/SingleItemSketchTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/yahoo/sketches/theta/SingleItemSketchTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/yahoo/sketches/theta/SingleItemSketchTest.java	2024-09-08 01:36:18.725840887 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/yahoo/sketches/theta/SingleItemSketchTest.java	2024-09-08 01:36:18.697840691 +1000
+@@ -113,8 +113,8 @@
+     assertEquals(sis.getRetainedEntries(true), 1);
+     assertEquals(sis.getUpperBound(1), 1.0);
+     assertFalse(sis.isDirect());
+-    assertFalse(sis.isEmpty());
+     assertFalse(sis.hasMemory());
++    assertFalse(sis.isEmpty());
+     assertTrue(sis.isOrdered());
+   }
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/yahoo/sketches/theta/SketchTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/yahoo/sketches/theta/SketchTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/yahoo/sketches/theta/SketchTest.java	2024-09-08 01:36:18.725840887 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/yahoo/sketches/theta/SketchTest.java	2024-09-08 01:36:18.697840691 +1000
+@@ -290,11 +290,13 @@
+     Memory v1mem = ForwardCompatibilityTest.convertSerV3toSerV1(v3mem);
+     Sketch csk2 = Sketch.wrap(v1mem);
+     assertFalse(csk2.isDirect());
++    assertFalse(csk2.hasMemory());
+     assertEquals(uest1, csk2.getEstimate(), 0.0);
+ 
+     Memory v2mem = ForwardCompatibilityTest.convertSerV3toSerV2(v3mem);
+     csk2 = Sketch.wrap(v2mem);
+     assertFalse(csk2.isDirect());
++    assertFalse(csk2.hasMemory());
+     assertEquals(uest1, csk2.getEstimate(), 0.0);
+   }
+ 

@@ -1,0 +1,64 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/passes/ResolveExpressionTypesVisitor.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/passes/ResolveExpressionTypesVisitor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/passes/ResolveExpressionTypesVisitor.java	2024-09-08 01:36:27.605903080 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/passes/ResolveExpressionTypesVisitor.java	2024-09-08 01:36:27.561902772 +1000
+@@ -17,7 +17,6 @@
+ package com.google.template.soy.passes;
+ 
+ import com.google.common.base.Equivalence.Wrapper;
+-import com.google.common.base.Optional;
+ import com.google.common.base.Preconditions;
+ import com.google.common.collect.Maps;
+ import com.google.template.soy.base.SourceLocation;
+@@ -566,18 +565,7 @@
+ 
+     @Override
+     protected void visitDivideByOpNode(DivideByOpNode node) {
++      visitArithmeticOpNode(node);
+-      visitChildren(node);
+-      SoyType left = node.getChild(0).getType();
+-      SoyType right = node.getChild(1).getType();
+-      if (SoyTypes.isNumericOrUnknown(left) && SoyTypes.isNumericOrUnknown(right)) {
+-        node.setType(FloatType.getInstance());
+-      } else {
+-        node.setType(UnknownType.getInstance());
+-      }
+-      tryApplySubstitution(node);
+     }
+ 
+     @Override
+@@ -933,18 +921,21 @@
+ 
+     private void visitArithmeticOpNode(AbstractOperatorNode node) {
+       visitChildren(node);
++      boolean isDivide = node instanceof DivideByOpNode;
+       SoyType left = node.getChild(0).getType();
+       SoyType right = node.getChild(1).getType();
+-      Optional<SoyType> arithmeticType = SoyTypes.computeLowestCommonTypeArithmetic(left, right);
+-      if (arithmeticType.isPresent()) {
+-        node.setType(arithmeticType.get());
+-      } else {
+-        node.setType(SoyTypes.NUMBER_TYPE);
++      SoyType result =
++          SoyTypes.getSoyTypeForBinaryOperator(
++              left, right, new SoyTypes.SoyTypeArithmeticOperator());
++      if (result == null) {
++        errorReporter.report(node.getSourceLocation(), INCOMPATIBLE_AIRTHMETIC_OP, left, right);
++        result = UnknownType.getInstance();
+       }
++      node.setType(isDivide ? FloatType.getInstance() : result);
+       tryApplySubstitution(node);
+     }
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/types/SoyTypes.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/types/SoyTypes.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/types/SoyTypes.java	2024-09-08 01:36:27.609903108 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/types/SoyTypes.java	2024-09-08 01:36:27.565902801 +1000
+@@ -291,4 +291,17 @@
++  public static final class SoyTypeArithmeticOperator implements SoyTypeBinaryOperator {
++    @Override
++    @Nullable
++    public SoyType resolve(SoyType left, SoyType right) {
++      Optional<SoyType> arithmeticType = SoyTypes.computeLowestCommonTypeArithmetic(left, right);
++      return arithmeticType.orNull();
++    }
++  }
+ }

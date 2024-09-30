@@ -1,0 +1,867 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/adobe/epubcheck/ctc/css/EpubCSSCheckCSSHandler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/adobe/epubcheck/ctc/css/EpubCSSCheckCSSHandler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/adobe/epubcheck/ctc/css/EpubCSSCheckCSSHandler.java	2024-09-08 01:36:05.493748216 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/adobe/epubcheck/ctc/css/EpubCSSCheckCSSHandler.java	2024-09-08 01:36:05.125745639 +1000
+@@ -544,11 +544,19 @@
+       {
+         if (!isGlobalFixedFormat || hasIndividualFixedFormatDocuments)
+         {
++          // report non-relative font-size keyword as ACC USAGE message
+           String value = construct.toCssString().toLowerCase(Locale.ROOT);
+-          if (("smaller".compareTo(value) != 0) && ("larger".compareTo(value) != 0) && ("inherit".compareTo(value) != 0))
++
++          // report not allowed font-size keyword as ERROR message
++          if (!isFontSize(construct))
++          {
++            getReport().message(MessageId.CSS_020, getCorrectedEPUBLocation(path, declaration.getLocation().getLine(), declaration.getLocation().getColumn(), declaration.toCssString()), construct.toCssString());
++          }
++          else if (("smaller".compareTo(value) != 0) && ("larger".compareTo(value) != 0) && ("inherit".compareTo(value) != 0))
+           {
+-            getReport().message(id, getCorrectedEPUBLocation(path, declaration.getLocation().getLine(), declaration.getLocation().getColumn(), declaration.toCssString()));
++            getReport().message(id, getCorrectedEPUBLocation(path, declaration.getLocation().getLine(), declaration.getLocation().getColumn(), declaration.toCssString()), construct.toCssString());
+           }
++          
+         }
+         break;
+       }
+@@ -559,11 +567,17 @@
+           switch (quantity.getUnit())
+           {
+             case EMS:
++            case EXS:
+             case REMS:
+             case PERCENTAGE:
+               break;
++            case LENGTH:
++              // report absolute font-size as ACC USAGE message
++              getReport().message(id, getCorrectedEPUBLocation(path, declaration.getLocation().getLine(), declaration.getLocation().getColumn(), declaration.toCssString()), construct.toCssString());
++              break;
+             default:
+-              getReport().message(id, getCorrectedEPUBLocation(path, declaration.getLocation().getLine(), declaration.getLocation().getColumn(), declaration.toCssString()));
++              // report unsupported font-size as ERROR message
++              getReport().message(MessageId.CSS_020, getCorrectedEPUBLocation(path, declaration.getLocation().getLine(), declaration.getLocation().getColumn(), declaration.toCssString()), construct.toCssString());
+               break;
+           }
+         }
+@@ -672,6 +686,7 @@
+           "xx-large",
+           "larger",
+           "smaller",
++          "inherit"
+       };
+       fontSizes = getHashSetFromStrings(fontSizeStrings);
+     }
+@@ -688,6 +703,7 @@
+       {
+         case PERCENTAGE:
+         case EMS:
++        case EXS:
+         case LENGTH:
+           return true;
+       }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/adobe/epubcheck/messages/MessageDictionary.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/adobe/epubcheck/messages/MessageDictionary.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/adobe/epubcheck/messages/MessageDictionary.java	2024-09-08 01:36:05.493748216 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/adobe/epubcheck/messages/MessageDictionary.java	2024-09-08 01:36:05.125745639 +1000
+@@ -112,7 +112,7 @@
+       map.put(MessageId.CSS_016, Severity.SUPPRESSED);
+       map.put(MessageId.CSS_017, Severity.WARNING);
+       map.put(MessageId.CSS_019, Severity.WARNING);
+-      map.put(MessageId.CSS_020, Severity.USAGE);
++      map.put(MessageId.CSS_020, Severity.ERROR);
+       map.put(MessageId.CSS_021, Severity.USAGE);
+       map.put(MessageId.CSS_022, Severity.USAGE);
+       map.put(MessageId.CSS_023, Severity.USAGE);
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/resources/com/adobe/epubcheck/messages/MessageBundle.properties ./RegMiner4APR-Regression-Bugs/BIC/src/main/resources/com/adobe/epubcheck/messages/MessageBundle.properties
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/resources/com/adobe/epubcheck/messages/MessageBundle.properties	2024-09-08 01:36:05.497748245 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/resources/com/adobe/epubcheck/messages/MessageBundle.properties	2024-09-08 01:36:05.129745667 +1000
+@@ -15,11 +15,11 @@
+ ACC_012=Table elements should include a caption element.
+ ACC_013=Content file contains at least one inline style declaration.
+ ACC_013_SUG=Inline styles are not compatible with accessibility settings and display personalization. Use CSS Styles instead.
+-ACC_014=Value of CSS property 'font-size' does not use a relative size.
++ACC_014=Value of CSS property 'font-size' does not use a relative size: '%1$s'
+ ACC_014_SUG=Acceptable values include percentages, em multiples, 'larger', 'smaller', 'normal' or 'inherit'.
+ ACC_015=Value of CSS property 'line-height' does not use a relative size.
+ ACC_015_SUG=Acceptable values include percentages, numeric multiples, em multiples, 'normal', or 'inherit'.
+-ACC_016=Value of CSS property 'font-size' should use a relative size.
++ACC_016=Value of CSS property 'font-size' should use a relative size: '%1$s'
+ ACC_016_SUG=Acceptable values include percentages, em multiples, 'larger', 'smaller', 'normal' or 'inherit'.
+ ACC_017=Value of CSS property 'line-height' does not use a relative size.
+ ACC_017_SUG=Acceptable values include percentages, numeric multiples, em multiples, 'normal', or 'inherit'.
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/adobe/epubcheck/api/Epub30CheckTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/adobe/epubcheck/api/Epub30CheckTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/adobe/epubcheck/api/Epub30CheckTest.java	2024-09-08 01:36:05.509748329 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/adobe/epubcheck/api/Epub30CheckTest.java	2024-09-08 01:36:05.137745723 +1000
+@@ -183,7 +183,7 @@
+   public void testValidateEPUB30Issue221()
+   {
+     Collections.addAll(expectedErrors, MessageId.CSS_008, MessageId.RSC_007, MessageId.RSC_007,
+-        MessageId.RSC_007, MessageId.RSC_007, MessageId.RSC_007, MessageId.RSC_007);
++        MessageId.RSC_007, MessageId.RSC_007, MessageId.RSC_007, MessageId.RSC_007, MessageId.CSS_020);
+     // syntax error in css that should not mask font-face
+     testValidateDocument("invalid/issue221.epub");
+   }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/idpf/epubcheck/util/css/CssParserTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/idpf/epubcheck/util/css/CssParserTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/idpf/epubcheck/util/css/CssParserTest.java	2024-09-08 01:36:05.509748329 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/idpf/epubcheck/util/css/CssParserTest.java	2024-09-08 01:36:05.141745751 +1000
+@@ -2,7 +2,9 @@
+ 
+ import static org.idpf.epubcheck.util.css.CssTokenList.Filters.FILTER_NONE;
+ import static org.idpf.epubcheck.util.css.CssTokenList.Filters.FILTER_S_CMNT;
+-import static org.junit.Assert.*;
++import static org.junit.Assert.assertEquals;
++import static org.junit.Assert.assertFalse;
++import static org.junit.Assert.assertTrue;
+ 
+ import java.io.IOException;
+ import java.io.PrintStream;
+@@ -156,6 +158,19 @@
+ 		HandlerImpl handler = checkBasics(exec(css7));		
+ 		assertEquals(0, handler.errors.size());
+ 	}
++  
++  @Test
++  public void testParser014() throws Exception {
++    String s = "E { font-size: 1m; } ";
++    HandlerImpl handler = checkBasics(exec(s));   
++    assertEquals(1, handler.selectors.size());
++    assertEquals(1, handler.declarations.size());
++    assertEquals(1, handler.declarations.get(0).components.size());
++    for(CssConstruct cc : handler.declarations.get(0).components) {
++      assertTrue(cc instanceof CssQuantity);
++      assertTrue(((CssQuantity)cc).subType != CssQuantity.Unit.LENGTH); // '1m' is invalid length
++    }
++  }
+ 			
+ 	@Test
+ 	public void testParserAtRule001() throws Exception {
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/30/expanded/invalid: invalid-css-font-size-value
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/command_line/severity_overrideBadId_expected_results.txt ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/command_line/severity_overrideBadId_expected_results.txt
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/command_line/severity_overrideBadId_expected_results.txt	2024-09-08 01:36:05.609749029 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/command_line/severity_overrideBadId_expected_results.txt	2024-09-08 01:36:05.241746452 +1000
+@@ -18,35 +18,35 @@
+ USAGE(OPF-059): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/toc.ncx(-1,-1): Spine item has no NCX entry reference.
+ USAGE(CSS-012): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/external_css.xhtml(6,62): Document links to multiple CSS files.
+ USAGE(CSS-012): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/external_css.xhtml(7,66): Document links to multiple CSS files.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(2,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(7,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(2,5): Value of CSS property 'font-size' does not use a relative size: '14px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(7,5): Value of CSS property 'font-size' does not use a relative size: '12px'
+ USAGE(ACC-015): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(7,5): Value of CSS property 'line-height' does not use a relative size.
+ USAGE(CSS-021): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(11,5): Shorthand CSS property 'font-family' specifies an invalid System Font.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(15,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(19,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(27,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(15,5): Value of CSS property 'font-size' does not use a relative size: '18px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(19,5): Value of CSS property 'font-size' does not use a relative size: '18px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(27,5): Value of CSS property 'font-size' does not use a relative size: '12px'
+ USAGE(ACC-015): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(27,5): Value of CSS property 'line-height' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(35,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(39,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(35,5): Value of CSS property 'font-size' does not use a relative size: 'x-large'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(39,5): Value of CSS property 'font-size' does not use a relative size: 'large'
+ WARNING(CSS-017): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(70,5): CSS selector specifies absolute position.
+ USAGE(CSS-013): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(79,5): CSS property is declared !Important.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(90,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(90,5): Value of CSS property 'font-size' does not use a relative size: 'large'
+ USAGE(CSS-023): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(97,1): CSS selector specifies media query.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(99,9): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(8,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(14,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(23,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(32,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(38,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(51,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(58,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(99,9): Value of CSS property 'font-size' does not use a relative size: 'large'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(8,5): Value of CSS property 'font-size' does not use a relative size: '12px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(14,5): Value of CSS property 'font-size' does not use a relative size: '22px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(23,5): Value of CSS property 'font-size' does not use a relative size: '14px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(32,5): Value of CSS property 'font-size' does not use a relative size: '12px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(38,5): Value of CSS property 'font-size' does not use a relative size: '12px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(51,5): Value of CSS property 'font-size' does not use a relative size: '11px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(58,5): Value of CSS property 'font-size' does not use a relative size: '10px'
+ WARNING(CSS-017): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(2,5): CSS selector specifies absolute position.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(10,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(10,5): Value of CSS property 'font-size' does not use a relative size: '12px'
+ USAGE(ACC-015): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(10,5): Value of CSS property 'line-height' does not use a relative size.
+ USAGE(CSS-013): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(15,5): CSS property is declared !Important.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(27,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(27,5): Value of CSS property 'font-size' does not use a relative size: 'large'
+ USAGE(CSS-023): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(33,1): CSS selector specifies media query.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(35,9): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(35,9): Value of CSS property 'font-size' does not use a relative size: 'large'
+ USAGE(CSS-013): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style_tag_css.xhtml(9,13): CSS property is declared !Important.
+ WARNING(CSS-017): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style_tag_css.xhtml(17,13): CSS selector specifies absolute position.
+ USAGE(CSS-023): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style_tag_css.xhtml(20,9): CSS selector specifies media query.
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/command_line/severity_overrideBadMessage_expected_results.txt ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/command_line/severity_overrideBadMessage_expected_results.txt
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/command_line/severity_overrideBadMessage_expected_results.txt	2024-09-08 01:36:05.609749029 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/command_line/severity_overrideBadMessage_expected_results.txt	2024-09-08 01:36:05.241746452 +1000
+@@ -19,35 +19,35 @@
+ USAGE(OPF-059): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/toc.ncx(-1,-1): Spine item has no NCX entry reference.
+ USAGE(CSS-012): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/external_css.xhtml(6,62): Document links to multiple CSS files.
+ USAGE(CSS-012): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/external_css.xhtml(7,66): Document links to multiple CSS files.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(2,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(7,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(2,5): Value of CSS property 'font-size' does not use a relative size: '14px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(7,5): Value of CSS property 'font-size' does not use a relative size: '12px'
+ USAGE(ACC-015): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(7,5): This is an overridden message.
+ USAGE(CSS-021): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(11,5): Shorthand CSS property 'font-family' specifies an invalid System Font.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(15,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(19,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(27,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(15,5): Value of CSS property 'font-size' does not use a relative size: '18px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(19,5): Value of CSS property 'font-size' does not use a relative size: '18px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(27,5): Value of CSS property 'font-size' does not use a relative size: '12px'
+ USAGE(ACC-015): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(27,5): This is an overridden message.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(35,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(39,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(35,5): Value of CSS property 'font-size' does not use a relative size: 'x-large'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(39,5): Value of CSS property 'font-size' does not use a relative size: 'large'
+ WARNING(CSS-017): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(70,5): CSS selector specifies absolute position.
+ USAGE(CSS-013): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(79,5): CSS property is declared !Important.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(90,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(90,5): Value of CSS property 'font-size' does not use a relative size: 'large'
+ USAGE(CSS-023): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(97,1): CSS selector specifies media query.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(99,9): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(8,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(14,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(23,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(32,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(38,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(51,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(58,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(99,9): Value of CSS property 'font-size' does not use a relative size: 'large'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(8,5): Value of CSS property 'font-size' does not use a relative size: '12px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(14,5): Value of CSS property 'font-size' does not use a relative size: '22px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(23,5): Value of CSS property 'font-size' does not use a relative size: '14px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(32,5): Value of CSS property 'font-size' does not use a relative size: '12px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(38,5): Value of CSS property 'font-size' does not use a relative size: '12px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(51,5): Value of CSS property 'font-size' does not use a relative size: '11px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(58,5): Value of CSS property 'font-size' does not use a relative size: '10px'
+ WARNING(CSS-017): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(2,5): CSS selector specifies absolute position.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(10,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(10,5): Value of CSS property 'font-size' does not use a relative size: '12px'
+ USAGE(ACC-015): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(10,5): This is an overridden message.
+ USAGE(CSS-013): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(15,5): CSS property is declared !Important.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(27,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(27,5): Value of CSS property 'font-size' does not use a relative size: 'large'
+ USAGE(CSS-023): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(33,1): CSS selector specifies media query.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(35,9): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(35,9): Value of CSS property 'font-size' does not use a relative size: 'large'
+ USAGE(CSS-013): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style_tag_css.xhtml(9,13): CSS property is declared !Important.
+ WARNING(CSS-017): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style_tag_css.xhtml(17,13): CSS selector specifies absolute position.
+ USAGE(CSS-023): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style_tag_css.xhtml(20,9): CSS selector specifies media query.
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/command_line/severity_overrideBadSeverity_expected_results.txt ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/command_line/severity_overrideBadSeverity_expected_results.txt
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/command_line/severity_overrideBadSeverity_expected_results.txt	2024-09-08 01:36:05.609749029 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/command_line/severity_overrideBadSeverity_expected_results.txt	2024-09-08 01:36:05.241746452 +1000
+@@ -18,35 +18,35 @@
+ USAGE(OPF-059): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/toc.ncx(-1,-1): Spine item has no NCX entry reference.
+ USAGE(CSS-012): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/external_css.xhtml(6,62): Document links to multiple CSS files.
+ USAGE(CSS-012): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/external_css.xhtml(7,66): Document links to multiple CSS files.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(2,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(7,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(2,5): Value of CSS property 'font-size' does not use a relative size: '14px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(7,5): Value of CSS property 'font-size' does not use a relative size: '12px'
+ USAGE(ACC-015): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(7,5): Value of CSS property 'line-height' does not use a relative size.
+ USAGE(CSS-021): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(11,5): Shorthand CSS property 'font-family' specifies an invalid System Font.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(15,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(19,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(27,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(15,5): Value of CSS property 'font-size' does not use a relative size: '18px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(19,5): Value of CSS property 'font-size' does not use a relative size: '18px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(27,5): Value of CSS property 'font-size' does not use a relative size: '12px'
+ USAGE(ACC-015): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(27,5): Value of CSS property 'line-height' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(35,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(39,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(35,5): Value of CSS property 'font-size' does not use a relative size: 'x-large'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(39,5): Value of CSS property 'font-size' does not use a relative size: 'large'
+ WARNING(CSS-017): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(70,5): CSS selector specifies absolute position.
+ USAGE(CSS-013): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(79,5): CSS property is declared !Important.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(90,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(90,5): Value of CSS property 'font-size' does not use a relative size: 'large'
+ USAGE(CSS-023): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(97,1): CSS selector specifies media query.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(99,9): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(8,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(14,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(23,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(32,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(38,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(51,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(58,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(99,9): Value of CSS property 'font-size' does not use a relative size: 'large'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(8,5): Value of CSS property 'font-size' does not use a relative size: '12px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(14,5): Value of CSS property 'font-size' does not use a relative size: '22px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(23,5): Value of CSS property 'font-size' does not use a relative size: '14px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(32,5): Value of CSS property 'font-size' does not use a relative size: '12px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(38,5): Value of CSS property 'font-size' does not use a relative size: '12px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(51,5): Value of CSS property 'font-size' does not use a relative size: '11px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(58,5): Value of CSS property 'font-size' does not use a relative size: '10px'
+ WARNING(CSS-017): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(2,5): CSS selector specifies absolute position.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(10,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(10,5): Value of CSS property 'font-size' does not use a relative size: '12px'
+ USAGE(ACC-015): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(10,5): Value of CSS property 'line-height' does not use a relative size.
+ USAGE(CSS-013): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(15,5): CSS property is declared !Important.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(27,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(27,5): Value of CSS property 'font-size' does not use a relative size: 'large'
+ USAGE(CSS-023): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(33,1): CSS selector specifies media query.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(35,9): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(35,9): Value of CSS property 'font-size' does not use a relative size: 'large'
+ USAGE(CSS-013): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style_tag_css.xhtml(9,13): CSS property is declared !Important.
+ WARNING(CSS-017): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style_tag_css.xhtml(17,13): CSS selector specifies absolute position.
+ USAGE(CSS-023): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style_tag_css.xhtml(20,9): CSS selector specifies media query.
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/command_line/severity_overrideMissingFile_expected_results.txt ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/command_line/severity_overrideMissingFile_expected_results.txt
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/command_line/severity_overrideMissingFile_expected_results.txt	2024-09-08 01:36:05.609749029 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/command_line/severity_overrideMissingFile_expected_results.txt	2024-09-08 01:36:05.241746452 +1000
+@@ -18,35 +18,35 @@
+ USAGE(OPF-059): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/toc.ncx(-1,-1): Spine item has no NCX entry reference.
+ USAGE(CSS-012): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/external_css.xhtml(6,62): Document links to multiple CSS files.
+ USAGE(CSS-012): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/external_css.xhtml(7,66): Document links to multiple CSS files.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(2,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(7,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(2,5): Value of CSS property 'font-size' does not use a relative size: '14px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(7,5): Value of CSS property 'font-size' does not use a relative size: '12px'
+ USAGE(ACC-015): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(7,5): Value of CSS property 'line-height' does not use a relative size.
+ USAGE(CSS-021): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(11,5): Shorthand CSS property 'font-family' specifies an invalid System Font.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(15,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(19,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(27,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(15,5): Value of CSS property 'font-size' does not use a relative size: '18px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(19,5): Value of CSS property 'font-size' does not use a relative size: '18px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(27,5): Value of CSS property 'font-size' does not use a relative size: '12px'
+ USAGE(ACC-015): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(27,5): Value of CSS property 'line-height' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(35,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(39,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(35,5): Value of CSS property 'font-size' does not use a relative size: 'x-large'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(39,5): Value of CSS property 'font-size' does not use a relative size: 'large'
+ WARNING(CSS-017): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(70,5): CSS selector specifies absolute position.
+ USAGE(CSS-013): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(79,5): CSS property is declared !Important.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(90,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(90,5): Value of CSS property 'font-size' does not use a relative size: 'large'
+ USAGE(CSS-023): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(97,1): CSS selector specifies media query.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(99,9): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(8,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(14,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(23,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(32,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(38,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(51,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(58,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(99,9): Value of CSS property 'font-size' does not use a relative size: 'large'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(8,5): Value of CSS property 'font-size' does not use a relative size: '12px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(14,5): Value of CSS property 'font-size' does not use a relative size: '22px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(23,5): Value of CSS property 'font-size' does not use a relative size: '14px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(32,5): Value of CSS property 'font-size' does not use a relative size: '12px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(38,5): Value of CSS property 'font-size' does not use a relative size: '12px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(51,5): Value of CSS property 'font-size' does not use a relative size: '11px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(58,5): Value of CSS property 'font-size' does not use a relative size: '10px'
+ WARNING(CSS-017): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(2,5): CSS selector specifies absolute position.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(10,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(10,5): Value of CSS property 'font-size' does not use a relative size: '12px'
+ USAGE(ACC-015): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(10,5): Value of CSS property 'line-height' does not use a relative size.
+ USAGE(CSS-013): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(15,5): CSS property is declared !Important.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(27,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(27,5): Value of CSS property 'font-size' does not use a relative size: 'large'
+ USAGE(CSS-023): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(33,1): CSS selector specifies media query.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(35,9): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(35,9): Value of CSS property 'font-size' does not use a relative size: 'large'
+ USAGE(CSS-013): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style_tag_css.xhtml(9,13): CSS property is declared !Important.
+ WARNING(CSS-017): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style_tag_css.xhtml(17,13): CSS selector specifies absolute position.
+ USAGE(CSS-023): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style_tag_css.xhtml(20,9): CSS selector specifies media query.
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/command_line/severity_overrideOk_expected_results.txt ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/command_line/severity_overrideOk_expected_results.txt
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/command_line/severity_overrideOk_expected_results.txt	2024-09-08 01:36:05.609749029 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/command_line/severity_overrideOk_expected_results.txt	2024-09-08 01:36:05.241746452 +1000
+@@ -17,34 +17,34 @@
+ USAGE(OPF-059): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/toc.ncx(-1,-1): Spine item has no NCX entry reference.
+ ERROR(CSS-012): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/external_css.xhtml(6,62):  (severity overridden from USAGE) This is an overridden message
+ ERROR(CSS-012): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/external_css.xhtml(7,66):  (severity overridden from USAGE) This is an overridden message
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(2,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(7,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(2,5): Value of CSS property 'font-size' does not use a relative size: '14px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(7,5): Value of CSS property 'font-size' does not use a relative size: '12px'
+ USAGE(ACC-015): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(7,5): Value of CSS property 'line-height' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(15,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(19,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(27,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(15,5): Value of CSS property 'font-size' does not use a relative size: '18px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(19,5): Value of CSS property 'font-size' does not use a relative size: '18px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(27,5): Value of CSS property 'font-size' does not use a relative size: '12px'
+ USAGE(ACC-015): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(27,5): Value of CSS property 'line-height' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(35,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(39,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(35,5): Value of CSS property 'font-size' does not use a relative size: 'x-large'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(39,5): Value of CSS property 'font-size' does not use a relative size: 'large'
+ WARNING(CSS-017): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(70,5): CSS selector specifies absolute position.
+ USAGE(CSS-013): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(79,5): CSS property is declared !Important.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(90,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(90,5): Value of CSS property 'font-size' does not use a relative size: 'large'
+ USAGE(CSS-023): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(97,1): CSS selector specifies media query.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(99,9): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(8,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(14,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(23,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(32,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(38,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(51,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(58,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(99,9): Value of CSS property 'font-size' does not use a relative size: 'large'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(8,5): Value of CSS property 'font-size' does not use a relative size: '12px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(14,5): Value of CSS property 'font-size' does not use a relative size: '22px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(23,5): Value of CSS property 'font-size' does not use a relative size: '14px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(32,5): Value of CSS property 'font-size' does not use a relative size: '12px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(38,5): Value of CSS property 'font-size' does not use a relative size: '12px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(51,5): Value of CSS property 'font-size' does not use a relative size: '11px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(58,5): Value of CSS property 'font-size' does not use a relative size: '10px'
+ WARNING(CSS-017): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(2,5): CSS selector specifies absolute position.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(10,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(10,5): Value of CSS property 'font-size' does not use a relative size: '12px'
+ USAGE(ACC-015): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(10,5): Value of CSS property 'line-height' does not use a relative size.
+ USAGE(CSS-013): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(15,5): CSS property is declared !Important.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(27,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(27,5): Value of CSS property 'font-size' does not use a relative size: 'large'
+ USAGE(CSS-023): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(33,1): CSS selector specifies media query.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(35,9): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(35,9): Value of CSS property 'font-size' does not use a relative size: 'large'
+ USAGE(CSS-013): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style_tag_css.xhtml(9,13): CSS property is declared !Important.
+ WARNING(CSS-017): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style_tag_css.xhtml(17,13): CSS selector specifies absolute position.
+ USAGE(CSS-023): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style_tag_css.xhtml(20,9): CSS selector specifies media query.
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/command_line/severity_usage_expected_results.txt ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/command_line/severity_usage_expected_results.txt
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/command_line/severity_usage_expected_results.txt	2024-09-08 01:36:05.609749029 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/command_line/severity_usage_expected_results.txt	2024-09-08 01:36:05.241746452 +1000
+@@ -17,35 +17,35 @@
+ USAGE(OPF-059): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/toc.ncx(-1,-1): Spine item has no NCX entry reference.
+ USAGE(CSS-012): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/external_css.xhtml(6,62): Document links to multiple CSS files.
+ USAGE(CSS-012): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/external_css.xhtml(7,66): Document links to multiple CSS files.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(2,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(7,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(2,5): Value of CSS property 'font-size' does not use a relative size: '14px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(7,5): Value of CSS property 'font-size' does not use a relative size: '12px'
+ USAGE(ACC-015): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(7,5): Value of CSS property 'line-height' does not use a relative size.
+ USAGE(CSS-021): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(11,5): Shorthand CSS property 'font-family' specifies an invalid System Font.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(15,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(19,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(27,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(15,5): Value of CSS property 'font-size' does not use a relative size: '18px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(19,5): Value of CSS property 'font-size' does not use a relative size: '18px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(27,5): Value of CSS property 'font-size' does not use a relative size: '12px'
+ USAGE(ACC-015): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(27,5): Value of CSS property 'line-height' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(35,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(39,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(35,5): Value of CSS property 'font-size' does not use a relative size: 'x-large'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(39,5): Value of CSS property 'font-size' does not use a relative size: 'large'
+ WARNING(CSS-017): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(70,5): CSS selector specifies absolute position.
+ USAGE(CSS-013): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(79,5): CSS property is declared !Important.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(90,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(90,5): Value of CSS property 'font-size' does not use a relative size: 'large'
+ USAGE(CSS-023): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(97,1): CSS selector specifies media query.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(99,9): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(8,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(14,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(23,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(32,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(38,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(51,5): Value of CSS property 'font-size' does not use a relative size.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(58,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style.css(99,9): Value of CSS property 'font-size' does not use a relative size: 'large'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(8,5): Value of CSS property 'font-size' does not use a relative size: '12px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(14,5): Value of CSS property 'font-size' does not use a relative size: '22px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(23,5): Value of CSS property 'font-size' does not use a relative size: '14px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(32,5): Value of CSS property 'font-size' does not use a relative size: '12px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(38,5): Value of CSS property 'font-size' does not use a relative size: '12px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(51,5): Value of CSS property 'font-size' does not use a relative size: '11px'
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/unused.css(58,5): Value of CSS property 'font-size' does not use a relative size: '10px'
+ WARNING(CSS-017): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(2,5): CSS selector specifies absolute position.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(10,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(10,5): Value of CSS property 'font-size' does not use a relative size: '12px'
+ USAGE(ACC-015): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(10,5): Value of CSS property 'line-height' does not use a relative size.
+ USAGE(CSS-013): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(15,5): CSS property is declared !Important.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(27,5): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(27,5): Value of CSS property 'font-size' does not use a relative size: 'large'
+ USAGE(CSS-023): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(33,1): CSS selector specifies media query.
+-USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(35,9): Value of CSS property 'font-size' does not use a relative size.
++USAGE(ACC-014): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/cssStyles.css(35,9): Value of CSS property 'font-size' does not use a relative size: 'large'
+ USAGE(CSS-013): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style_tag_css.xhtml(9,13): CSS property is declared !Important.
+ WARNING(CSS-017): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style_tag_css.xhtml(17,13): CSS selector specifies absolute position.
+ USAGE(CSS-023): ./com/adobe/epubcheck/test/command_line/severity.epub/OPS/style_tag_css.xhtml(20,9): CSS selector specifies media query.
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/css/discouraged_expected_results.json ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/css/discouraged_expected_results.json
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/css/discouraged_expected_results.json	2024-09-08 01:36:05.609749029 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/css/discouraged_expected_results.json	2024-09-08 01:36:05.241746452 +1000
+@@ -1,15 +1,15 @@
+ {
+   "customMessageFileName" : null,
+   "checker" : {
+-    "path" : "./com/adobe/epubcheck/test/css/discouraged.epub",
++    "path" : "./target/test-classes/com/adobe/epubcheck/test/css/discouraged.epub",
+     "filename" : "discouraged.epub",
+     "checkerVersion" : "4.0.3-SNAPSHOT",
+-    "checkDate" : "12-31-2016 01:11:59",
+-    "elapsedTime" : 45,
++    "checkDate" : "07-03-2017 22:57:06",
++    "elapsedTime" : 137,
+     "nFatal" : 0,
+     "nError" : 2,
+     "nWarning" : 2,
+-    "nUsage" : 13
++    "nUsage" : 20
+   },
+   "publication" : {
+     "publisher" : null,
+@@ -346,7 +346,31 @@
+   }, {
+     "ID" : "ACC-014",
+     "severity" : "USAGE",
+-    "message" : "Value of CSS property 'font-size' does not use a relative size.",
++    "message" : "Value of CSS property 'font-size' does not use a relative size: '10px'",
++    "additionalLocations" : 0,
++    "locations" : [ {
++      "path" : "OPS/unused.css",
++      "line" : 58,
++      "column" : 5,
++      "context" : "font-size : 10px ;"
++    } ],
++    "suggestion" : "Acceptable values include percentages, em multiples, 'larger', 'smaller', 'normal' or 'inherit'."
++  }, {
++    "ID" : "ACC-014",
++    "severity" : "USAGE",
++    "message" : "Value of CSS property 'font-size' does not use a relative size: '11px'",
++    "additionalLocations" : 0,
++    "locations" : [ {
++      "path" : "OPS/unused.css",
++      "line" : 51,
++      "column" : 5,
++      "context" : "font-size : 11px ;"
++    } ],
++    "suggestion" : "Acceptable values include percentages, em multiples, 'larger', 'smaller', 'normal' or 'inherit'."
++  }, {
++    "ID" : "ACC-014",
++    "severity" : "USAGE",
++    "message" : "Value of CSS property 'font-size' does not use a relative size: '12px'",
+     "additionalLocations" : 0,
+     "locations" : [ {
+       "path" : "OPS/cssStyles.css",
+@@ -354,26 +378,55 @@
+       "column" : 5,
+       "context" : "font : 600 12px / 14px sans-serif ;"
+     }, {
+-      "path" : "OPS/cssStyles.css",
++      "path" : "OPS/style.css",
++      "line" : 7,
++      "column" : 5,
++      "context" : "font : 600 12px / 14px sans-serif ;"
++    }, {
++      "path" : "OPS/style.css",
+       "line" : 27,
+       "column" : 5,
+-      "context" : "font-size : large ;"
++      "context" : "font : 600 12px / 14px sans-serif ;"
+     }, {
+-      "path" : "OPS/cssStyles.css",
+-      "line" : 35,
+-      "column" : 9,
+-      "context" : "font-size : large ;"
++      "path" : "OPS/unused.css",
++      "line" : 8,
++      "column" : 5,
++      "context" : "font-size : 12px ;"
+     }, {
++      "path" : "OPS/unused.css",
++      "line" : 32,
++      "column" : 5,
++      "context" : "font-size : 12px ;"
++    }, {
++      "path" : "OPS/unused.css",
++      "line" : 38,
++      "column" : 5,
++      "context" : "font-size : 12px ;"
++    } ],
++    "suggestion" : "Acceptable values include percentages, em multiples, 'larger', 'smaller', 'normal' or 'inherit'."
++  }, {
++    "ID" : "ACC-014",
++    "severity" : "USAGE",
++    "message" : "Value of CSS property 'font-size' does not use a relative size: '14px'",
++    "additionalLocations" : 0,
++    "locations" : [ {
+       "path" : "OPS/style.css",
+       "line" : 2,
+       "column" : 5,
+       "context" : "font-size : 14px ;"
+     }, {
+-      "path" : "OPS/style.css",
+-      "line" : 7,
++      "path" : "OPS/unused.css",
++      "line" : 23,
+       "column" : 5,
+-      "context" : "font : 600 12px / 14px sans-serif ;"
+-    }, {
++      "context" : "font-size : 14px ;"
++    } ],
++    "suggestion" : "Acceptable values include percentages, em multiples, 'larger', 'smaller', 'normal' or 'inherit'."
++  }, {
++    "ID" : "ACC-014",
++    "severity" : "USAGE",
++    "message" : "Value of CSS property 'font-size' does not use a relative size: '18px'",
++    "additionalLocations" : 0,
++    "locations" : [ {
+       "path" : "OPS/style.css",
+       "line" : 15,
+       "column" : 5,
+@@ -383,16 +436,35 @@
+       "line" : 19,
+       "column" : 5,
+       "context" : "font : 18px ;"
+-    }, {
+-      "path" : "OPS/style.css",
++    } ],
++    "suggestion" : "Acceptable values include percentages, em multiples, 'larger', 'smaller', 'normal' or 'inherit'."
++  }, {
++    "ID" : "ACC-014",
++    "severity" : "USAGE",
++    "message" : "Value of CSS property 'font-size' does not use a relative size: '22px'",
++    "additionalLocations" : 0,
++    "locations" : [ {
++      "path" : "OPS/unused.css",
++      "line" : 14,
++      "column" : 5,
++      "context" : "font-size : 22px ;"
++    } ],
++    "suggestion" : "Acceptable values include percentages, em multiples, 'larger', 'smaller', 'normal' or 'inherit'."
++  }, {
++    "ID" : "ACC-014",
++    "severity" : "USAGE",
++    "message" : "Value of CSS property 'font-size' does not use a relative size: 'large'",
++    "additionalLocations" : 0,
++    "locations" : [ {
++      "path" : "OPS/cssStyles.css",
+       "line" : 27,
+       "column" : 5,
+-      "context" : "font : 600 12px / 14px sans-serif ;"
++      "context" : "font-size : large ;"
+     }, {
+-      "path" : "OPS/style.css",
++      "path" : "OPS/cssStyles.css",
+       "line" : 35,
+-      "column" : 5,
+-      "context" : "font : x-large / 110% 'New Century Schoolbook' , serif ;"
++      "column" : 9,
++      "context" : "font-size : large ;"
+     }, {
+       "path" : "OPS/style.css",
+       "line" : 39,
+@@ -408,41 +480,18 @@
+       "line" : 99,
+       "column" : 9,
+       "context" : "font-size : large ;"
+-    }, {
+-      "path" : "OPS/unused.css",
+-      "line" : 8,
+-      "column" : 5,
+-      "context" : "font-size : 12px ;"
+-    }, {
+-      "path" : "OPS/unused.css",
+-      "line" : 14,
+-      "column" : 5,
+-      "context" : "font-size : 22px ;"
+-    }, {
+-      "path" : "OPS/unused.css",
+-      "line" : 23,
+-      "column" : 5,
+-      "context" : "font-size : 14px ;"
+-    }, {
+-      "path" : "OPS/unused.css",
+-      "line" : 32,
+-      "column" : 5,
+-      "context" : "font-size : 12px ;"
+-    }, {
+-      "path" : "OPS/unused.css",
+-      "line" : 38,
+-      "column" : 5,
+-      "context" : "font-size : 12px ;"
+-    }, {
+-      "path" : "OPS/unused.css",
+-      "line" : 51,
+-      "column" : 5,
+-      "context" : "font-size : 11px ;"
+-    }, {
+-      "path" : "OPS/unused.css",
+-      "line" : 58,
++    } ],
++    "suggestion" : "Acceptable values include percentages, em multiples, 'larger', 'smaller', 'normal' or 'inherit'."
++  }, {
++    "ID" : "ACC-014",
++    "severity" : "USAGE",
++    "message" : "Value of CSS property 'font-size' does not use a relative size: 'x-large'",
++    "additionalLocations" : 0,
++    "locations" : [ {
++      "path" : "OPS/style.css",
++      "line" : 35,
+       "column" : 5,
+-      "context" : "font-size : 10px ;"
++      "context" : "font : x-large / 110% 'New Century Schoolbook' , serif ;"
+     } ],
+     "suggestion" : "Acceptable values include percentages, em multiples, 'larger', 'smaller', 'normal' or 'inherit'."
+   }, {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/css/discouraged_expected_results.xml ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/css/discouraged_expected_results.xml
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/css/discouraged_expected_results.xml	2024-09-08 01:36:05.609749029 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/css/discouraged_expected_results.xml	2024-09-08 01:36:05.241746452 +1000
+@@ -1,13 +1,13 @@
+ <?xml version="1.0" encoding="UTF-8"?>
+ <jhove xmlns="http://hul.harvard.edu/ois/xml/ns/jhove"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+-       date="2017-01-02"
++       date="2017-07-03"
+        name="epubcheck"
+        release="4.0.3-SNAPSHOT"
+        xsi:schemaLocation="http://hul.harvard.edu/ois/xml/ns/jhove http://hul.harvard.edu/ois/xml/xsd/jhove/jhove.xsd">
+- <date>2017-01-02T18:40:27+01:00</date>
+- <repInfo uri="/Users/tofi/dev/epubcheck/target/test-classes/com/adobe/epubcheck/test/css/discouraged.epub">
+-  <created>2017-01-02T18:34:14Z</created>
++ <date>2017-07-03T22:57:06+02:00</date>
++ <repInfo uri="/Users/tofi/Entwicklung/eclipse-workspace/default/epubcheck/target/test-classes/com/adobe/epubcheck/test/css/discouraged.epub">
++  <created>2017-07-03T22:26:12Z</created>
+   <lastModified>2012-10-10T12:00:00Z</lastModified>
+   <format>application/epub+zip</format>
+   <version>3.0.1</version>
+@@ -33,36 +33,36 @@
+    <message severity="info" subMessage="OPF-059">OPF-059, HINT, [Spine item has no NCX entry reference.], OPS/toc.ncx</message>
+    <message severity="info" subMessage="CSS-012">CSS-012, HINT, [Document links to multiple CSS files.], OPS/external_css.xhtml (6-62)</message>
+    <message severity="info" subMessage="CSS-012">CSS-012, HINT, [Document links to multiple CSS files.], OPS/external_css.xhtml (7-66)</message>
+-   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size.], OPS/style.css (2-5)</message>
+-   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size.], OPS/style.css (7-5)</message>
+-   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size.], OPS/style.css (15-5)</message>
+-   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size.], OPS/style.css (19-5)</message>
+-   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size.], OPS/style.css (27-5)</message>
+-   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size.], OPS/style.css (35-5)</message>
+-   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size.], OPS/style.css (39-5)</message>
+-   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size.], OPS/style.css (90-5)</message>
+-   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size.], OPS/style.css (99-9)</message>
+-   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size.], OPS/unused.css (8-5)</message>
+-   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size.], OPS/unused.css (14-5)</message>
+-   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size.], OPS/unused.css (23-5)</message>
+-   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size.], OPS/unused.css (32-5)</message>
+-   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size.], OPS/unused.css (38-5)</message>
+-   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size.], OPS/unused.css (51-5)</message>
+-   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size.], OPS/unused.css (58-5)</message>
+-   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size.], OPS/cssStyles.css (10-5)</message>
+-   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size.], OPS/cssStyles.css (27-5)</message>
+-   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size.], OPS/cssStyles.css (35-9)</message>
++   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size: '14px'], OPS/style.css (2-5)</message>
++   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size: '14px'], OPS/unused.css (23-5)</message>
++   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size: '12px'], OPS/style.css (7-5)</message>
++   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size: '12px'], OPS/style.css (27-5)</message>
++   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size: '12px'], OPS/unused.css (8-5)</message>
++   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size: '12px'], OPS/unused.css (32-5)</message>
++   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size: '12px'], OPS/unused.css (38-5)</message>
++   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size: '12px'], OPS/cssStyles.css (10-5)</message>
+    <message severity="info" subMessage="ACC-015">ACC-015, HINT, [Value of CSS property 'line-height' does not use a relative size.], OPS/style.css (7-5)</message>
+    <message severity="info" subMessage="ACC-015">ACC-015, HINT, [Value of CSS property 'line-height' does not use a relative size.], OPS/style.css (27-5)</message>
+    <message severity="info" subMessage="ACC-015">ACC-015, HINT, [Value of CSS property 'line-height' does not use a relative size.], OPS/cssStyles.css (10-5)</message>
+    <message severity="info" subMessage="CSS-021">CSS-021, HINT, [Shorthand CSS property 'font-family' specifies an invalid System Font.], OPS/style.css (11-5)</message>
++   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size: '18px'], OPS/style.css (15-5)</message>
++   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size: '18px'], OPS/style.css (19-5)</message>
++   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size: 'x-large'], OPS/style.css (35-5)</message>
++   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size: 'large'], OPS/style.css (39-5)</message>
++   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size: 'large'], OPS/style.css (90-5)</message>
++   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size: 'large'], OPS/style.css (99-9)</message>
++   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size: 'large'], OPS/cssStyles.css (27-5)</message>
++   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size: 'large'], OPS/cssStyles.css (35-9)</message>
+    <message severity="info" subMessage="CSS-013">CSS-013, HINT, [CSS property is declared !Important.], OPS/style.css (79-5)</message>
+    <message severity="info" subMessage="CSS-013">CSS-013, HINT, [CSS property is declared !Important.], OPS/cssStyles.css (15-5)</message>
+    <message severity="info" subMessage="CSS-013">CSS-013, HINT, [CSS property is declared !Important.], OPS/style_tag_css.xhtml (9-13)</message>
+    <message severity="info" subMessage="CSS-023">CSS-023, HINT, [CSS selector specifies media query.], OPS/style.css (97-1)</message>
+    <message severity="info" subMessage="CSS-023">CSS-023, HINT, [CSS selector specifies media query.], OPS/cssStyles.css (33-1)</message>
+    <message severity="info" subMessage="CSS-023">CSS-023, HINT, [CSS selector specifies media query.], OPS/style_tag_css.xhtml (20-9)</message>
+-   <message severity="info" subMessage="CSS-025">CSS-025, HINT, [CSS class Selector could not be found.], OPS/style_tag_css.xhtml (54-24)</message>
++   <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size: '22px'], OPS/unused.css (14-5)</message>
++         <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size: '11px'], OPS/unused.css (51-5)</message>
++         <message severity="info" subMessage="ACC-014">ACC-014, HINT, [Value of CSS property 'font-size' does not use a relative size: '10px'], OPS/unused.css (58-5)</message>
++         <message severity="info" subMessage="CSS-025">CSS-025, HINT, [CSS class Selector could not be found.], OPS/style_tag_css.xhtml (54-24)</message>
+    <message severity="info" subMessage="CSS-024">CSS-024, HINT, [CSS class Selector is not used.], OPS/style_tag_css.xhtml (14-9)</message>
+    <message severity="info" subMessage="CSS-024">CSS-024, HINT, [CSS class Selector is not used.], OPS/style.css (6-1)</message>
+    <message severity="info" subMessage="CSS-024">CSS-024, HINT, [CSS class Selector is not used.], OPS/style.css (10-1)</message>
+@@ -120,7 +120,7 @@
+      <property>
+       <name>CreationDate</name>
+       <values arity="Scalar" type="Date">
+-       <value>2016-12-31T01:11:26Z</value>
++       <value>2017-07-03T22:26:12Z</value>
+       </values>
+      </property>
+      <property>
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/css/font-face_expected_results.json ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/css/font-face_expected_results.json
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/css/font-face_expected_results.json	2024-09-08 01:36:05.613749057 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/css/font-face_expected_results.json	2024-09-08 01:36:05.245746480 +1000
+@@ -7,9 +7,9 @@
+     "checkDate" : "12-31-2016 01:11:59",
+     "elapsedTime" : 58,
+     "nFatal" : 0,
+-    "nError" : 5,
++    "nError" : 6,
+     "nWarning" : 1,
+-    "nUsage" : 13
++    "nUsage" : 12
+   },
+   "publication" : {
+     "publisher" : null,
+@@ -353,7 +353,7 @@
+   }, {
+     "ID" : "ACC-014",
+     "severity" : "USAGE",
+-    "message" : "Value of CSS property 'font-size' does not use a relative size.",
++    "message" : "Value of CSS property 'font-size' does not use a relative size: 'xx-large'",
+     "additionalLocations" : 0,
+     "locations" : [ {
+       "path" : "OPS/styles/style.css",
+@@ -449,7 +449,7 @@
+     "suggestion" : null
+   }, {
+     "ID" : "CSS-020",
+-    "severity" : "USAGE",
++    "severity" : "ERROR",
+     "message" : "CSS font selector declaration uses unexpected font-size value '5'.",
+     "additionalLocations" : 0,
+     "locations" : [ {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/css/font-face_expected_results.xmp ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/css/font-face_expected_results.xmp
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/css/font-face_expected_results.xmp	2024-09-08 01:36:05.613749057 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/css/font-face_expected_results.xmp	2024-09-08 01:36:05.245746480 +1000
+@@ -80,6 +80,14 @@
+        </premis:hasEventOutcomeDetail>
+       </rdf:li>
+       <rdf:li rdf:parseType="Resource">
++                     <premis:hasEventOutcome>CSS-020, ERROR, CSS font selector declaration uses unexpected font-size value '5'.</premis:hasEventOutcome>
++                     <premis:hasEventOutcomeDetail>
++                        <rdf:Seq>
++                           <rdf:li premis:hasEventOutcomeDetailNote="OPS/styles/style.css (45-5)"/>
++                        </rdf:Seq>
++                     </premis:hasEventOutcomeDetail>
++                  </rdf:li>
++                  <rdf:li rdf:parseType="Resource">
+        <premis:hasEventOutcome>CSS-019, WARN, CSS font-face declaration has no attributes.</premis:hasEventOutcome>
+        <premis:hasEventOutcomeDetail>
+         <rdf:Seq>
+@@ -176,15 +184,7 @@
+        </premis:hasEventOutcomeDetail>
+       </rdf:li>
+       <rdf:li rdf:parseType="Resource">
+-       <premis:hasEventOutcome>CSS-020, HINT, CSS font selector declaration uses unexpected font-size value '5'.</premis:hasEventOutcome>
+-       <premis:hasEventOutcomeDetail>
+-        <rdf:Seq>
+-         <rdf:li premis:hasEventOutcomeDetailNote="OPS/styles/style.css (45-5)" />
+-        </rdf:Seq>
+-       </premis:hasEventOutcomeDetail>
+-      </rdf:li>
+-      <rdf:li rdf:parseType="Resource">
+-       <premis:hasEventOutcome>ACC-014, HINT, Value of CSS property 'font-size' does not use a relative size.</premis:hasEventOutcome>
++       <premis:hasEventOutcome>ACC-014, HINT, Value of CSS property 'font-size' does not use a relative size: 'xx-large'</premis:hasEventOutcome>
+        <premis:hasEventOutcomeDetail>
+         <rdf:Seq>
+          <rdf:li premis:hasEventOutcomeDetailNote="OPS/styles/style.css (59-5)" />
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/css/keyframe_expected_results.json ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/css/keyframe_expected_results.json
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/resources/com/adobe/epubcheck/test/css/keyframe_expected_results.json	2024-09-08 01:36:05.613749057 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/com/adobe/epubcheck/test/css/keyframe_expected_results.json	2024-09-08 01:36:05.245746480 +1000
+@@ -275,7 +275,7 @@
+   }, {
+     "ID" : "ACC-014",
+     "severity" : "USAGE",
+-    "message" : "Value of CSS property 'font-size' does not use a relative size.",
++    "message" : "Value of CSS property 'font-size' does not use a relative size: 'xx-large'",
+     "additionalLocations" : 0,
+     "locations" : [ {
+       "path" : "OPS/style.css",

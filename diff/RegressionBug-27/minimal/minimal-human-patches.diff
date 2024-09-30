@@ -1,0 +1,1011 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/fbs/FlatBuffersHelper.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/fbs/FlatBuffersHelper.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/fbs/FlatBuffersHelper.java	2024-09-08 01:36:13.833806625 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/fbs/FlatBuffersHelper.java	2024-09-08 01:36:13.825806569 +1000
+@@ -48,7 +48,8 @@
+                 geomType = GeometryType_.Point;
+             } else if (g instanceof Rectangle) {
+                 Rectangle b = (Rectangle) g;
+-                geom = Box_.createBox_(builder, b.x1(), b.y1(), b.x2(), b.y2());
++                geom = Box_.createBox_(builder, (float) b.x1(), (float) b.y1(), (float) b.x2(),
++                        (float) b.y2());
+                 geomType = GeometryType_.Box;
+             } else if (g instanceof Circle) {
+                 Circle c = (Circle) g;
+@@ -81,7 +82,7 @@
+ 
+         int ents = Node_.createEntriesVector(builder, entries2);
+         Rectangle mbb = Util.mbr(entries);
+-        int b = Box_.createBox_(builder, mbb.x1(), mbb.y1(), mbb.x2(), mbb.y2());
++        int b = Box_.createBox_(builder, (float) mbb.x1(), (float) mbb.y1(),(float)  mbb.x2(),(float)  mbb.y2());
+         Node_.startNode_(builder);
+         Node_.addMbb(builder, b);
+         Node_.addEntries(builder, ents);
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/fbs/SerializerFlatBuffers.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/fbs/SerializerFlatBuffers.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/fbs/SerializerFlatBuffers.java	2024-09-08 01:36:13.833806625 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/fbs/SerializerFlatBuffers.java	2024-09-08 01:36:13.825806569 +1000
+@@ -62,7 +62,8 @@
+         } else {
+             mbb = Geometries.rectangle(0, 0, 0, 0);
+         }
+-        int b = Box_.createBox_(builder, mbb.x1(), mbb.y1(), mbb.x2(), mbb.y2());
++        int b = Box_.createBox_(builder, (float) mbb.x1(), (float) mbb.y1(), (float) mbb.x2(),
++                (float) mbb.y2());
+         Context_.startContext_(builder);
+         Context_.addBounds(builder, b);
+         Context_.addMinChildren(builder, tree.context().minChildren());
+@@ -105,7 +106,8 @@
+             Node_.startNode_(builder);
+             Node_.addChildren(builder, ch);
+             Rectangle mbb = nonLeaf.geometry().mbr();
+-            int b = Box_.createBox_(builder, mbb.x1(), mbb.y1(), mbb.x2(), mbb.y2());
++            int b = Box_.createBox_(builder, (float) mbb.x1(), (float) mbb.y1(), (float) mbb.x2(),
++                    (float) mbb.y2());
+             Node_.addMbb(builder, b);
+             return Node_.endNode_(builder);
+         }
+@@ -126,7 +128,7 @@
+                 t.context().maxChildren(), new SelectorRStar(), new SplitterRStar(), factory);
+         Node_ node = t.root();
+         if (node == null) {
+-            return SerializerHelper.create(Optional.<Node<T, S>> absent(), 0, context);
++            return SerializerHelper.create(Optional.<Node<T, S>>absent(), 0, context);
+         } else {
+             final Node<T, S> root;
+             if (structure == InternalStructure.SINGLE_ARRAY) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/geometry/internal/RectangleDoubleImpl.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/geometry/internal/RectangleDoubleImpl.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/geometry/internal/RectangleDoubleImpl.java	2024-09-08 01:36:13.833806625 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/geometry/internal/RectangleDoubleImpl.java	2024-09-08 01:36:13.825806569 +1000
+@@ -28,40 +28,29 @@
+     }
+ 
+     @Override
+-    public float x1() {
++    public double x1() {
+         return (float) x1;
+     }
+ 
+     @Override
+-    public float y1() {
++    public double y1() {
+         return (float) y1;
+     }
+ 
+     @Override
+-    public float x2() {
++    public double x2() {
+         return (float) x2;
+     }
+ 
+     @Override
+-    public float y2() {
++    public double y2() {
+         return (float) y2;
+     }
+ 
+     @Override
+-    public float area() {
+-        return (float) areaD();
+-    }
+-
+-    @Override
+     public Rectangle add(Rectangle r) {
+-        if (r instanceof RectangleDoubleImpl) {
+-            RectangleDoubleImpl rd = (RectangleDoubleImpl) r;
+-            return new RectangleDoubleImpl(min(x1, rd.x1d()), min(y1, rd.y1d()), max(x2, rd.x2d()),
+-                    max(y2, rd.y2d()));
+-        } else {
+-            return new RectangleDoubleImpl(min(x1, r.x1()), min(y1, r.y1()), max(x2, r.x2()),
+-                    max(y2, r.y2()));
+-        }
++        return new RectangleDoubleImpl(min(x1, r.x1()), min(y1, r.y1()), max(x2, r.x2()),
++                max(y2, r.y2()));
+     }
+ 
+     @Override
+@@ -171,13 +160,13 @@
+     }
+ 
+     @Override
+-    public float intersectionArea(Rectangle r) {
+-        return (float) intersectionAreaD(r);
+-    }
+-
+-    @Override
+-    public float perimeter() {
+-        return (float) perimeterD();
++    public double intersectionArea(Rectangle r) {
++        if (!intersects(r))
++            return 0;
++        else {
++            return create(max(x1, r.x1()), max(y1, r.y1()), min(x2, r.x2()), min(y2, r.y2()))
++                    .area();
++        }
+     }
+ 
+     @Override
+@@ -207,50 +196,18 @@
+     }
+ 
+     @Override
+-    public double intersectionAreaD(Rectangle r) {
+-        if (!intersects(r))
+-            return 0;
+-        else {
+-            if (r instanceof RectangleDoubleImpl) {
+-                RectangleDoubleImpl rd = (RectangleDoubleImpl) r;
+-                return create(max(x1, rd.x1), max(y1, rd.y1), min(x2, rd.x2), min(y2, rd.y2))
+-                        .areaD();
+-            } else {
+-                return create(max(x1, r.x1()), max(y1, r.y1()), min(x2, r.x2()), min(y2, r.y2()))
+-                        .areaD();
+-            }
+-        }
+-
+-    }
+-
+-    @Override
+-    public double perimeterD() {
++    public double perimeter() {
+         return 2 * (x2 - x1) + 2 * (y2 - y1);
+     }
+ 
+     @Override
+-    public double x1d() {
+-        return x1;
+-    }
+-
+-    @Override
+-    public double y1d() {
+-        return y1;
+-    }
+-
+-    @Override
+-    public double x2d() {
+-        return x2;
+-    }
+-
+-    @Override
+-    public double y2d() {
+-        return y2;
++    public double area() {
++        return (x2 - x1) * (y2 - y1);
+     }
+ 
+     @Override
+-    public double areaD() {
+-        return (x2 - x1) * (y2 - y1);
++    public boolean isDoublePrecision() {
++        return true;
+     }
+ 
+ }
+\ No newline at end of file
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/geometry/internal/RectangleImpl.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/geometry/internal/RectangleImpl.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/geometry/internal/RectangleImpl.java	2024-09-08 01:36:13.833806625 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/geometry/internal/RectangleImpl.java	2024-09-08 01:36:13.825806569 +1000
+@@ -28,34 +28,39 @@
+     }
+ 
+     @Override
+-    public float x1() {
++    public double x1() {
+         return x1;
+     }
+ 
+     @Override
+-    public float y1() {
++    public double y1() {
+         return y1;
+     }
+ 
+     @Override
+-    public float x2() {
++    public double x2() {
+         return x2;
+     }
+ 
+     @Override
+-    public float y2() {
++    public double y2() {
+         return y2;
+     }
+ 
+     @Override
+-    public float area() {
++    public double area() {
+         return (x2 - x1) * (y2 - y1);
+     }
+ 
+     @Override
+     public Rectangle add(Rectangle r) {
+-        return new RectangleImpl(min(x1, r.x1()), min(y1, r.y1()), max(x2, r.x2()),
+-                max(y2, r.y2()));
++        if (r.isDoublePrecision()) {
++            return RectangleDoubleImpl.create(min(x1, r.x1()), min(y1, r.y1()), max(x2, r.x2()),
++                    max(y2, r.y2()));
++        } else {
++            return RectangleDoubleImpl.create(min(x1, r.x1()), min(y1, r.y1()), max(x2, r.x2()),
++                    max(y2, r.y2()));
++        }
+     }
+ 
+     @Override
+@@ -74,29 +79,29 @@
+         return distance(x1, y1, x2, y2, r.x1(), r.y1(), r.x2(), r.y2());
+     }
+ 
+-    public static double distance(float x1, float y1, float x2, float y2, float a1, float b1,
+-            float a2, float b2) {
++    public static double distance(double x1, double y1, double x2, double y2, double a1, double b1,
++            double a2, double b2) {
+         if (intersects(x1, y1, x2, y2, a1, b1, a2, b2)) {
+             return 0;
+         }
+         boolean xyMostLeft = x1 < a1;
+-        float mostLeftX1 = xyMostLeft ? x1 : a1;
+-        float mostRightX1 = xyMostLeft ? a1 : x1;
+-        float mostLeftX2 = xyMostLeft ? x2 : a2;
++        double mostLeftX1 = xyMostLeft ? x1 : a1;
++        double mostRightX1 = xyMostLeft ? a1 : x1;
++        double mostLeftX2 = xyMostLeft ? x2 : a2;
+         double xDifference = max(0, mostLeftX1 == mostRightX1 ? 0 : mostRightX1 - mostLeftX2);
+ 
+         boolean xyMostDown = y1 < b1;
+-        float mostDownY1 = xyMostDown ? y1 : b1;
+-        float mostUpY1 = xyMostDown ? b1 : y1;
+-        float mostDownY2 = xyMostDown ? y2 : b2;
++        double mostDownY1 = xyMostDown ? y1 : b1;
++        double mostUpY1 = xyMostDown ? b1 : y1;
++        double mostDownY2 = xyMostDown ? y2 : b2;
+ 
+         double yDifference = max(0, mostDownY1 == mostUpY1 ? 0 : mostUpY1 - mostDownY2);
+ 
+         return Math.sqrt(xDifference * xDifference + yDifference * yDifference);
+     }
+ 
+-    private static boolean intersects(float x1, float y1, float x2, float y2, float a1, float b1,
+-            float a2, float b2) {
++    private static boolean intersects(double x1, double y1, double x2, double y2, double a1,
++            double b1, double a2, double b2) {
+         return x1 <= a2 && a1 <= x2 && y1 <= b2 && b1 <= y2;
+     }
+ 
+@@ -126,7 +131,7 @@
+     }
+ 
+     @Override
+-    public float intersectionArea(Rectangle r) {
++    public double intersectionArea(Rectangle r) {
+         if (!intersects(r))
+             return 0;
+         else
+@@ -135,7 +140,7 @@
+     }
+ 
+     @Override
+-    public float perimeter() {
++    public double perimeter() {
+         return 2 * (x2 - x1) + 2 * (y2 - y1);
+     }
+ 
+@@ -144,14 +149,14 @@
+         return this;
+     }
+ 
+-    private static float max(float a, float b) {
++    private static double max(double a, double b) {
+         if (a < b)
+             return b;
+         else
+             return a;
+     }
+ 
+-    private static float min(float a, float b) {
++    private static double min(double a, double b) {
+         if (a < b)
+             return a;
+         else
+@@ -159,38 +164,8 @@
+     }
+ 
+     @Override
+-    public double x1d() {
+-        return x1;
+-    }
+-
+-    @Override
+-    public double y1d() {
+-        return y1;
+-    }
+-
+-    @Override
+-    public double x2d() {
+-        return x2;
+-    }
+-
+-    @Override
+-    public double y2d() {
+-        return y2;
+-    }
+-
+-    @Override
+-    public double intersectionAreaD(Rectangle r) {
+-        return intersectionArea(r);
+-    }
+-
+-    @Override
+-    public double perimeterD() {
+-        return perimeter();
+-    }
+-
+-    @Override
+-    public double areaD() {
+-        return area();
++    public boolean isDoublePrecision() {
++        return false;
+     }
+ 
+ }
+\ No newline at end of file
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/geometry/Line.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/geometry/Line.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/geometry/Line.java	2024-09-08 01:36:13.833806625 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/geometry/Line.java	2024-09-08 01:36:13.825806569 +1000
+@@ -36,14 +36,14 @@
+         if (r.contains(x1, y1) || r.contains(x2, y2)) {
+             return 0;
+         } else {
+-            double d1 = distance(r.x1(), r.y1(), r.x1(), r.y2());
++            double d1 = distance((float) r.x1(), (float) r.y1(), (float) r.x1(), (float) r.y2());
+             if (d1 == 0)
+                 return 0;
+-            double d2 = distance(r.x1(), r.y2(), r.x2(), r.y2());
++            double d2 = distance((float) r.x1(), (float) r.y2(), (float) r.x2(), (float) r.y2());
+             if (d2 == 0)
+                 return 0;
+-            double d3 = distance(r.x2(), r.y2(), r.x2(), r.y1());
+-            double d4 = distance(r.x2(), r.y1(), r.x1(), r.y1());
++            double d3 = distance((float) r.x2(), (float) r.y2(), (float) r.x2(), (float) r.y1());
++            double d4 = distance((float) r.x2(), (float) r.y1(), (float) r.x1(), (float) r.y1());
+             return Math.min(d1, Math.min(d2, Math.min(d3, d4)));
+         }
+     }
+@@ -72,8 +72,8 @@
+ 
+     @Override
+     public boolean intersects(Rectangle r) {
+-        return RectangleUtil.rectangleIntersectsLine(r.x1(), r.y1(), r.x2() - r.x1(), r.y2() - r.y1(),
+-                x1, y1, x2, y2);
++        return RectangleUtil.rectangleIntersectsLine(r.x1(), r.y1(), r.x2() - r.x1(),
++                r.y2() - r.y1(), x1, y1, x2, y2);
+     }
+ 
+     public float x1() {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/geometry/ListPair.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/geometry/ListPair.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/geometry/ListPair.java	2024-09-08 01:36:13.833806625 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/geometry/ListPair.java	2024-09-08 01:36:13.825806569 +1000
+@@ -14,8 +14,8 @@
+     private final Group<T> group2;
+     // these non-final variable mean that this class is not thread-safe
+     // because access to them is not synchronized
+-    private float areaSum = -1;
+-    private final float marginSum;
++    private double areaSum = -1;
++    private final double marginSum;
+ 
+     public ListPair(List<T> list1, List<T> list2) {
+         this.group1 = new Group<T>(list1);
+@@ -31,13 +31,13 @@
+         return group2;
+     }
+ 
+-    public float areaSum() {
++    public double areaSum() {
+         if (areaSum == -1)
+             areaSum = group1.geometry().mbr().area() + group2.geometry().mbr().area();
+         return areaSum;
+     }
+ 
+-    public float marginSum() {
++    public double marginSum() {
+         return marginSum;
+     }
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/geometry/Point.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/geometry/Point.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/geometry/Point.java	2024-09-08 01:36:13.833806625 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/geometry/Point.java	2024-09-08 01:36:13.825806569 +1000
+@@ -1,5 +1,6 @@
+ package com.github.davidmoten.rtree.geometry;
+ 
++import com.github.davidmoten.rtree.geometry.internal.RectangleDoubleImpl;
+ import com.github.davidmoten.rtree.geometry.internal.RectangleImpl;
+ 
+ public final class Point implements Rectangle {
+@@ -27,7 +28,7 @@
+ 
+     @Override
+     public double distance(Rectangle r) {
+-        return RectangleImpl.distance(x, y, x, y, r.x1(), r.y1(), r.x2(), r.y2());
++        return RectangleDoubleImpl.distance(x, y, x, y, r.x1(), r.y1(), r.x2(), r.y2());
+     }
+ 
+     public double distance(Point p) {
+@@ -89,27 +90,27 @@
+     }
+ 
+     @Override
+-    public float x1() {
++    public double x1() {
+         return x;
+     }
+ 
+     @Override
+-    public float y1() {
++    public double y1() {
+         return y;
+     }
+ 
+     @Override
+-    public float x2() {
++    public double x2() {
+         return x;
+     }
+ 
+     @Override
+-    public float y2() {
++    public double y2() {
+         return y;
+     }
+ 
+     @Override
+-    public float area() {
++    public double area() {
+         return 0;
+     }
+ 
+@@ -125,48 +126,18 @@
+     }
+ 
+     @Override
+-    public float intersectionArea(Rectangle r) {
++    public double intersectionArea(Rectangle r) {
+         return 0;
+     }
+ 
+     @Override
+-    public float perimeter() {
++    public double perimeter() {
+         return 0;
+     }
+ 
+     @Override
+-    public double x1d() {
+-        return x;
+-    }
+-
+-    @Override
+-    public double y1d() {
+-        return y;
+-    }
+-
+-    @Override
+-    public double x2d() {
+-        return x;
+-    }
+-
+-    @Override
+-    public double y2d() {
+-        return y;
+-    }
+-
+-    @Override
+-    public double intersectionAreaD(Rectangle r) {
+-        return intersectionArea(r);
+-    }
+-
+-    @Override
+-    public double perimeterD() {
+-        return perimeter();
+-    }
+-
+-    @Override
+-    public double areaD() {
+-        return area();
++    public boolean isDoublePrecision() {
++        return false;
+     }
+ 
+ }
+\ No newline at end of file
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/geometry/Rectangle.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/geometry/Rectangle.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/geometry/Rectangle.java	2024-09-08 01:36:13.833806625 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/geometry/Rectangle.java	2024-09-08 01:36:13.825806569 +1000
+@@ -2,36 +2,24 @@
+ 
+ public interface Rectangle extends Geometry, HasGeometry {
+ 
+-    float x1();
++    double x1();
+ 
+-    float y1();
++    double y1();
+ 
+-    float x2();
++    double x2();
+ 
+-    float y2();
++    double y2();
+ 
+-    float area();
++    double area();
+ 
+-    float intersectionArea(Rectangle r);
++    double intersectionArea(Rectangle r);
+ 
+-    float perimeter();
++    double perimeter();
+ 
+     Rectangle add(Rectangle r);
+ 
+     boolean contains(double x, double y);
+-
+-    double x1d();
+-
+-    double y1d();
+-
+-    double x2d();
+-
+-    double y2d();
+-
+-    double intersectionAreaD(Rectangle r);
+-
+-    double perimeterD();
+-
+-    double areaD();
++    
++    boolean isDoublePrecision();
+ 
+ }
+\ No newline at end of file
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/internal/Comparators.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/internal/Comparators.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/internal/Comparators.java	2024-09-08 01:36:13.833806625 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/internal/Comparators.java	2024-09-08 01:36:13.825806569 +1000
+@@ -27,11 +27,11 @@
+ 
+             @Override
+             public int compare(HasGeometry g1, HasGeometry g2) {
+-                int value = Float.compare(overlapArea(r, list, g1), overlapArea(r, list, g2));
++                int value = Double.compare(overlapArea(r, list, g1), overlapArea(r, list, g2));
+                 if (value == 0) {
+-                    value = Float.compare(areaIncrease(r, g1), areaIncrease(r, g2));
++                    value = Double.compare(areaIncrease(r, g1), areaIncrease(r, g2));
+                     if (value == 0) {
+-                        value = Float.compare(area(r, g1), area(r, g2));
++                        value = Double.compare(area(r, g1), area(r, g2));
+                     }
+                 }
+                 return value;
+@@ -39,7 +39,7 @@
+         };
+     }
+ 
+-    private static float area(final Rectangle r, HasGeometry g1) {
++    private static double area(final Rectangle r, HasGeometry g1) {
+         return g1.geometry().mbr().add(r).area();
+     }
+ 
+@@ -48,17 +48,16 @@
+         return new Comparator<HasGeometry>() {
+             @Override
+             public int compare(HasGeometry g1, HasGeometry g2) {
+-                int value = Float.compare(areaIncrease(r, g1), areaIncrease(r, g2));
++                int value = Double.compare(areaIncrease(r, g1), areaIncrease(r, g2));
+                 if (value == 0) {
+-                    value = Float.compare(area(r, g1), area(r, g2));
++                    value = Double.compare(area(r, g1), area(r, g2));
+                 }
+                 return value;
+             }
+         };
+     }
+ 
+-    private static float overlapArea(Rectangle r, List<? extends HasGeometry> list,
+-            HasGeometry g) {
++    private static float overlapArea(Rectangle r, List<? extends HasGeometry> list, HasGeometry g) {
+         Rectangle gPlusR = g.geometry().mbr().add(r);
+         float m = 0;
+         for (HasGeometry other : list) {
+@@ -69,7 +68,7 @@
+         return m;
+     }
+ 
+-    private static float areaIncrease(Rectangle r, HasGeometry g) {
++    private static double areaIncrease(Rectangle r, HasGeometry g) {
+         Rectangle gPlusR = g.geometry().mbr().add(r);
+         return gPlusR.area() - g.geometry().mbr().area();
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/internal/Util.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/internal/Util.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/internal/Util.java	2024-09-08 01:36:13.833806625 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/internal/Util.java	2024-09-08 01:36:13.825806569 +1000
+@@ -20,8 +20,8 @@
+     }
+ 
+     /**
+-     * Returns the minimum bounding rectangle of a number of items. Benchmarks
+-     * below indicate that when the number of items is &gt;1 this method is more
++     * Returns the minimum bounding rectangle of a number of items. Benchmarks below
++     * indicate that when the number of items is &gt;1 this method is more
+      * performant than one using {@link Rectangle#add(Rectangle)}.
+      * 
+      * <pre>
+@@ -42,10 +42,10 @@
+      */
+     public static Rectangle mbr(Collection<? extends HasGeometry> items) {
+         Preconditions.checkArgument(!items.isEmpty());
+-        float minX1 = Float.MAX_VALUE;
+-        float minY1 = Float.MAX_VALUE;
+-        float maxX2 = -Float.MAX_VALUE;
+-        float maxY2 = -Float.MAX_VALUE;
++        double minX1 = Double.MAX_VALUE;
++        double minY1 = Double.MAX_VALUE;
++        double maxX2 = -Double.MAX_VALUE;
++        double maxY2 = -Double.MAX_VALUE;
+         for (final HasGeometry item : items) {
+             Rectangle r = item.geometry().mbr();
+             if (r.x1() < minX1)
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/kryo/SerializerKryo.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/kryo/SerializerKryo.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/kryo/SerializerKryo.java	2024-09-08 01:36:13.833806625 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/kryo/SerializerKryo.java	2024-09-08 01:36:13.829806597 +1000
+@@ -28,118 +28,121 @@
+ 
+ public class SerializerKryo<T, S extends Geometry> implements Serializer<T, S> {
+ 
+-	private final Func1<? super T, byte[]> serializer;
+-	private final Func1<byte[], ? extends T> deserializer;
+-	private final Func0<Kryo> kryoFactory;
+-
+-	public SerializerKryo(Func1<? super T, byte[]> serializer, Func1<byte[], ? extends T> deserializer,
+-			Func0<Kryo> kryoFactory) {
+-		this.serializer = serializer;
+-		this.deserializer = deserializer;
+-		this.kryoFactory = kryoFactory;
+-	}
+-
+-	@Override
+-	public void write(RTree<T, S> tree, OutputStream os) throws IOException {
+-		Output output = new Output(os);
+-		Kryo kryo = kryoFactory.call();
+-		write(kryo, output, tree);
+-	}
+-
+-	private void write(Kryo kryo, Output output, RTree<T, S> tree) {
+-		writeContext(tree.context(), output);
+-		output.writeBoolean(tree.root().isPresent());
+-		output.writeInt(tree.size());
+-		if (tree.root().isPresent()) {
+-			writeNode(tree.root().get(), output);
+-		}
+-	}
+-
+-	private void writeNode(Node<T, S> node, Output output) {
+-		boolean isLeaf = node instanceof Leaf;
+-		output.writeBoolean(isLeaf);
+-		if (isLeaf) {
+-			Leaf<T, S> leaf = (Leaf<T, S>) node;
+-			writeBounds(output, leaf.geometry().mbr());
+-			output.writeInt(leaf.count());
+-			for (Entry<T, S> entry : leaf.entries()) {
+-				S g = entry.geometry();
+-				writeValue(output, entry.value());
+-				writeGeometry(output, g);
+-			}
+-		} else {
+-			NonLeaf<T, S> nonLeaf = (NonLeaf<T, S>) node;
+-			writeBounds(output, nonLeaf.geometry().mbr());
+-			output.writeInt(nonLeaf.count());
+-			for (Node<T, S> nd : nonLeaf.children()) {
+-				writeNode(nd, output);
+-			}
+-		}
+-	}
+-
+-	private void writeValue(Output output, T t) {
+-		byte[] bytes = serializer.call(t);
+-		output.write(bytes.length);
+-		output.write(bytes);
+-	}
+-
+-	private void writeRectangle(Output output, S g) {
+-		Rectangle r = (Rectangle) g;
+-		output.write(0);
+-		writeBounds(output, r);
+-	}
+-
+-	private void writeGeometry(Output output, S g) {
+-		if (g instanceof Rectangle) {
+-			writeRectangle(output, g);
+-		} else {
+-			throw new RuntimeException("unexpected");
+-		}
+-	}
+-
+-	private void writeBounds(Output output, Rectangle mbr) {
+-		output.writeFloat(mbr.x1());
+-		output.writeFloat(mbr.y1());
+-		output.writeFloat(mbr.y1());
+-		output.writeFloat(mbr.y2());
+-	}
+-
+-	private void writeContext(Context<T, S> context, Output output) {
+-		output.writeInt(context.minChildren());
+-		output.writeInt(context.maxChildren());
+-	}
+-
+-	@Override
+-	public RTree<T, S> read(InputStream is, long sizeBytes, InternalStructure structure) throws IOException {
+-		Input input = new Input(is);
+-		return read(input);
+-	}
+-
+-	private static <T, S extends Geometry> RTree<T, S> read(Input input) {
+-		Context<T, S> context = readContext(input);
+-		boolean hasRoot = input.readBoolean();
+-		int size = input.readInt();
+-		final Optional<Node<T, S>> root;
+-		if (hasRoot) {
+-			root = Optional.of(SerializerKryo.<T, S>readNode(input));
+-		} else {
+-			root = Optional.absent();
+-		}
+-		return SerializerHelper.create(root, size, context);
+-	}
+-
+-	private static <T, S extends Geometry> Node<T, S> readNode(Input input) {
+-		// TODO
+-		return null;
+-	}
+-
+-	private static <T, S extends Geometry> Context<T, S> readContext(Input input) {
+-		return new Context<T, S>(2, 4, new SelectorRStar(), new SplitterRStar(), FactoryDefault.<T, S>instance());
+-	}
+-
+-	public static <T, S extends Geometry> Serializer<T, S> create(Func1<? super T, byte[]> serializer,
+-			Func1<byte[], ? extends T> deserializer, Func0<Kryo> kryoFactory) {
+-		return new SerializerKryo<T, S>(serializer, deserializer, kryoFactory);
+-	}
++    private final Func1<? super T, byte[]> serializer;
++    private final Func1<byte[], ? extends T> deserializer;
++    private final Func0<Kryo> kryoFactory;
++
++    public SerializerKryo(Func1<? super T, byte[]> serializer,
++            Func1<byte[], ? extends T> deserializer, Func0<Kryo> kryoFactory) {
++        this.serializer = serializer;
++        this.deserializer = deserializer;
++        this.kryoFactory = kryoFactory;
++    }
++
++    @Override
++    public void write(RTree<T, S> tree, OutputStream os) throws IOException {
++        Output output = new Output(os);
++        Kryo kryo = kryoFactory.call();
++        write(kryo, output, tree);
++    }
++
++    private void write(Kryo kryo, Output output, RTree<T, S> tree) {
++        writeContext(tree.context(), output);
++        output.writeBoolean(tree.root().isPresent());
++        output.writeInt(tree.size());
++        if (tree.root().isPresent()) {
++            writeNode(tree.root().get(), output);
++        }
++    }
++
++    private void writeNode(Node<T, S> node, Output output) {
++        boolean isLeaf = node instanceof Leaf;
++        output.writeBoolean(isLeaf);
++        if (isLeaf) {
++            Leaf<T, S> leaf = (Leaf<T, S>) node;
++            writeBounds(output, leaf.geometry().mbr());
++            output.writeInt(leaf.count());
++            for (Entry<T, S> entry : leaf.entries()) {
++                S g = entry.geometry();
++                writeValue(output, entry.value());
++                writeGeometry(output, g);
++            }
++        } else {
++            NonLeaf<T, S> nonLeaf = (NonLeaf<T, S>) node;
++            writeBounds(output, nonLeaf.geometry().mbr());
++            output.writeInt(nonLeaf.count());
++            for (Node<T, S> nd : nonLeaf.children()) {
++                writeNode(nd, output);
++            }
++        }
++    }
++
++    private void writeValue(Output output, T t) {
++        byte[] bytes = serializer.call(t);
++        output.write(bytes.length);
++        output.write(bytes);
++    }
++
++    private void writeRectangle(Output output, S g) {
++        Rectangle r = (Rectangle) g;
++        output.write(0);
++        writeBounds(output, r);
++    }
++
++    private void writeGeometry(Output output, S g) {
++        if (g instanceof Rectangle) {
++            writeRectangle(output, g);
++        } else {
++            throw new RuntimeException("unexpected");
++        }
++    }
++
++    private void writeBounds(Output output, Rectangle mbr) {
++        output.writeFloat((float) mbr.x1());
++        output.writeFloat((float) mbr.y1());
++        output.writeFloat((float) mbr.y1());
++        output.writeFloat((float) mbr.y2());
++    }
++
++    private void writeContext(Context<T, S> context, Output output) {
++        output.writeInt(context.minChildren());
++        output.writeInt(context.maxChildren());
++    }
++
++    @Override
++    public RTree<T, S> read(InputStream is, long sizeBytes, InternalStructure structure)
++            throws IOException {
++        Input input = new Input(is);
++        return read(input);
++    }
++
++    private static <T, S extends Geometry> RTree<T, S> read(Input input) {
++        Context<T, S> context = readContext(input);
++        boolean hasRoot = input.readBoolean();
++        int size = input.readInt();
++        final Optional<Node<T, S>> root;
++        if (hasRoot) {
++            root = Optional.of(SerializerKryo.<T, S>readNode(input));
++        } else {
++            root = Optional.absent();
++        }
++        return SerializerHelper.create(root, size, context);
++    }
++
++    private static <T, S extends Geometry> Node<T, S> readNode(Input input) {
++        // TODO
++        return null;
++    }
++
++    private static <T, S extends Geometry> Context<T, S> readContext(Input input) {
++        return new Context<T, S>(2, 4, new SelectorRStar(), new SplitterRStar(),
++                FactoryDefault.<T, S>instance());
++    }
++
++    public static <T, S extends Geometry> Serializer<T, S> create(
++            Func1<? super T, byte[]> serializer, Func1<byte[], ? extends T> deserializer,
++            Func0<Kryo> kryoFactory) {
++        return new SerializerKryo<T, S>(serializer, deserializer, kryoFactory);
++    }
+ 
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/RTree.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/RTree.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/RTree.java	2024-09-08 01:36:13.833806625 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/RTree.java	2024-09-08 01:36:13.825806569 +1000
+@@ -427,9 +427,9 @@
+             private double mid(HasGeometry o) {
+                 Rectangle mbr = o.geometry().mbr();
+                 if (dimension == 0)
+-                    return (mbr.x1d() + mbr.x2d()) / 2;
++                    return (mbr.x1() + mbr.x2()) / 2;
+                 else
+-                    return (mbr.y1d() + mbr.y2d()) / 2;
++                    return (mbr.y1() + mbr.y2()) / 2;
+             }
+         }
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/SplitterQuadratic.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/SplitterQuadratic.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/SplitterQuadratic.java	2024-09-08 01:36:13.833806625 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/SplitterQuadratic.java	2024-09-08 01:36:13.825806569 +1000
+@@ -72,10 +72,11 @@
+     @VisibleForTesting
+     static <T extends HasGeometry> T getBestCandidateForGroup(List<T> list, List<T> group,
+             Rectangle groupMbr) {
++        // TODO reduce allocations by not using Optional
+         Optional<T> minEntry = absent();
+-        Optional<Float> minArea = absent();
++        Optional<Double> minArea = absent();
+         for (final T entry : list) {
+-            final float area = groupMbr.add(entry.geometry().mbr()).area();
++            final double area = groupMbr.add(entry.geometry().mbr()).area();
+             if (!minArea.isPresent() || area < minArea.get()) {
+                 minArea = of(area);
+                 minEntry = of(entry);
+@@ -86,15 +87,16 @@
+ 
+     @VisibleForTesting
+     static <T extends HasGeometry> Pair<T> worstCombination(List<T> items) {
++        //TODO reduce allocations by not using Optional
+         Optional<T> e1 = absent();
+         Optional<T> e2 = absent();
+         {
+-            Optional<Float> maxArea = absent();
++            Optional<Double> maxArea = absent();
+             for (int i = 0; i < items.size(); i++) {
+                 for (int j = i + 1; j < items.size(); j++) {
+                     T entry1 = items.get(i);
+                     T entry2 = items.get(j);
+-                    final float area = entry1.geometry().mbr().add(entry2.geometry().mbr()).area();
++                    final double area = entry1.geometry().mbr().add(entry2.geometry().mbr()).area();
+                     if (!maxArea.isPresent() || area > maxArea.get()) {
+                         e1 = of(entry1);
+                         e2 = of(entry2);
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/SplitterRStar.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/SplitterRStar.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/SplitterRStar.java	2024-09-08 01:36:13.833806625 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/SplitterRStar.java	2024-09-08 01:36:13.825806569 +1000
+@@ -20,9 +20,9 @@
+             @Override
+             public int compare(ListPair<?> p1, ListPair<?> p2) {
+                 // check overlap first then areaSum
+-                int value = Float.compare(overlap(p1), overlap(p2));
++                int value = Double.compare(overlap(p1), overlap(p2));
+                 if (value == 0) {
+-                    return Float.compare(p1.areaSum(), p2.areaSum());
++                    return Double.compare(p1.areaSum(), p2.areaSum());
+                 } else {
+                     return value;
+                 }
+@@ -105,7 +105,7 @@
+ 
+         @Override
+         public int compare(HasGeometry n1, HasGeometry n2) {
+-            return Double.compare(n1.geometry().mbr().x1d(), n2.geometry().mbr().x1d());
++            return Double.compare(n1.geometry().mbr().x1(), n2.geometry().mbr().x1());
+         }
+     };
+ 
+@@ -113,7 +113,7 @@
+ 
+         @Override
+         public int compare(HasGeometry n1, HasGeometry n2) {
+-            return Double.compare(n1.geometry().mbr().x2d(), n2.geometry().mbr().x2d());
++            return Double.compare(n1.geometry().mbr().x2(), n2.geometry().mbr().x2());
+         }
+     };
+ 
+@@ -121,7 +121,7 @@
+ 
+         @Override
+         public int compare(HasGeometry n1, HasGeometry n2) {
+-            return Double.compare(n1.geometry().mbr().y1d(), n2.geometry().mbr().y1d());
++            return Double.compare(n1.geometry().mbr().y1(), n2.geometry().mbr().y1());
+         }
+     };
+ 
+@@ -129,11 +129,11 @@
+ 
+         @Override
+         public int compare(HasGeometry n1, HasGeometry n2) {
+-            return Double.compare(n1.geometry().mbr().y2d(), n2.geometry().mbr().y2d());
++            return Double.compare(n1.geometry().mbr().y2(), n2.geometry().mbr().y2());
+         }
+     };
+ 
+-    private static float overlap(ListPair<? extends HasGeometry> pair) {
++    private static double overlap(ListPair<? extends HasGeometry> pair) {
+         return pair.group1().geometry().mbr().intersectionArea(pair.group2().geometry().mbr());
+     }
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/github/davidmoten/rtree/HighPrecisionTest.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/github/davidmoten/rtree/HighPrecisionTest.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/github/davidmoten/rtree/HighPrecisionTest.java	2024-09-08 01:36:13.837806654 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/github/davidmoten/rtree/HighPrecisionTest.java	2024-09-08 01:36:13.829806597 +1000
+@@ -27,7 +27,7 @@
+         double x1 = 2.0000000001;
+         System.out.println((float) x1);
+         tree = tree.add(2, Geometries.rectangle(x1, 2, 3, 3));
+-        tree.search(Geometries.rectangle((float) x1, 2.0, 2.0, 2.0)) //
++        tree.search(Geometries.rectangle((float) x1, 2.0, (float) x1, 2.0)) //
+                 .test() //
+                 .assertNoValues() //
+                 .assertCompleted();

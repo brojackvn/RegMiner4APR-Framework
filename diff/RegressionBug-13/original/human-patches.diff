@@ -1,0 +1,33 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/pom.xml ./RegMiner4APR-Regression-Bugs/BFC/pom.xml
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/pom.xml	2024-09-08 01:36:09.277774717 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/pom.xml	2024-09-08 01:36:09.241774466 +1000
+@@ -3,7 +3,7 @@
+     <modelVersion>4.0.0</modelVersion>
+     <groupId>com.amihaiemil.web</groupId>
+     <artifactId>eo-yaml</artifactId>
+-    <version>5.1.6-SNAPSHOT</version><!--rrv-sed-flag-->
++    <version>5.1.7-SNAPSHOT</version><!--rrv-sed-flag-->
+     <packaging>jar</packaging>
+     <properties>
+         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/amihaiemil/eoyaml/ReadYamlMapping.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/amihaiemil/eoyaml/ReadYamlMapping.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/amihaiemil/eoyaml/ReadYamlMapping.java	2024-09-08 01:36:09.277774717 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/amihaiemil/eoyaml/ReadYamlMapping.java	2024-09-08 01:36:09.245774493 +1000
+@@ -37,7 +37,7 @@
+  * to be a plain YAML mapping.
+  * @checkstyle CyclomaticComplexity (300 lines)
+  * @author Mihai Andronache (amihaiemil@gmail.com)
+- * @version $Id: 6d99a452982fc04778920477407c3132730113d7 $
++ * @version $Id: 45cfb58e52c075bf318045a1591bc9ede6c61367 $
+  * @since 1.0.0
+  */
+ final class ReadYamlMapping extends BaseYamlMapping {
+@@ -238,7 +238,7 @@
+         for(final String tryKey : keys) {
+             for (final YamlLine line : this.significant) {
+                 final String trimmed = line.trimmed();
+-                if(trimmed.endsWith(tryKey + ":")
++                if(trimmed.matches("^-?[ ]*" + Pattern.quote(tryKey) + ":")
+                     || trimmed.matches("^" + Pattern.quote(tryKey) + "\\:[ ]*\\>$")
+                     || trimmed.matches("^" + Pattern.quote(tryKey) + "\\:[ ]*\\|$")
+                 ) {

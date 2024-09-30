@@ -1,0 +1,80 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/blade/mvc/handler/RequestInvoker.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/blade/mvc/handler/RequestInvoker.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/blade/mvc/handler/RequestInvoker.java	2024-09-26 15:56:54.521344822 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/blade/mvc/handler/RequestInvoker.java	2024-09-26 15:57:02.885424981 +1000
+@@ -27,7 +27,7 @@
+ public class RequestInvoker {
+ 
+     private final Blade blade;
+-    private final Ioc ioc;
++    private final Ioc   ioc;
+ 
+     public RequestInvoker(Blade blade) {
+         this.blade = blade;
+@@ -109,8 +109,8 @@
+      * @throws Exception throw like parse param exception
+      */
+     public boolean invokeHook(Signature routeSignature, Route hookRoute) throws Exception {
+-        Method actionMethod = hookRoute.getAction();
+-        Object target       = hookRoute.getTarget();
++        Method hookMethod = hookRoute.getAction();
++        Object target     = hookRoute.getTarget();
+         if (null == target) {
+             Class<?> clazz = hookRoute.getAction().getDeclaringClass();
+             target = ioc.getBean(clazz);
+@@ -118,20 +118,14 @@
+         }
+ 
+         // execute
+-        int len = actionMethod.getParameterTypes().length;
+-        actionMethod.setAccessible(true);
++        int len = hookMethod.getParameterTypes().length;
++        hookMethod.setAccessible(true);
+ 
+         Object returnParam;
+         if (len > 0) {
+-            Signature signature = Signature.builder().route(hookRoute)
+-                    .request(routeSignature.request()).response(routeSignature.response())
+-                    .parameters(routeSignature.getParameters())
+-                    .action(actionMethod).build();
+-
+-            Object[] args = MethodArgument.getArgs(signature);
+-            returnParam = ReflectKit.invokeMethod(target, actionMethod, args);
++            returnParam = ReflectKit.invokeMethod(target, hookMethod, routeSignature);
+         } else {
+-            returnParam = ReflectKit.invokeMethod(target, actionMethod);
++            returnParam = ReflectKit.invokeMethod(target, hookMethod);
+         }
+ 
+         if (null == returnParam) return true;
+@@ -175,5 +169,4 @@
+         return true;
+     }
+ 
+-
+ }
+\ No newline at end of file
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/blade/mvc/hook/Signature.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/blade/mvc/hook/Signature.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/blade/mvc/hook/Signature.java	2024-09-26 15:56:54.521344822 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/blade/mvc/hook/Signature.java	2024-09-26 15:57:02.885424981 +1000
+@@ -12,7 +12,7 @@
+  * Signature
+  *
+  * @author biezhi
+- *         2017/6/2
++ * 2017/6/2
+  */
+ @Data
+ @Builder
+@@ -43,12 +43,6 @@
+         this.route = route;
+         this.action = route.getAction();
+         if (null != this.action && !this.action.toString().contains("$$Lambda$")) {
+-            this.initParameters();
+-        }
+-    }
+-
+-    private void initParameters() throws Exception {
+-        if (null != this.action) {
+             this.parameters = MethodArgument.getArgs(this);
+         }
+     }

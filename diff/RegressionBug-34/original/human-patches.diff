@@ -1,0 +1,23 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/AbstractWriter.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/AbstractWriter.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/AbstractWriter.java	2024-09-08 01:36:14.753813068 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/AbstractWriter.java	2024-09-08 01:36:14.729812900 +1000
+@@ -1735,7 +1735,7 @@
+ 			Object[] keys = new Object[rowData.size()];
+ 			final Map<Object, Object> rowValues = new LinkedHashMap<Object, Object>(rowData.size());
+ 
+-			if(headers == null){
++			if(outputList != null && headers == null){
+ 				if(headerMapping != null){
+ 					setHeadersFromMap(headerMapping, true);
+ 				} else {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/univocity/parsers/examples/CsvParserExamples.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/univocity/parsers/examples/CsvParserExamples.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/univocity/parsers/examples/CsvParserExamples.java	2024-09-08 01:36:14.757813096 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/univocity/parsers/examples/CsvParserExamples.java	2024-09-08 01:36:14.737812956 +1000
+@@ -104,7 +104,6 @@
+ 		}
+ 
+ 		//##CODE_END
+-
+ 		printAndValidate(out);
+ 	}
+ 

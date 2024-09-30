@@ -1,0 +1,59 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/formulas/FormulaFactory.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/formulas/FormulaFactory.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/formulas/FormulaFactory.java	2024-09-08 01:36:07.393761523 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/formulas/FormulaFactory.java	2024-09-08 01:36:07.321761019 +1000
+@@ -112,9 +112,7 @@
+   private FormulaFactoryImporter importer;
+ 
+   /**
+-   * Constructor for a new formula factory with a given name. This name is included in generated variables.
+-   * If you intent to mix formulas from different factories, you have to choose different names for the factories
+-   * to avoid name clashing of generated variables.
++   * Constructor for a new formula factory.
+    * @param name                 the name of the factory
+    * @param stringRepresentation the string representation of the formulas
+    */
+@@ -278,8 +276,6 @@
+       return this.not(left);
+     if (left.equals(right))
+       return this.verum();
+-    if (left.negate().equals(right))
+-      return left.negate();
+     final Pair<Formula, Formula> key = new Pair<>(left, right);
+     Implication implication = this.implications.get(key);
+     if (implication == null) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/logicng/formulas/ExtendedFormulaFactoryTest.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/logicng/formulas/ExtendedFormulaFactoryTest.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/logicng/formulas/ExtendedFormulaFactoryTest.java	2024-09-08 01:36:07.397761551 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/logicng/formulas/ExtendedFormulaFactoryTest.java	2024-09-08 01:36:07.329761075 +1000
+@@ -124,7 +124,7 @@
+     final ExtendedFormulaFactory eff = new ExtendedFormulaFactory();
+     final List<Formula> formulas = initializeFormulaFactoryWithFormulas(eff);
+     final FormulaFactoryState state = eff.save();
+-    assertThat(state.toString()).isEqualTo("FormulaFactoryState{id=0, state=[4, 4, 0, 6, 4, 5, 3, 0, 0, 0, 3, 0, 0, 0, 5, 0, 0, 0]}");
++    assertThat(state.toString()).isEqualTo("FormulaFactoryState{id=0, state=[4, 4, 0, 5, 4, 5, 3, 0, 0, 0, 3, 0, 0, 0, 5, 0, 0, 0]}");
+     for (Formula formula : formulas) {
+       transformation.apply(formula, true);
+       softly.assertThat((formula.predicateCacheEntry(predicateCacheEntry) != null && formula.predicateCacheEntry(predicateCacheEntry).equals(Tristate.TRUE)) || formula.transformationCacheEntry(transformationCacheEntry) != null).as("CacheClearanceTest for " + formula.toString() + " type: " + transformationCacheEntry).isTrue();
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/logicng/formulas/ImplicationTest.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/logicng/formulas/ImplicationTest.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/logicng/formulas/ImplicationTest.java	2024-09-08 01:36:07.397761551 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/logicng/formulas/ImplicationTest.java	2024-09-08 01:36:07.329761075 +1000
+@@ -56,8 +56,6 @@
+     Assert.assertEquals(F.A, F.f.implication(F.TRUE, F.A));
+     Assert.assertEquals(F.NA, F.f.implication(F.A, F.FALSE));
+     Assert.assertEquals(F.TRUE, F.f.implication(F.A, F.A));
+-    Assert.assertEquals(F.A, F.f.implication(F.NA, F.A));
+-    Assert.assertEquals(F.NA, F.f.implication(F.A, F.NA));
+     Assert.assertEquals(F.IMP3, F.f.binaryOperator(FType.IMPL, F.AND1, F.OR1));
+   }
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/logicng/io/parsers/PropositionalParserTest.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/logicng/io/parsers/PropositionalParserTest.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/logicng/io/parsers/PropositionalParserTest.java	2024-09-08 01:36:07.401761579 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/logicng/io/parsers/PropositionalParserTest.java	2024-09-08 01:36:07.329761075 +1000
+@@ -97,8 +97,6 @@
+     Assert.assertEquals(F.f.or(F.f.variable("x"), F.f.and(F.f.variable("y"), F.f.variable("z"))), parser.parse("x | y & z"));
+     Assert.assertEquals(F.f.or(F.f.and(F.f.variable("x"), F.f.variable("y")), F.f.variable("z")), parser.parse("x & y | z"));
+     Assert.assertEquals(F.f.implication(F.f.variable("x"), F.f.and(F.f.variable("y"), F.f.variable("z"))), parser.parse("x => y & z"));
+-    Assert.assertEquals(F.f.not(F.f.and(F.f.variable("y"), F.f.variable("z"))), parser.parse("y & z => ~(y & z)"));
+-    Assert.assertEquals(F.f.and(F.f.variable("y"), F.f.variable("z")), parser.parse("~(y & z) => y & z"));
+     Assert.assertEquals(F.f.implication(F.f.and(F.f.variable("x"), F.f.variable("y")), F.f.variable("z")), parser.parse("x & y => z"));
+     Assert.assertEquals(F.f.equivalence(F.f.variable("x"), F.f.and(F.f.variable("y"), F.f.variable("z"))), parser.parse("x <=> y & z"));
+     Assert.assertEquals(F.f.equivalence(F.f.and(F.f.variable("x"), F.f.variable("y")), F.f.variable("z")), parser.parse("x & y <=> z"));

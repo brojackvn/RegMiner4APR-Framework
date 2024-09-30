@@ -1,0 +1,13 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/springframework/data/mapping/model/KotlinCopyMethod.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/springframework/data/mapping/model/KotlinCopyMethod.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/springframework/data/mapping/model/KotlinCopyMethod.java	2024-09-08 01:36:08.685770571 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/springframework/data/mapping/model/KotlinCopyMethod.java	2024-09-08 01:36:08.637770235 +1000
+@@ -278,7 +278,8 @@
+ 
+ 		Type parameterType = ReflectJvmMapping.getJavaType(source);
+ 
+-		return ResolvableType.forClass(target).isAssignableFrom(ResolvableType.forType(parameterType));
++		Class<?> rawClass = ResolvableType.forType(parameterType).getRawClass();
++		return rawClass == null || target.isAssignableFrom(rawClass);
+ 	}
+ 
+ 	/**

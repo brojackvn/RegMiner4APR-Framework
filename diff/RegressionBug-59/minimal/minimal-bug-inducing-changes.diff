@@ -1,0 +1,63 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/esri/core/geometry/ogc/OGCConcreteGeometryCollection.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/esri/core/geometry/ogc/OGCConcreteGeometryCollection.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/esri/core/geometry/ogc/OGCConcreteGeometryCollection.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/esri/core/geometry/ogc/OGCConcreteGeometryCollection.java
+@@ -377,6 +385,59 @@
+ 		}
+ 
+ 	}
++	@Override
++	public OGCGeometry convexHull() {
++		GeometryCursor cursor = OperatorConvexHull.local().execute(
++				getEsriGeometryCursor(), false, null);
++		MultiPoint mp = new MultiPoint();
++		Polygon polygon = new Polygon();
++		VertexDescription vd = null;
++		for (Geometry geom = cursor.next(); geom != null; geom = cursor.next()) {
++			vd = geom.getDescription();
++			if (geom.isEmpty())
++				continue;
+
++			if (geom.getType() == Geometry.Type.Polygon) {
++				polygon.add((MultiPath) geom, false);
++			}
++			else if (geom.getType() == Geometry.Type.Polyline) {
++				mp.add((MultiVertexGeometry) geom, 0, -1);
++			}
++			else if (geom.getType() == Geometry.Type.Point) {
++				mp.add((Point) geom);
++			}
++			else {
++				throw new GeometryException("internal error");
++			}
++		}
+
++		Geometry resultGeom = null;
++		if (!mp.isEmpty()) {
++			resultGeom = OperatorConvexHull.local().execute(mp, null);
++		}
+
++		if (!polygon.isEmpty()) {
++			if (!resultGeom.isEmpty()) {
++				Geometry[] geoms = { resultGeom, polygon };
++				resultGeom = OperatorConvexHull.local().execute(
++						new SimpleGeometryCursor(geoms), true, null).next();
++			}
++			else {
++				resultGeom = polygon;
++			}
++		}
+
++		if (resultGeom == null) {
++			Point pt = new Point();
++			if (vd != null)
++				pt.assignVertexDescription(vd);
++
++			return new OGCPoint(pt, getEsriSpatialReference());
++		}
+
++		return OGCGeometry.createFromEsriGeometry(resultGeom, getEsriSpatialReference(), false);
++	}
+ 
+ 	List<OGCGeometry> geometries;
+ 
+ 

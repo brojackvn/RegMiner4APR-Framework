@@ -1,0 +1,19 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/yahoo/sketches/theta/UnionImpl.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/yahoo/sketches/theta/UnionImpl.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/yahoo/sketches/theta/UnionImpl.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/yahoo/sketches/theta/UnionImpl.java
+@@ -301,6 +301,15 @@
+       }
+     }
+     unionThetaLong_ = min(unionThetaLong_, gadget_.getThetaLong()); //Theta rule with gadget
++    if (gadget_.hasMemory()) {
++      final WritableMemory wmem = (WritableMemory)gadget_.getMemory();
++      PreambleUtil.insertUnionThetaLong(wmem, unionThetaLong_);
++      if (unionEmpty_) {
++        PreambleUtil.setEmpty(wmem);
++      } else {
++        PreambleUtil.clearEmpty(wmem);
++      }
++    }
+   }
+ 
+   @Override

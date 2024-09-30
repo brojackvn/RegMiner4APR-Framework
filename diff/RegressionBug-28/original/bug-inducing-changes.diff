@@ -1,0 +1,2117 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/FieldMapping.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/FieldMapping.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/FieldMapping.java	2024-09-08 01:36:13.913807185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/FieldMapping.java	2024-09-08 01:36:13.893807045 +1000
+@@ -32,7 +32,7 @@
+ 	private final Class parentClass;
+ 	private final AnnotatedElement target;
+ 	private int index;
+-	private String fieldName;
++	private NormalizedString fieldName;
+ 	private final Class<?> beanClass;
+ 	private final Method readMethod;
+ 	private final Method writeMethod;
+@@ -52,7 +52,7 @@
+ 	 * @param transformer an optional {@link HeaderTransformer} to modify header names/positions in attributes of {@link Nested} classes.
+ 	 * @param headers     list of headers parsed from the input or manually set with {@link CommonSettings#setHeaders(String...)}
+ 	 */
+-	public FieldMapping(Class<?> beanClass, AnnotatedElement target, PropertyWrapper property, HeaderTransformer transformer, String[] headers) {
++	public FieldMapping(Class<?> beanClass, AnnotatedElement target, PropertyWrapper property, HeaderTransformer transformer, NormalizedString[] headers) {
+ 		this.beanClass = beanClass;
+ 		this.target = target;
+ 		if (target instanceof Field) {
+@@ -88,7 +88,7 @@
+ 		determineFieldMapping(transformer, headers);
+ 	}
+ 
+-	private void determineFieldMapping(HeaderTransformer transformer, String[] headers) {
++	private void determineFieldMapping(HeaderTransformer transformer, NormalizedString[] headers) {
+ 		Parsed parsed = findAnnotation(target, Parsed.class);
+ 		String name = "";
+ 
+@@ -107,14 +107,14 @@
+ 
+ 			if (fields.length > 1 && headers != null) {
+ 				for (int i = 0; i < headers.length; i++) {
+-					String header = headers[i];
++					NormalizedString header = headers[i];
+ 					if (header == null) {
+ 						continue;
+ 					}
+ 
+ 					for (int j = 0; j < fields.length; j++) {
+ 						String field = fields[j];
+-						if (field.equalsIgnoreCase(header)) {
++						if (header.equals(field)) {
+ 							name = field;
+ 							break;
+ 						}
+@@ -129,7 +129,7 @@
+ 		if (name.isEmpty()) {
+ 			name = getName(target);
+ 		}
+-		fieldName = name;
++		fieldName = NormalizedString.valueOf(name);
+ 
+ 
+ 		//Not a @Nested field
+@@ -137,7 +137,7 @@
+ 			if (index >= 0) {
+ 				index = transformer.transformIndex(target, index);
+ 			} else if (fieldName != null) {
+-				fieldName = transformer.transformName(target, fieldName);
++				fieldName = NormalizedString.valueOf(transformer.transformName(target, fieldName.toString()));
+ 			}
+ 		}
+ 	}
+@@ -219,6 +219,16 @@
+ 	 * @param fieldName the column name associated with this field
+ 	 */
+ 	public void setFieldName(String fieldName) {
++		this.fieldName = NormalizedString.valueOf(fieldName);
++	}
++
++	/**
++	 * Defines the column name against which this field is mapped, overriding any current name derived from
++	 * annotations or from the attribute name itself.
++	 *
++	 * @param fieldName the column name associated with this field
++	 */
++	public void setFieldName(NormalizedString fieldName) {
+ 		this.fieldName = fieldName;
+ 	}
+ 
+@@ -227,7 +237,7 @@
+ 	 *
+ 	 * @return the column name associated with this field, or {@code null} if there's no such association.
+ 	 */
+-	public String getFieldName() {
++	public NormalizedString getFieldName() {
+ 		return fieldName;
+ 	}
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/AbstractParser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/AbstractParser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/AbstractParser.java	2024-09-08 01:36:13.913807185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/AbstractParser.java	2024-09-08 01:36:13.893807045 +1000
+@@ -67,6 +67,9 @@
+ 	private final boolean extractHeaders;
+ 	protected final int whitespaceRangeStart;
+ 
++	protected boolean ignoreTrailingWhitespace;
++	protected boolean ignoreLeadingWhitespace;
++
+ 	/**
+ 	 * All parsers must support, at the very least, the settings provided by {@link CommonParserSettings}. The AbstractParser requires its configuration to be properly initialized.
+ 	 *
+@@ -76,6 +79,8 @@
+ 		settings.autoConfigure();
+ 		this.settings = settings;
+ 		this.errorContentLength = settings.getErrorContentLength();
++		this.ignoreTrailingWhitespace = settings.getIgnoreTrailingWhitespaces();
++		this.ignoreLeadingWhitespace = settings.getIgnoreLeadingWhitespaces();
+ 		this.output = new ParserOutput(this, settings);
+ 		this.processor = settings.getProcessor();
+ 		this.recordsToRead = settings.getNumberOfRecordsToRead();
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/AbstractWriter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/AbstractWriter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/AbstractWriter.java	2024-09-08 01:36:13.913807185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/AbstractWriter.java	2024-09-08 01:36:13.893807045 +1000
+@@ -61,7 +61,7 @@
+ 	private int[] indexesToWrite;
+ 	private final char[] lineSeparator;
+ 
+-	protected String[] headers;
++	protected NormalizedString[] headers;
+ 	protected long recordCount = 0;
+ 
+ 	protected final String nullValue;
+@@ -70,17 +70,20 @@
+ 
+ 	private final Object[] partialLine;
+ 	private int partialLineIndex = 0;
+-	private Map<String[], Map<String, Integer>> headerIndexes;
++	private Map<NormalizedString[], Map<NormalizedString, Integer>> headerIndexes;
+ 	private int largestRowLength = -1;
+ 	protected boolean writingHeaders = false;
++	protected boolean[] headerTrimFlags;
+ 
+-	private String[] dummyHeaderRow;
++	private NormalizedString[] dummyHeaderRow;
+ 	protected boolean expandRows;
+ 	private boolean usingSwitch;
+ 	private boolean enableNewlineAfterRecord = true;
+ 	protected boolean usingNullOrEmptyValue;
+ 	protected final int whitespaceRangeStart;
+ 	private final boolean columnReorderingEnabled;
++	protected boolean ignoreLeading;
++	protected boolean ignoreTrailing;
+ 
+ 	private final CommonSettings<DummyFormat> internalSettings = new CommonSettings<DummyFormat>() {
+ 		@Override
+@@ -172,6 +175,8 @@
+ 	 */
+ 	public AbstractWriter(Writer writer, S settings) {
+ 		settings.autoConfigure();
++		this.ignoreLeading = settings.getIgnoreLeadingWhitespaces();
++		this.ignoreTrailing = settings.getIgnoreTrailingWhitespaces();
+ 		internalSettings.setMaxColumns(settings.getMaxColumns());
+ 		this.errorContentLength = settings.getErrorContentLength();
+ 		this.nullValue = settings.getNullValue();
+@@ -188,11 +193,10 @@
+ 		this.appender = new WriterCharAppender(settings.getMaxCharsPerColumn(), "", whitespaceRangeStart, settings.getFormat());
+ 		this.rowAppender = new WriterCharAppender(settings.getMaxCharsPerColumn(), "", whitespaceRangeStart, settings.getFormat());
+ 
+-
+ 		this.writer = writer;
+ 
+ 
+-		this.headers = settings.getHeaders();
++		this.headers = NormalizedString.toIdentifierGroupArray(settings.getHeaders());
+ 
+ 		updateIndexesToWrite(settings);
+ 
+@@ -251,7 +255,7 @@
+ 				} else {
+ 					rowLength = settings.getMaxColumns();
+ 				}
+-				indexesToWrite = selector.getFieldIndexes(new String[rowLength]); //generates a dummy header array - only the indexes matter so we are good
++				indexesToWrite = selector.getFieldIndexes(new NormalizedString[rowLength]); //generates a dummy header array - only the indexes matter so we are good
+ 				if (columnReorderingEnabled) { //column reordering enabled?
+ 					outputRow = new Object[indexesToWrite.length];
+ 				} else {
+@@ -325,6 +329,12 @@
+ 		if (largestRowLength < row.length) {
+ 			largestRowLength = row.length;
+ 		}
++		if (writingHeaders) {
++			headerTrimFlags = new boolean[headers.length];
++			for(int i = 0; i < headers.length; i++){
++				headerTrimFlags[i] = !headers[i].isLiteral();
++			}
++		}
+ 		processRow(row);
+ 	}
+ 
+@@ -380,7 +390,7 @@
+ 	 * <p> A {@link TextWritingException} will be thrown if no headers were defined or if records were already written to the output.
+ 	 */
+ 	public final void writeHeaders() {
+-		writeHeaders(this.headers);
++		writeHeaders(NormalizedString.toArray(this.headers));
+ 	}
+ 
+ 	/**
+@@ -413,9 +423,9 @@
+ 				fillOutputRow(headers);
+ 				headers = Arrays.copyOf(outputRow, outputRow.length, String[].class);
+ 			}
++			this.headers = NormalizedString.toIdentifierGroupArray(headers);
+ 			submitRow(headers);
+ 
+-			this.headers = headers;
+ 			internalWriteRow();
+ 			writingHeaders = false;
+ 		} else {
+@@ -516,9 +526,9 @@
+ 				if (dummyHeaderRow == null) {
+ 					dummyHeaderRow = this.headers;
+ 				}
+-				row = writerProcessor.write(record, dummyHeaderRow, indexesToWrite);
++				row = writerProcessor.write(record, NormalizedString.toArray(dummyHeaderRow), indexesToWrite);
+ 			} else {
+-				row = writerProcessor.write(record, getRowProcessorHeaders(), indexesToWrite);
++				row = writerProcessor.write(record, NormalizedString.toArray(getRowProcessorHeaders()), indexesToWrite);
+ 			}
+ 		} catch (DataProcessingException e) {
+ 			e.setErrorContentLength(errorContentLength);
+@@ -530,7 +540,7 @@
+ 		}
+ 	}
+ 
+-	private String[] getRowProcessorHeaders() {
++	private NormalizedString[] getRowProcessorHeaders() {
+ 		if (headers == null && indexesToWrite == null) {
+ 			return null;
+ 		}
+@@ -723,11 +733,11 @@
+ 		}
+ 	}
+ 
+-	protected Object[] expand(Object[] row, int length, String[] h2) {
++	protected Object[] expand(Object[] row, int length, Integer h2) {
+ 		if (row.length < length) {
+ 			return Arrays.copyOf(row, length);
+-		} else if (h2 != null && row.length < h2.length) {
+-			return Arrays.copyOf(row, h2.length);
++		} else if (h2 != null && row.length < h2) {
++			return Arrays.copyOf(row, h2);
+ 		}
+ 
+ 		if (length == -1 && h2 == null && row.length < largestRowLength) {
+@@ -1082,10 +1092,10 @@
+ 	 * @param value      the value to be written
+ 	 */
+ 	public final void addValue(String headerName, Object value) {
+-		addValue(getFieldIndex(headers, headerName, false), value);
++		addValue(getFieldIndex(headers, NormalizedString.valueOf(headerName), false), value);
+ 	}
+ 
+-	private final void addValue(String[] headersInContext, String headerName, boolean ignoreOnMismatch, Object value) {
++	private final void addValue(NormalizedString[] headersInContext, NormalizedString headerName, boolean ignoreOnMismatch, Object value) {
+ 		int index = getFieldIndex(headersInContext, headerName, ignoreOnMismatch);
+ 		if (index != -1) {
+ 			addValue(index, value);
+@@ -1101,14 +1111,14 @@
+ 	 *
+ 	 * @return the position of the given header, or -1 if it's not found when ignoreOnMismatch is set to {@code true}
+ 	 */
+-	private int getFieldIndex(String[] headersInContext, String headerName, boolean ignoreOnMismatch) {
++	private int getFieldIndex(NormalizedString[] headersInContext, NormalizedString headerName, boolean ignoreOnMismatch) {
+ 		if (headerIndexes == null) {
+-			headerIndexes = new HashMap<String[], Map<String, Integer>>();
++			headerIndexes = new HashMap<NormalizedString[], Map<NormalizedString, Integer>>();
+ 		}
+ 
+-		Map<String, Integer> indexes = headerIndexes.get(headersInContext);
++		Map<NormalizedString, Integer> indexes = headerIndexes.get(headersInContext);
+ 		if (indexes == null) {
+-			indexes = new HashMap<String, Integer>();
++			indexes = new HashMap<NormalizedString, Integer>();
+ 			headerIndexes.put(headersInContext, indexes);
+ 		}
+ 
+@@ -1117,7 +1127,7 @@
+ 			if (headersInContext == null) {
+ 				throw throwExceptionAndClose("Cannot calculate position of header '" + headerName + "' as no headers were defined.", null);
+ 			}
+-			index = ArgumentUtils.indexOf(ArgumentUtils.normalize(headersInContext), ArgumentUtils.normalize(headerName));
++			index = ArgumentUtils.indexOf(NormalizedString.toArray(headersInContext), NormalizedString.valueOf(headerName));
+ 			if (index == -1) {
+ 				if (!ignoreOnMismatch) {
+ 					throw throwExceptionAndClose("Header '" + headerName + "' could not be found. Defined headers are: " + Arrays.toString(headersInContext) + '.', null);
+@@ -1142,7 +1152,7 @@
+ 	 * @return a formatted {@code String} containing the headers defined in {@link CommonSettings#getHeaders()}
+ 	 */
+ 	public final String writeHeadersToString() {
+-		return writeHeadersToString(this.headers);
++		return writeHeadersToString(NormalizedString.toArray(this.headers));
+ 	}
+ 
+ 	/**
+@@ -1174,7 +1184,7 @@
+ 			writingHeaders = true;
+ 			submitRow(headers);
+ 			writingHeaders = false;
+-			this.headers = headers;
++			this.headers = NormalizedString.toIdentifierGroupArray(headers);
+ 			return internalWriteRowToString();
+ 		} else {
+ 			throw throwExceptionAndClose("No headers defined.");
+@@ -1249,7 +1259,7 @@
+ 		}
+ 
+ 		try {
+-			Object[] row = writerProcessor.write(record, getRowProcessorHeaders(), indexesToWrite);
++			Object[] row = writerProcessor.write(record, NormalizedString.toArray(getRowProcessorHeaders()), indexesToWrite);
+ 			if (row != null) {
+ 				return writeRowToString(row);
+ 			}
+@@ -1433,7 +1443,7 @@
+ 			row = outputRow;
+ 		} else if (expandRows) {
+ 			if (usingSwitch) {
+-				row = expand(row, dummyHeaderRow == null ? -1 : dummyHeaderRow.length, headers);
++				row = expand(row, dummyHeaderRow == null ? -1 : dummyHeaderRow.length, headers == null ? null : headers.length);
+ 				dummyHeaderRow = null;
+ 			} else {
+ 				row = expand(row, headers == null ? -1 : headers.length, null);
+@@ -1545,13 +1555,13 @@
+ 				if (dummyHeaderRow != null) {
+ 					if (headerMapping == null) {
+ 						for (Map.Entry<?, ?> e : rowData.entrySet()) {
+-							addValue(dummyHeaderRow, String.valueOf(e.getKey()), true, e.getValue());
++							addValue(dummyHeaderRow, NormalizedString.valueOf(e.getKey()), true, e.getValue());
+ 						}
+ 					} else {
+ 						for (Map.Entry<?, ?> e : rowData.entrySet()) {
+ 							String header = headerMapping.get(e.getKey());
+ 							if (header != null) {
+-								addValue(dummyHeaderRow, header, true, e.getValue());
++								addValue(dummyHeaderRow, NormalizedString.valueOf(header), true, e.getValue());
+ 							}
+ 						}
+ 					}
+@@ -1575,10 +1585,10 @@
+ 	 * @param keys indicates whether to take the map keys or values to build the header rows.
+ 	 */
+ 	private void setHeadersFromMap(Map<?, ?> map, boolean keys) {
+-		this.headers = new String[map.size()];
++		this.headers = new NormalizedString[map.size()];
+ 		int i = 0;
+ 		for (Object header : keys ? map.keySet() : map.values()) {
+-			headers[i++] = String.valueOf(header);
++			headers[i++] = NormalizedString.valueOf(header);
+ 		}
+ 	}
+ 
+@@ -2294,4 +2304,18 @@
+ 	private String getContent(CharSequence tmp) {
+ 		return AbstractException.restrictContent(errorContentLength, tmp);
+ 	}
++
++	/**
++	 * Checks whether the writer can remove trailing/leading whitespaces from a value being written.
++	 * Applies to headers where names can be conflicting if trimmed for example {@code ' a '} and
++	 * {@code 'a'} will become the same value if the spaces are removed)
++	 *
++	 * @param fieldIndex index of the field to be written.
++	 * @return {@code true} if the value being written is not a header name, or it is a header name that won't
++	 * conflict with another header if its surrounding whitespaces are trimmed.
++	 *
++	 */
++	protected final boolean allowTrim(int fieldIndex){
++		return !writingHeaders || fieldIndex >= headerTrimFlags.length || headerTrimFlags[fieldIndex];
++	}
+ }
+\ No newline at end of file
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/ArgumentUtils.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/ArgumentUtils.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/ArgumentUtils.java	2024-09-08 01:36:13.913807185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/ArgumentUtils.java	2024-09-08 01:36:13.893807045 +1000
+@@ -22,6 +22,8 @@
+ import java.nio.charset.*;
+ import java.util.*;
+ 
++import static java.lang.reflect.Array.*;
++
+ /**
+  * An utility class for validating inputs.
+  *
+@@ -34,6 +36,8 @@
+ 	 */
+ 	public static final String[] EMPTY_STRING_ARRAY = new String[0];
+ 
++	public static final NormalizedString[] EMPTY_NORMALIZED_STRING_ARRAY = new NormalizedString[0];
++
+ 	/**
+ 	 * Throws an IllegalArgumentException if the given array is null or empty.
+ 	 *
+@@ -79,7 +83,7 @@
+ 	 *
+ 	 * @return the index of the given element in the array, or -1 if the element could not be found.
+ 	 */
+-	public static int indexOf(String[] array, String element, FieldSelector fieldSelector) {
++	public static int indexOf(NormalizedString[] array, NormalizedString element, FieldSelector fieldSelector) {
+ 		int index = indexOf(array, element);
+ 		if (fieldSelector == null || index == -1) {
+ 			return index;
+@@ -119,7 +123,7 @@
+ 			i++;
+ 		}
+ 
+-		return  tmp;
++		return tmp;
+ 	}
+ 
+ 	/**
+@@ -154,6 +158,9 @@
+ 				}
+ 			}
+ 		} else {
++			if (element.getClass() != array.getClass().getComponentType()) {
++				throw new IllegalStateException("a");
++			}
+ 			if (element instanceof String && array instanceof String[]) {
+ 				for (int i = from; i < array.length; i++) {
+ 					String e = String.valueOf(array[i]);
+@@ -205,56 +212,6 @@
+ 	}
+ 
+ 	/**
+-	 * Normalizes the Strings in a given array by trimming all elements and converting them to lower case.
+-	 *
+-	 * @param strings a String array with elements to be normalized.
+-	 *
+-	 * @return the normalized version of the original string array.
+-	 */
+-	public static String[] normalize(String[] strings) {
+-		String[] out = new String[strings.length];
+-
+-		for (int i = 0; i < strings.length; i++) {
+-			out[i] = normalize(strings[i]);
+-		}
+-
+-		return out;
+-	}
+-
+-	/**
+-	 * Normalizes a given String by trimming whitespaces and converting it to lower case.
+-	 *
+-	 * @param string a String to be normalized.
+-	 *
+-	 * @return the normalized version of the original String.
+-	 */
+-	public static String normalize(String string) {
+-		if (string == null) {
+-			return null;
+-		}
+-		return string.trim().toLowerCase();
+-	}
+-
+-	/**
+-	 * Normalizes the Strings in a given array by trimming all elements and converting them to lower case.
+-	 *
+-	 * @param strings a String collection with elements to be normalized. The original contents of the collection will be modified.
+-	 */
+-	public static void normalize(Collection<String> strings) {
+-		LinkedHashSet<String> normalized = new LinkedHashSet<String>(strings.size());
+-		for (String string : strings) {
+-			if (string == null) {
+-				normalized.add(null);
+-			} else {
+-				normalized.add(string.trim().toLowerCase());
+-			}
+-		}
+-
+-		strings.clear();
+-		strings.addAll(normalized);
+-	}
+-
+-	/**
+ 	 * Creates a {@link java.io.Writer} from an output stream
+ 	 *
+ 	 * @param output the output stream
+@@ -496,6 +453,12 @@
+ 		return out;
+ 	}
+ 
++	/**
++	 * Restricts the length of a given content.
++	 * @param length the maximum length to be displayed. If {@code 0}, the {@code "<omitted>"} string will be returned.
++	 * @param content the content whose length should be restricted.
++	 * @return the restricted content.
++	 */
+ 	public static String restrictContent(int length, CharSequence content) {
+ 		if (content == null) {
+ 			return null;
+@@ -514,6 +477,12 @@
+ 		return content.toString();
+ 	}
+ 
++	/**
++	 * Restricts the length of a given content.
++	 * @param length the maximum length to be displayed. If {@code 0}, the {@code "<omitted>"} string will be returned.
++	 * @param content the content whose length should be restricted.
++	 * @return the restricted content.
++	 */
+ 	public static String restrictContent(int length, Object content) {
+ 		if (content == null) {
+ 			return null;
+@@ -553,4 +522,68 @@
+ 		}
+ 		return out;
+ 	}
++
++	/**
++	 * Identifies duplicate values in a given array and returns them
++	 * @param array the search array
++	 * @param <T> the type of elements held in the given array.
++	 * @return all duplicate values found in the given array, or empty array if no duplicates, or {@code null} if the input is {@code null}.
++	 */
++	public static <T> T[] findDuplicates(T[] array) {
++		if (array == null || array.length == 0) {
++			return array;
++		}
++
++		Set<T> elements = new HashSet<T>(array.length);
++		ArrayList<T> duplicates = new ArrayList<T>(1);
++
++		for (T element : array) {
++			if (!elements.contains(element)) {
++				elements.add(element);
++			} else {
++				duplicates.add(element);
++			}
++		}
++
++		return duplicates.toArray((T[]) newInstance(array.getClass().getComponentType(), duplicates.size()));
++	}
++
++	/**
++	 * Removes surrounding spaces from a given {@code String}, from its right or left side, or both.
++	 * @param input the content to trim
++	 * @param left flag to indicate whether spaces on the left side of the string should be removed.
++	 * @param right flag to indicate whether spaces on the right side of the string should be removed.
++	 * @return the trimmed string.
++	 */
++	public static String trim(String input, boolean left, boolean right) {
++		if (input.length() == 0 || !left && !right) {
++			return input;
++		}
++		int begin = 0;
++		while (left && begin < input.length() && input.charAt(begin) <= ' ') {
++			begin++;
++		}
++		if (begin == input.length()) {
++			return "";
++		}
++
++		int end = begin + input.length() - 1;
++		if (end >= input.length()) {
++			end = input.length() - 1;
++		}
++
++		while (right && input.charAt(end) <= ' ') {
++			end--;
++		}
++
++		if (begin == end) {
++			return "";
++		}
++
++		if (begin == 0 && end == input.length() - 1) {
++			return input;
++		}
++
++		return input.substring(begin, end + 1);
++	}
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/ColumnMap.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/ColumnMap.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/ColumnMap.java	2024-09-08 01:36:13.913807185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/ColumnMap.java	2024-09-08 01:36:13.893807045 +1000
+@@ -26,14 +26,13 @@
+  */
+ public class ColumnMap {
+ 
+-	private Map<String, Integer> columnMap;
+-	private Map<String, Integer> normalizedColumnMap;
++	private Map<NormalizedString, Integer> columnMap;
+ 	private int[] enumMap;
+ 	private int[] extractedIndexes = null;
+ 	private final Context context;
+ 	private final ParserOutput output;
+ 
+-	public ColumnMap(Context context, ParserOutput output){
++	public ColumnMap(Context context, ParserOutput output) {
+ 		this.context = context;
+ 		this.output = output;
+ 	}
+@@ -51,14 +50,15 @@
+ 		}
+ 		validateHeader(header);
+ 
++		NormalizedString normalizedHeader = NormalizedString.valueOf(header);
++
+ 		if (columnMap == null) {
+-			String[] headers = context.headers();
++			NormalizedString[] headers = NormalizedString.toIdentifierGroupArray(context.headers());
+ 			if (headers == null) {
+ 				columnMap = Collections.emptyMap();
+-				normalizedColumnMap = Collections.emptyMap();
+ 				return -1;
+ 			}
+-			columnMap = new HashMap<String, Integer>(headers.length);
++			columnMap = new HashMap<NormalizedString, Integer>(headers.length);
+ 
+ 			extractedIndexes = context.extractedFieldIndexes();
+ 
+@@ -66,7 +66,7 @@
+ 				if (context.columnsReordered()) {
+ 					for (int i = 0; i < extractedIndexes.length; i++) {
+ 						int originalIndex = extractedIndexes[i];
+-						String h = headers[originalIndex];
++						NormalizedString h = headers[originalIndex];
+ 						columnMap.put(h, i);
+ 					}
+ 				} else {
+@@ -79,27 +79,17 @@
+ 					columnMap.put(headers[i], i);
+ 				}
+ 			}
+-
+-			normalizedColumnMap = new HashMap<String, Integer>(headers.length);
+-			for (Map.Entry<String, Integer> e : columnMap.entrySet()) {
+-				if (e.getKey() != null) {
+-					normalizedColumnMap.put(e.getKey().trim().toLowerCase(), e.getValue());
+-				}
+-			}
+ 		}
+ 
+ 
+-		Integer index = columnMap.get(header);
++		Integer index = columnMap.get(normalizedHeader);
+ 		if (index == null) {
+-			index = normalizedColumnMap.get(header.trim().toLowerCase());
+-			if (index == null) {
+-				return -1;
+-			}
++			return -1;
+ 		}
+ 		return index.intValue();
+ 	}
+ 
+-	private void validateHeader(Object header){
++	private void validateHeader(Object header) {
+ 		if (header == null) {
+ 			if (context.headers() == null) {
+ 				throw new IllegalArgumentException("Header name cannot be null.");
+@@ -122,7 +112,7 @@
+ 		validateHeader(header);
+ 
+ 		if (enumMap == null) {
+-			String[] headers = context.headers();
++			NormalizedString[] headers = NormalizedString.toIdentifierGroupArray(context.headers());
+ 			if (headers == null) {
+ 				enumMap = new int[0];
+ 				return -1;
+@@ -147,7 +137,7 @@
+ 			for (int i = 0; i < constants.length; i++) {
+ 				Enum<?> constant = constants[i];
+ 				String name = constant.toString();
+-				int index = ArgumentUtils.indexOf(headers, name, selector);
++				int index = ArgumentUtils.indexOf(headers, NormalizedString.valueOf(name), selector);
+ 				enumMap[constant.ordinal()] = index;
+ 			}
+ 		}
+@@ -156,7 +146,6 @@
+ 
+ 	void reset() {
+ 		columnMap = null;
+-		normalizedColumnMap = null;
+ 		enumMap = null;
+ 		extractedIndexes = null;
+ 	}
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/DefaultContext.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/DefaultContext.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/DefaultContext.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/DefaultContext.java	2024-09-08 01:36:13.893807045 +1000
+@@ -45,7 +45,7 @@
+ 		if (output == null) {
+ 			return ArgumentUtils.EMPTY_STRING_ARRAY;
+ 		}
+-		return output.getHeaders();
++		return output.getHeaderAsStringArray();
+ 	}
+ 
+ 	public String[] selectedHeaders() {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/DefaultConversionProcessor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/DefaultConversionProcessor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/DefaultConversionProcessor.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/DefaultConversionProcessor.java	2024-09-08 01:36:13.893807045 +1000
+@@ -192,13 +192,13 @@
+ 	 *
+ 	 * @return {@code true} if the the row should be discarded
+ 	 */
+-	public final boolean reverseConversions(boolean executeInReverseOrder, Object[] row, String[] headers, int[] indexesToWrite) {
++	public final boolean reverseConversions(boolean executeInReverseOrder, Object[] row, NormalizedString[] headers, int[] indexesToWrite) {
+ 		boolean keepRow = true;
+ 		boolean[] convertedFlags = conversionsByType != null ? new boolean[row.length] : null;
+ 		if (conversions != null) {
+ 			if (!conversionsInitialized) {
+ 				conversionsInitialized = true;
+-				conversions.prepareExecution(true, headers != null ? headers : new String[row.length]);
++				conversions.prepareExecution(true, headers != null ? NormalizedString.toArray(headers) : new String[row.length]);
+ 				this.fieldIndexes = indexesToWrite;
+ 			}
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/AllIndexesSelector.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/AllIndexesSelector.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/AllIndexesSelector.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/AllIndexesSelector.java	2024-09-08 01:36:13.893807045 +1000
+@@ -15,6 +15,8 @@
+  ******************************************************************************/
+ package com.univocity.parsers.common.fields;
+ 
++import com.univocity.parsers.common.*;
++
+ /**
+  * A FieldSelector that selects all indexes of a record.
+  *
+@@ -26,7 +28,7 @@
+ public class AllIndexesSelector implements FieldSelector {
+ 
+ 	@Override
+-	public int[] getFieldIndexes(String[] headers) {
++	public int[] getFieldIndexes(NormalizedString[] headers) {
+ 		if(headers == null){
+ 			return null;
+ 		}
+@@ -50,4 +52,9 @@
+ 			throw new IllegalStateException(e);
+ 		}
+ 	}
++
++	@Override
++	public int[] getFieldIndexes(String[] headers) {
++		return getFieldIndexes(NormalizedString.toIdentifierGroupArray(headers));
++	}
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/ExcludeFieldEnumSelector.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/ExcludeFieldEnumSelector.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/ExcludeFieldEnumSelector.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/ExcludeFieldEnumSelector.java	2024-09-08 01:36:13.893807045 +1000
+@@ -38,7 +38,7 @@
+ 	 * @return the positions of all elements which were not selected.
+ 	 */
+ 	@Override
+-	public int[] getFieldIndexes(String[] headers) {
++	public int[] getFieldIndexes(NormalizedString[] headers) {
+ 		if(headers == null){
+ 			return null;
+ 		}
+@@ -56,4 +56,9 @@
+ 		out.names = (ExcludeFieldNameSelector) names.clone();
+ 		return out;
+ 	}
++
++	@Override
++	public int[] getFieldIndexes(String[] headers) {
++		return getFieldIndexes(NormalizedString.toIdentifierGroupArray(headers));
++	}
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/ExcludeFieldIndexSelector.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/ExcludeFieldIndexSelector.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/ExcludeFieldIndexSelector.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/ExcludeFieldIndexSelector.java	2024-09-08 01:36:13.893807045 +1000
+@@ -15,6 +15,8 @@
+  ******************************************************************************/
+ package com.univocity.parsers.common.fields;
+ 
++import com.univocity.parsers.common.*;
++
+ import java.util.*;
+ 
+ /**
+@@ -36,7 +38,7 @@
+ 	 * @return the positions of all elements which were not selected.
+ 	 */
+ 	@Override
+-	public int[] getFieldIndexes(String[] columns) {
++	public int[] getFieldIndexes(NormalizedString[] columns) {
+ 		if(columns == null){
+ 			return null;
+ 		}
+@@ -63,4 +65,9 @@
+ 	public String describe() {
+ 		return "undesired " + super.describe();
+ 	}
++
++	@Override
++	public int[] getFieldIndexes(String[] headers) {
++		return getFieldIndexes(NormalizedString.toIdentifierGroupArray(headers));
++	}
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/ExcludeFieldNameSelector.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/ExcludeFieldNameSelector.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/ExcludeFieldNameSelector.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/ExcludeFieldNameSelector.java	2024-09-08 01:36:13.893807045 +1000
+@@ -38,26 +38,25 @@
+ 	 * @return the positions of all elements which were not selected.
+ 	 */
+ 	@Override
+-	public int[] getFieldIndexes(String[] headers) {
++	public int[] getFieldIndexes(NormalizedString[] headers) {
+ 		if(headers == null){
+ 			return null;
+ 		}
+-		headers = ArgumentUtils.normalize(headers);
++		NormalizedString[] normalizedHeaders = headers;
+ 
+ 		// removes duplicates if any
+-		Set<String> chosenFields = new HashSet<String>(this.get());
+-		ArgumentUtils.normalize(chosenFields);
++		Set<NormalizedString> chosenFields = NormalizedString.toHashSet(this.get());
+ 
+-		Object[] unknownFields = ArgumentUtils.findMissingElements(headers, chosenFields);
++		Object[] unknownFields = ArgumentUtils.findMissingElements(normalizedHeaders, chosenFields);
+ 		if (unknownFields.length > 0) {
+ 			throw new IllegalStateException("Unknown field names: " + Arrays.toString(unknownFields));
+ 		}
+ 
+-		int[] out = new int[headers.length - chosenFields.size()];
++		int[] out = new int[normalizedHeaders.length - chosenFields.size()];
+ 
+ 		int j = 0;
+-		for (int i = 0; i < headers.length; i++) {
+-			if (!chosenFields.contains(headers[i])) {
++		for (int i = 0; i < normalizedHeaders.length; i++) {
++			if (!chosenFields.contains(normalizedHeaders[i])) {
+ 				out[j++] = i;
+ 			}
+ 		}
+@@ -69,4 +68,9 @@
+ 	public String describe() {
+ 		return "undesired " + super.describe();
+ 	}
++
++	@Override
++	public int[] getFieldIndexes(String[] headers) {
++		return getFieldIndexes(NormalizedString.toIdentifierGroupArray(headers));
++	}
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/FieldConversionMapping.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/FieldConversionMapping.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/FieldConversionMapping.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/FieldConversionMapping.java	2024-09-08 01:36:13.893807045 +1000
+@@ -415,7 +415,7 @@
+ 			return;
+ 		}
+ 
+-		int[] fieldIndexes = selector.getFieldIndexes(values);
++		int[] fieldIndexes = selector.getFieldIndexes(NormalizedString.toIdentifierGroupArray(values));
+ 		if (fieldIndexes == null) {
+ 			fieldIndexes = ArgumentUtils.toIntArray(conversionsByIndex.keySet());
+ 		}
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/FieldEnumSelector.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/FieldEnumSelector.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/FieldEnumSelector.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/FieldEnumSelector.java	2024-09-08 01:36:13.893807045 +1000
+@@ -42,7 +42,7 @@
+ 	}
+ 
+ 	@Override
+-	public int[] getFieldIndexes(String[] headers) {
++	public int[] getFieldIndexes(NormalizedString[] headers) {
+ 		if(headers == null){
+ 			return null;
+ 		}
+@@ -56,4 +56,9 @@
+ 		out.names = (FieldNameSelector) names.clone();
+ 		return out;
+ 	}
++
++	@Override
++	public int[] getFieldIndexes(String[] headers) {
++		return getFieldIndexes(NormalizedString.toIdentifierGroupArray(headers));
++	}
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/FieldIndexSelector.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/FieldIndexSelector.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/FieldIndexSelector.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/FieldIndexSelector.java	2024-09-08 01:36:13.893807045 +1000
+@@ -15,6 +15,8 @@
+  ******************************************************************************/
+ package com.univocity.parsers.common.fields;
+ 
++import com.univocity.parsers.common.*;
++
+ import java.util.*;
+ 
+ /**
+@@ -29,7 +31,7 @@
+ public class FieldIndexSelector extends FieldSet<Integer> implements FieldSelector {
+ 
+ 	@Override
+-	public int[] getFieldIndexes(String[] columns) {
++	public int[] getFieldIndexes(NormalizedString[] columns) {
+ 		List<Integer> chosenIndexes = this.get();
+ 		int[] out = new int[chosenIndexes.size()];
+ 
+@@ -40,4 +42,9 @@
+ 
+ 		return out;
+ 	}
++
++	@Override
++	public int[] getFieldIndexes(String[] headers) {
++		return getFieldIndexes(NormalizedString.toIdentifierGroupArray(headers));
++	}
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/FieldNameSelector.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/FieldNameSelector.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/FieldNameSelector.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/FieldNameSelector.java	2024-09-08 01:36:13.893807045 +1000
+@@ -36,23 +36,22 @@
+ 	 * @return the position of the given header.
+ 	 */
+ 	public int getFieldIndex(String header) {
+-		return getFieldIndexes(new String[]{header})[0];
++		return getFieldIndexes(new NormalizedString[]{NormalizedString.valueOf(header)})[0];
+ 	}
+ 
+ 	@Override
+-	public int[] getFieldIndexes(String[] headers) {
++	public int[] getFieldIndexes(NormalizedString[] headers) {
+ 		if (headers == null) {
+ 			return null;
+ 		}
+-		headers = ArgumentUtils.normalize(headers);
+-		List<String> selection = this.get();
+-		ArgumentUtils.normalize(selection);
++		NormalizedString[] normalizedHeader = headers;
++		List<NormalizedString> selection = NormalizedString.toArrayList(this.get());
+ 
+-		String[] chosenFields = selection.toArray(new String[selection.size()]);
+-		Object[] unknownFields = ArgumentUtils.findMissingElements(headers, chosenFields);
++		NormalizedString[] chosenFields = selection.toArray(new NormalizedString[0]);
++		Object[] unknownFields = ArgumentUtils.findMissingElements(normalizedHeader, chosenFields);
+ 
+ 		//if we get a subset of the expected columns, we can parse normally, considering missing column values as null.
+-		if (unknownFields.length > 0 && !selection.containsAll(Arrays.asList(headers))) {
++		if (unknownFields.length > 0 && !selection.containsAll(Arrays.asList(normalizedHeader))) {
+ 			//nothing matched, just return an empty array and proceed.
+ 			if (unknownFields.length == chosenFields.length) {
+ 				return new int[0];
+@@ -61,8 +60,8 @@
+ 
+ 		int[] out = new int[chosenFields.length];
+ 		int i = 0;
+-		for (String chosenField : chosenFields) {
+-			int[] indexes = ArgumentUtils.indexesOf(headers, chosenField);
++		for (NormalizedString chosenField : chosenFields) {
++			int[] indexes = ArgumentUtils.indexesOf(normalizedHeader, chosenField);
+ 
+ 			if (indexes.length > 1) {
+ 				out = Arrays.copyOf(out, out.length + indexes.length - 1);
+@@ -79,4 +78,9 @@
+ 
+ 		return out;
+ 	}
++
++	@Override
++	public int[] getFieldIndexes(String[] headers) {
++		return getFieldIndexes(NormalizedString.toIdentifierGroupArray(headers));
++	}
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/FieldSelector.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/FieldSelector.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/FieldSelector.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/FieldSelector.java	2024-09-08 01:36:13.893807045 +1000
+@@ -15,6 +15,8 @@
+  ******************************************************************************/
+ package com.univocity.parsers.common.fields;
+ 
++import com.univocity.parsers.common.*;
++
+ /**
+  *
+  * Interface used to identify classes capable of selecting fields and returning their positions in a given sequence.
+@@ -32,6 +34,13 @@
+ 	int[] getFieldIndexes(String[] headers);
+ 
+ 	/**
++	 * Returns the indexes of any selected fields that are part of a sequence of headers.
++	 * @param headers the sequence of headers that might have some elements selected by this FieldSelector
++	 * @return the positions of all selected elements in the given headers sequence.
++	 */
++	int[] getFieldIndexes(NormalizedString[] headers);
++
++	/**
+ 	 * Returns a string that represents the current field selection
+ 	 * @return a string that represents the current field selection
+ 	 */
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common: NormalizedString.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/ParserOutput.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/ParserOutput.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/ParserOutput.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/ParserOutput.java	2024-09-08 01:36:13.893807045 +1000
+@@ -74,7 +74,8 @@
+ 	private boolean columnsReordered;
+ 	private boolean columnReorderingEnabledSetting;
+ 
+-	private String[] headers;
++	private String[] headerStrings;
++	private NormalizedString[] headers;
+ 	private int[] selectedIndexes;
+ 
+ 	private long currentRecord;
+@@ -117,6 +118,10 @@
+ 		this.nullValue = settings.getNullValue();
+ 		this.columnsToExtractInitialized = false;
+ 		this.currentRecord = 0;
++		if (settings.isHeaderExtractionEnabled() && parser != null) {
++			parser.ignoreTrailingWhitespace = false;
++			parser.ignoreLeadingWhitespace = false;
++		}
+ 		if (settings.getHeaders() != null) {
+ 			initializeHeaders();
+ 		}
+@@ -134,17 +139,42 @@
+ 			System.arraycopy(parsedValues, 0, parsedHeaders, 0, column);
+ 		}
+ 
+-		this.headers = settings.getHeaders();
++		boolean usingParsedHeaders = false;
++		this.headers = NormalizedString.toIdentifierGroupArray(settings.getHeaders());
+ 		if (headers != null) {
+ 			headers = headers.clone();
+ 		} else if (column > 0) { //we only initialize headers from a parsed row if it is not empty
+-			headers = parsedHeaders.clone();
++			headers = NormalizedString.toIdentifierGroupArray(parsedHeaders.clone());
++			usingParsedHeaders = true;
+ 		}
+ 
+-		if (headers != null) {
+-			columnsToExtractInitialized = true;
+-			initializeColumnsToExtract(headers);
++		if (parser != null) {
++			parser.ignoreTrailingWhitespace = settings.getIgnoreTrailingWhitespaces();
++			parser.ignoreLeadingWhitespace = settings.getIgnoreLeadingWhitespaces();
++			if (usingParsedHeaders) {
++				parser.initialize();
++			}
++		}
++
++		if (usingParsedHeaders) {
++			for (int i = 0; i < headers.length; i++) {
++				NormalizedString header = headers[i];
++				if (header != null && !header.isLiteral()) {
++					if (settings.getIgnoreLeadingWhitespaces()) {
++						if (settings.getIgnoreTrailingWhitespaces()) {
++							headers[i] = NormalizedString.valueOf(headers[i].toString().trim());
++						} else {
++							headers[i] = NormalizedString.valueOf(ArgumentUtils.trim(headers[i].toString(), true, false));
++						}
++					} else if (settings.getIgnoreTrailingWhitespaces()) {
++						headers[i] = NormalizedString.valueOf(ArgumentUtils.trim(headers[i].toString(), false, true));
++					}
++				}
++			}
+ 		}
++
++		columnsToExtractInitialized = true;
++		initializeColumnsToExtract(headers);
+ 	}
+ 
+ 	/**
+@@ -153,7 +183,7 @@
+ 	 * @return the sequence of parsed values in a record.
+ 	 */
+ 	public String[] rowParsed() {
+-		if(!pendingRecords.isEmpty()){
++		if (!pendingRecords.isEmpty()) {
+ 			return pendingRecords.poll();
+ 		}
+ 		// some values were parsed. Let's return them
+@@ -182,7 +212,7 @@
+ 
+ 			currentRecord++;
+ 			if (columnsReordered) {
+-				if(selectedIndexes.length == 0){
++				if (selectedIndexes.length == 0) {
+ 					column = 0;
+ 					return ArgumentUtils.EMPTY_STRING_ARRAY;
+ 				}
+@@ -215,7 +245,7 @@
+ 			currentRecord++;
+ 
+ 			if (columnsReordered) {
+-				if(selectedIndexes.length == 0){
++				if (selectedIndexes.length == 0) {
+ 					return ArgumentUtils.EMPTY_STRING_ARRAY;
+ 				}
+ 				String[] out = new String[selectedIndexes.length];
+@@ -238,7 +268,7 @@
+ 	 *
+ 	 * @param values a sequence of values that represent the headers of the input. This can be either a parsed record or the headers as defined in {@link CommonSettings#getHeaders()}
+ 	 */
+-	private void initializeColumnsToExtract(String[] values) {
++	private void initializeColumnsToExtract(NormalizedString[] values) {
+ 		FieldSelector selector = settings.getFieldSelector();
+ 		if (selector != null) {
+ 			selectedIndexes = selector.getFieldIndexes(values);
+@@ -263,17 +293,24 @@
+ 		}
+ 	}
+ 
++	public String[] getHeaderAsStringArray() {
++		if (headerStrings == null) {
++			headerStrings = NormalizedString.toArray(getHeaders());
++		}
++		return headerStrings;
++	}
++
+ 	/**
+ 	 * Returns the sequence of values that represent the headers each field in the input. This can be either a parsed record or the headers as defined in {@link CommonSettings#getHeaders()}
+ 	 *
+ 	 * @return the headers each field in the input
+ 	 */
+-	public String[] getHeaders() {
++	public NormalizedString[] getHeaders() {
+ 		if (parser != null) {
+ 			parser.extractHeadersIfRequired();
+ 		}
+-		if(this.headers == null && parser != null && parser.settings != null){
+-			this.headers = parser.settings.getHeaders();
++		if (this.headers == null && parser != null && parser.settings != null) {
++			this.headers = NormalizedString.toIdentifierGroupArray(parser.settings.getHeaders());
+ 		}
+ 		return this.headers;
+ 	}
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/processor/core/AbstractInputValueSwitch.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/processor/core/AbstractInputValueSwitch.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/processor/core/AbstractInputValueSwitch.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/processor/core/AbstractInputValueSwitch.java	2024-09-08 01:36:13.893807045 +1000
+@@ -27,7 +27,7 @@
+ public abstract class AbstractInputValueSwitch<T extends Context> extends AbstractProcessorSwitch<T> {
+ 
+ 	private int columnIndex = -1;
+-	private String columnName = null;
++	private NormalizedString columnName = null;
+ 	private Switch[] switches = new Switch[0];
+ 	private Switch defaultSwitch = null;
+ 	private String[] headers;
+@@ -80,7 +80,7 @@
+ 		if (columnName == null || columnName.trim().isEmpty()) {
+ 			throw new IllegalArgumentException("Column name cannot be blank");
+ 		}
+-		this.columnName = columnName;
++		this.columnName = NormalizedString.valueOf(columnName);
+ 	}
+ 
+ 	/**
+@@ -228,7 +228,7 @@
+ 	@Override
+ 	protected final Processor<T> switchRowProcessor(String[] row, T context) {
+ 		if (columnIndex == -1) {
+-			String[] headers = context.headers();
++			NormalizedString[] headers = NormalizedString.toIdentifierGroupArray(context.headers());
+ 			if (headers == null) {
+ 				throw new DataProcessingException("Unable to determine position of column named '" + columnName + "' as no headers have been defined nor extracted from the input");
+ 			}
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/processor/core/BeanConversionProcessor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/processor/core/BeanConversionProcessor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/processor/core/BeanConversionProcessor.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/processor/core/BeanConversionProcessor.java	2024-09-08 01:36:13.893807045 +1000
+@@ -47,7 +47,7 @@
+ 	private Object[] valuesForMissing;
+ 	protected boolean initialized = false;
+ 	boolean strictHeaderValidationEnabled = false;
+-	private String[] syntheticHeaders = null;
++	private NormalizedString[] syntheticHeaders = null;
+ 	private Object[] row;
+ 	private Map<FieldMapping, BeanConversionProcessor<?>> nestedAttributes = null;
+ 	protected final HeaderTransformer transformer;
+@@ -142,6 +142,7 @@
+ 	 */
+ 	protected final void initialize(String[] headers) {
+ 		if (!initialized) {
++			NormalizedString[] normalizedHeaders = NormalizedString.toIdentifierGroupArray(headers);
+ 			initialized = true;
+ 
+ 			Map<Field, PropertyWrapper> allFields = AnnotationHelper.getAllFields(beanClass);
+@@ -153,7 +154,7 @@
+ 					if (field.getName().equals(nestedAttributeName)) {
+ 						Nested nested = AnnotationHelper.findAnnotation(field, Nested.class);
+ 						if (nested == null) {
+-							processNestedField(field.getType(), field, field.getName(), e.getValue(), headers, null);
++							processNestedField(field.getType(), field, field.getName(), e.getValue(), normalizedHeaders, null);
+ 						}
+ 					}
+ 				}
+@@ -163,20 +164,36 @@
+ 			for (Map.Entry<Field, PropertyWrapper> e : allFields.entrySet()) {
+ 				Field field = e.getKey();
+ 				PropertyWrapper property = e.getValue();
+-				processField(field, field.getName(), property, headers);
++				processField(field, field.getName(), property, normalizedHeaders);
+ 			}
+ 
+ 			for (Method method : AnnotationHelper.getAllMethods(beanClass, methodFilter)) {
+-				processField(method, method.getName(), null, headers);
++				processField(method, method.getName(), null, normalizedHeaders);
+ 			}
+ 
+ 			readOrder = null;
+ 			lastFieldIndexMapped = -1;
+ 
++			identifyLiterals();
++
+ 			validateMappings();
+ 		}
+ 	}
+ 
++	private void identifyLiterals(){
++		NormalizedString[] fieldNames = new NormalizedString[parsedFields.size()];
++		FieldMapping[] fields = parsedFields.toArray(new FieldMapping[0]);
++		for(int i = 0; i < fieldNames.length; i++){
++			fieldNames[i] = fields[i].getFieldName();
++		}
++
++		if(NormalizedString.identifyLiterals(fieldNames)){
++			for(int i = 0; i < fieldNames.length; i++){
++				fields[i].setFieldName(fieldNames[i]);
++			}
++		}
++	}
++
+ 	/**
+ 	 * Defines whether all headers declared in the annotated class must be present in the input.
+ 	 * If enabled, an exception will be thrown in case the input data does not contain all headers required.
+@@ -187,7 +204,7 @@
+ 		this.strictHeaderValidationEnabled = strictHeaderValidationEnabled;
+ 	}
+ 
+-	void processField(AnnotatedElement element, String targetName, PropertyWrapper propertyDescriptor, String[] headers) {
++	void processField(AnnotatedElement element, String targetName, PropertyWrapper propertyDescriptor, NormalizedString[] headers) {
+ 		FieldMapping mapping = null;
+ 		Parsed annotation = AnnotationHelper.findAnnotation(element, Parsed.class);
+ 		if (annotation != null) {
+@@ -225,7 +242,7 @@
+ 		}
+ 	}
+ 
+-	private void processNestedField(Class nestedType, AnnotatedElement element, String targetName, PropertyWrapper propertyDescriptor, String[] headers, Nested nested) {
++	private void processNestedField(Class nestedType, AnnotatedElement element, String targetName, PropertyWrapper propertyDescriptor, NormalizedString[] headers, Nested nested) {
+ 		HeaderTransformer transformer = null;
+ 		if (nested != null) {
+ 			Class<? extends HeaderTransformer> transformerType = AnnotationRegistry.getValue(element, nested, "headerTransformer", nested.headerTransformer());
+@@ -239,7 +256,7 @@
+ 		BeanConversionProcessor<?> processor = createNestedProcessor(nested, nestedType, mapping, transformer);
+ 		processor.conversions = this.conversions == null ? null : cloneConversions();
+ 		processor.columnMapper = new ColumnMapping(targetName, this.columnMapper);
+-		processor.initialize(headers);
++		processor.initialize(NormalizedString.toArray(headers));
+ 		getNestedAttributes().put(mapping, processor);
+ 	}
+ 
+@@ -248,7 +265,7 @@
+ 	 *
+ 	 * @return a copy of the currently defined conversions
+ 	 */
+-	protected FieldConversionMapping cloneConversions(){
++	protected FieldConversionMapping cloneConversions() {
+ 		return this.conversions.clone();
+ 	}
+ 
+@@ -276,14 +293,14 @@
+ 	}
+ 
+ 	void validateMappings() {
+-		Map<String, FieldMapping> mappedNames = new HashMap<String, FieldMapping>();
++		Map<NormalizedString, FieldMapping> mappedNames = new HashMap<NormalizedString, FieldMapping>();
+ 		Map<Integer, FieldMapping> mappedIndexes = new HashMap<Integer, FieldMapping>();
+ 
+ 		Set<FieldMapping> duplicateNames = new HashSet<FieldMapping>();
+ 		Set<FieldMapping> duplicateIndexes = new HashSet<FieldMapping>();
+ 
+ 		for (FieldMapping mapping : parsedFields) {
+-			String name = mapping.getFieldName();
++			NormalizedString name = mapping.getFieldName();
+ 			int index = mapping.getIndex();
+ 
+ 			if (index != -1) {
+@@ -415,7 +432,7 @@
+ 		if (mapping.isMappedToIndex()) {
+ 			this.convertIndexes(conversion).add(mapping.getIndex());
+ 		} else {
+-			this.convertFields(conversion).add(mapping.getFieldName());
++			this.convertFields(conversion).add(NormalizedString.valueOf(mapping.getFieldName()));
+ 		}
+ 	}
+ 
+@@ -429,7 +446,7 @@
+ 	void mapValuesToFields(T instance, Object[] row, Context context) {
+ 		if (row.length > lastFieldIndexMapped) {
+ 			this.lastFieldIndexMapped = row.length;
+-			mapFieldIndexes(context, row, context.headers(), context.extractedFieldIndexes(), context.columnsReordered());
++			mapFieldIndexes(context, row, NormalizedString.toIdentifierGroupArray(context.headers()), context.extractedFieldIndexes(), context.columnsReordered());
+ 		}
+ 
+ 		int last = row.length < readOrder.length ? row.length : readOrder.length;
+@@ -474,9 +491,9 @@
+ 	 * @param columnsReordered Indicates the indexes provided were reordered and do not match the original sequence of headers.
+ 	 */
+ 
+-	private void mapFieldIndexes(Context context, Object[] row, String[] headers, int[] indexes, boolean columnsReordered) {
++	private void mapFieldIndexes(Context context, Object[] row, NormalizedString[] headers, int[] indexes, boolean columnsReordered) {
+ 		if (headers == null) {
+-			headers = ArgumentUtils.EMPTY_STRING_ARRAY;
++			headers = ArgumentUtils.EMPTY_NORMALIZED_STRING_ARRAY;
+ 		}
+ 
+ 		boolean boundToIndex = false;
+@@ -494,7 +511,7 @@
+ 		}
+ 
+ 		FieldMapping[] fieldOrder = new FieldMapping[last];
+-		TreeSet<String> fieldsNotFound = new TreeSet<String>();
++		TreeSet<NormalizedString> fieldsNotFound = new TreeSet<NormalizedString>();
+ 
+ 		for (FieldMapping mapping : parsedFields) {
+ 			if (mapping.isMappedToField()) {
+@@ -571,7 +588,7 @@
+ 					if (conversion == null) {
+ 						return;
+ 					}
+-					convertFields(conversion).add(mapping.getFieldName());
++					convertFields(conversion).add(NormalizedString.valueOf(mapping.getFieldName()));
+ 				}
+ 			};
+ 
+@@ -580,7 +597,7 @@
+ 				if (processField(mapping)) {
+ 					tmp.setupConversions(mapping.getTarget(), mapping);
+ 				}
+-				headers[i] = mapping.getFieldName();
++				headers[i] = NormalizedString.valueOf(mapping.getFieldName());
+ 			}
+ 			tmp.initializeConversions(headers, null);
+ 			valuesForMissing = tmp.applyConversions(new String[missing.length], null);
+@@ -637,7 +654,7 @@
+ 	 * @param indexes          The indexes of the headers or row that are actually being used. May be null if no fields have been selected using {@link CommonSettings#selectFields(String...)} or {@link CommonSettings#selectIndexes(Integer...)}
+ 	 * @param columnsReordered Indicates the indexes provided were reordered and do not match the original sequence of headers.
+ 	 */
+-	private void mapFieldsToValues(T instance, Object[] row, String[] headers, int[] indexes, boolean columnsReordered) {
++	private void mapFieldsToValues(T instance, Object[] row, NormalizedString[] headers, int[] indexes, boolean columnsReordered) {
+ 		if (row.length > this.lastFieldIndexMapped) {
+ 			mapFieldIndexes(null, row, headers, indexes, columnsReordered);
+ 		}
+@@ -708,13 +725,13 @@
+ 
+ 				row = new Object[lastIndex];
+ 				if (syntheticHeaders == null) {
+-					syntheticHeaders = new String[lastIndex];
++					syntheticHeaders = new NormalizedString[lastIndex];
+ 					Iterator<FieldMapping> it = parsedFields.iterator();
+ 					for (int i = 0; i < lastIndex; i++) {
+ 						if (assignedIndexes.contains(i)) {
+ 							continue;
+ 						}
+-						String fieldName = null;
++						NormalizedString fieldName = null;
+ 						while (it.hasNext() && (fieldName = it.next().getFieldName()) == null)
+ 							;
+ 						syntheticHeaders[i] = fieldName;
+@@ -734,12 +751,14 @@
+ 			}
+ 		}
+ 
++		NormalizedString[] normalizedHeaders = NormalizedString.toIdentifierGroupArray(headers);
++
+ 		if (syntheticHeaders != null) {
+-			headers = syntheticHeaders;
++			normalizedHeaders = syntheticHeaders;
+ 		}
+ 
+ 		try {
+-			mapFieldsToValues(bean, row, headers, indexesToWrite, false);
++			mapFieldsToValues(bean, row, normalizedHeaders, indexesToWrite, false);
+ 		} catch (Throwable ex) {
+ 			if (ex instanceof DataProcessingException) {
+ 				DataProcessingException error = (DataProcessingException) ex;
+@@ -754,7 +773,7 @@
+ 			return null;
+ 		}
+ 
+-		if (super.reverseConversions(true, row, headers, indexesToWrite)) {
++		if (super.reverseConversions(true, row, normalizedHeaders, indexesToWrite)) {
+ 			return row;
+ 		}
+ 
+@@ -809,7 +828,7 @@
+ 
+ 	private void populateTargetMaps(Map<Object, Integer> targetCounts, Map<Object, String> targetSources) {
+ 		for (FieldMapping field : parsedFields) {
+-			Object outputColumn = field.getIndex() == -1 ? field.getFieldName() : "Column #" + field.getIndex();
++			Object outputColumn = field.getIndex() == -1 ? field.getFieldName() : NormalizedString.valueOf("Column #" + field.getIndex());
+ 			Integer count = targetCounts.get(outputColumn);
+ 			if (count == null) {
+ 				count = 0;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/processor/ObjectRowWriterProcessor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/processor/ObjectRowWriterProcessor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/processor/ObjectRowWriterProcessor.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/processor/ObjectRowWriterProcessor.java	2024-09-08 01:36:13.893807045 +1000
+@@ -51,7 +51,7 @@
+ 		Object[] output = new Object[input.length];
+ 		System.arraycopy(input, 0, output, 0, input.length);
+ 
+-		if (reverseConversions(false, output, headers, indexesToWrite)) {
++		if (reverseConversions(false, output, NormalizedString.toIdentifierGroupArray(headers), indexesToWrite)) {
+ 			return output;
+ 		}
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/processor/OutputValueSwitch.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/processor/OutputValueSwitch.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/processor/OutputValueSwitch.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/processor/OutputValueSwitch.java	2024-09-08 01:36:13.893807045 +1000
+@@ -136,7 +136,7 @@
+ 	}
+ 
+ 	@Override
+-	protected String[] getHeaders() {
++	protected NormalizedString[] getHeaders() {
+ 		return selectedSwitch != null ? selectedSwitch.headers : null;
+ 	}
+ 
+@@ -259,7 +259,7 @@
+ 		return null;
+ 	}
+ 
+-	private String[] getHeadersFromSwitch(Object value) {
++	private NormalizedString[] getHeadersFromSwitch(Object value) {
+ 		for (int i = 0; i < switches.length; i++) {
+ 			Switch s = getSwitch(value);
+ 			if (s != null) {
+@@ -270,7 +270,7 @@
+ 	}
+ 
+ 	@Override
+-	public String[] getHeaders(Object input) {
++	public NormalizedString[] getHeaders(Object input) {
+ 		if (input instanceof Object[]) {
+ 			Object[] row = (Object[]) input;
+ 			if (columnIndex < row.length) {
+@@ -283,7 +283,7 @@
+ 	}
+ 
+ 	@Override
+-	public String[] getHeaders(Map headerMapping, Map mapInput) {
++	public NormalizedString[] getHeaders(Map headerMapping, Map mapInput) {
+ 		Object mapValue = null;
+ 		if (mapInput != null && !mapInput.isEmpty()) {
+ 			String headerToUse = headerName;
+@@ -331,13 +331,13 @@
+ 
+ 	private static class Switch {
+ 		final RowWriterProcessor<Object[]> processor;
+-		final String[] headers;
++		final NormalizedString[] headers;
+ 		final int[] indexes;
+ 		final Object value;
+ 
+ 		Switch(RowWriterProcessor<Object[]> processor, String[] headers, int[] indexes, Object value) {
+ 			this.processor = processor;
+-			this.headers = headers == null || headers.length == 0 ? null : headers;
++			this.headers = headers == null || headers.length == 0 ? null : NormalizedString.toIdentifierGroupArray(headers);
+ 			this.indexes = indexes == null || indexes.length == 0 ? null : indexes;
+ 			this.value = value;
+ 		}
+@@ -350,7 +350,7 @@
+ 				indexes = ArgumentUtils.toIntArray(Arrays.asList(AnnotationHelper.getSelectedIndexes(type, MethodFilter.ONLY_GETTERS)));
+ 			}
+ 
+-			this.headers = headers == null || headers.length == 0 ? null : headers;
++			this.headers = headers == null || headers.length == 0 ? null : NormalizedString.toIdentifierGroupArray(headers);
+ 			this.indexes = indexes == null || indexes.length == 0 ? null : indexes;
+ 			this.value = type;
+ 		}
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/processor/RowWriterProcessorSwitch.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/processor/RowWriterProcessorSwitch.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/processor/RowWriterProcessorSwitch.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/processor/RowWriterProcessorSwitch.java	2024-09-08 01:36:13.893807045 +1000
+@@ -15,9 +15,7 @@
+  ******************************************************************************/
+ package com.univocity.parsers.common.processor;
+ 
+-import com.univocity.parsers.common.CommonSettings;
+-import com.univocity.parsers.common.CommonWriterSettings;
+-import com.univocity.parsers.common.DataProcessingException;
++import com.univocity.parsers.common.*;
+ 
+ import java.util.Arrays;
+ import java.util.Map;
+@@ -54,7 +52,7 @@
+ 	 *
+ 	 * @return the current sequence of headers to use.
+ 	 */
+-	protected String[] getHeaders() {
++	protected NormalizedString[] getHeaders() {
+ 		return null;
+ 	}
+ 
+@@ -89,7 +87,7 @@
+ 	 *
+ 	 * @return the sequence of headers to use when processing the given input map.
+ 	 */
+-	public abstract String[] getHeaders(Map headerMapping, Map mapInput);
++	public abstract NormalizedString[] getHeaders(Map headerMapping, Map mapInput);
+ 
+ 	/**
+ 	 * Returns the sequence of headers to use for processing an input record.
+@@ -98,7 +96,7 @@
+ 	 *
+ 	 * @return the sequence of headers to use when processing the given record.
+ 	 */
+-	public abstract String[] getHeaders(Object input);
++	public abstract NormalizedString[] getHeaders(Object input);
+ 
+ 	protected abstract String describeSwitch();
+ 
+@@ -138,7 +136,7 @@
+ 			selectedRowWriterProcessor = processor;
+ 		}
+ 
+-		String[] headersToUse = getHeaders();
++		String[] headersToUse = NormalizedString.toArray(getHeaders());
+ 		int[] indexesToUse = getIndexes();
+ 
+ 		headersToUse = headersToUse == null ? headers : headersToUse;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/record/RecordMetaDataImpl.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/record/RecordMetaDataImpl.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/record/RecordMetaDataImpl.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/record/RecordMetaDataImpl.java	2024-09-08 01:36:13.893807045 +1000
+@@ -47,13 +47,13 @@
+ 		int index = context.indexOf(name);
+ 		if (index == -1) {
+ 			getValidatedHeaders();
+-			throw new IllegalArgumentException("Header name '" + name + "' not found. Available columns are: " + Arrays.asList(headers()));
++			throw new IllegalArgumentException("Header name '" + name + "' not found. Available columns are: " + Arrays.asList(selectedHeaders()));
+ 		}
+ 		return getMetaData(index);
+ 	}
+ 
+-	private String[] getValidatedHeaders() {
+-		String[] headers = context.headers();
++	private NormalizedString[] getValidatedHeaders() {
++		NormalizedString[] headers = NormalizedString.toIdentifierGroupArray(context.headers());
+ 		if (headers == null || headers.length == 0) {
+ 			throw new IllegalStateException("No headers parsed from input nor provided in the user settings. Only index-based operations are available.");
+ 		}
+@@ -61,7 +61,7 @@
+ 	}
+ 
+ 	private MetaData getMetaData(Enum<?> column) {
+-		String[] headers = context.headers();
++		NormalizedString[] headers = NormalizedString.toIdentifierGroupArray(context.headers());
+ 		if (headers == null || headers.length == 0) {
+ 			throw new IllegalStateException("No headers parsed from input nor provided in the user settings. Only index-based operations are available.");
+ 		}
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/record/RecordMetaData.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/record/RecordMetaData.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/record/RecordMetaData.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/record/RecordMetaData.java	2024-09-08 01:36:13.893807045 +1000
+@@ -16,8 +16,7 @@
+ 
+ package com.univocity.parsers.common.record;
+ 
+-import com.univocity.parsers.common.CommonParserSettings;
+-import com.univocity.parsers.common.CommonSettings;
++import com.univocity.parsers.common.*;
+ import com.univocity.parsers.common.fields.*;
+ import com.univocity.parsers.conversions.*;
+ 
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common: StringCache.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/conversions/BooleanConversion.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/conversions/BooleanConversion.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/conversions/BooleanConversion.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/conversions/BooleanConversion.java	2024-09-08 01:36:13.893807045 +1000
+@@ -67,8 +67,8 @@
+ 		Collections.addAll(falseValues, valuesForFalse);
+ 		Collections.addAll(trueValues, valuesForTrue);
+ 
+-		ArgumentUtils.normalize(falseValues);
+-		ArgumentUtils.normalize(trueValues);
++		normalize(falseValues);
++		normalize(trueValues);
+ 
+ 		for (String falseValue : falseValues) {
+ 			if (trueValues.contains(falseValue)) {
+@@ -132,7 +132,7 @@
+ 	}
+ 
+ 	private static Boolean getBoolean(String defaultString, Set<String> trueValues, Set<String> falseValues) {
+-		String normalized = ArgumentUtils.normalize(defaultString);
++		String normalized = normalize(defaultString);
+ 		if (falseValues.contains(normalized)) {
+ 			return Boolean.FALSE;
+ 		}
+@@ -143,4 +143,37 @@
+ 		exception.setValue(defaultString);
+ 		throw exception;
+ 	}
++
++	/**
++	 * Normalizes a given String by trimming whitespaces and converting it to lower case.
++	 *
++	 * @param string a String to be normalized.
++	 *
++	 * @return the normalized version of the original String.
++	 */
++	private static String normalize(String string) {
++		if (string == null) {
++			return null;
++		}
++		return string.trim().toLowerCase();
++	}
++
++	/**
++	 * Normalizes the Strings in a given collection by trimming all elements and converting them to lower case.
++	 *
++	 * @param strings a String collection with elements to be normalized. The original contents of the collection will be modified.
++	 */
++	private static void normalize(Collection<String> strings) {
++		LinkedHashSet<String> normalized = new LinkedHashSet<String>(strings.size());
++		for (String string : strings) {
++			if (string == null) {
++				normalized.add(null);
++			} else {
++				normalized.add(string.trim().toLowerCase());
++			}
++		}
++
++		strings.clear();
++		strings.addAll(normalized);
++	}
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvParser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvParser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvParser.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvParser.java	2024-09-08 01:36:13.897807073 +1000
+@@ -34,8 +34,6 @@
+  */
+ public final class CsvParser extends AbstractParser<CsvParserSettings> {
+ 
+-	private final boolean ignoreTrailingWhitespace;
+-	private final boolean ignoreLeadingWhitespace;
+ 	private boolean parseUnescapedQuotes;
+ 	private boolean parseUnescapedQuotesUntilDelimiter;
+ 	private boolean backToDelimiter;
+@@ -69,8 +67,6 @@
+ 	 */
+ 	public CsvParser(CsvParserSettings settings) {
+ 		super(settings);
+-		ignoreTrailingWhitespace = settings.getIgnoreTrailingWhitespaces();
+-		ignoreLeadingWhitespace = settings.getIgnoreLeadingWhitespaces();
+ 		parseUnescapedQuotes = settings.isParseUnescapedQuotes();
+ 		parseUnescapedQuotesUntilDelimiter = settings.isParseUnescapedQuotesUntilDelimiter();
+ 		doNotEscapeUnquotedValues = !settings.isEscapeUnquotedValues();
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvWriter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvWriter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvWriter.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvWriter.java	2024-09-08 01:36:13.897807073 +1000
+@@ -38,8 +38,6 @@
+ 	private char quoteChar;
+ 	private char escapeChar;
+ 	private char escapeEscape;
+-	private boolean ignoreLeading;
+-	private boolean ignoreTrailing;
+ 	private boolean quoteAllFields;
+ 	private boolean escapeUnquoted;
+ 	private boolean inputNotEscaped;
+@@ -152,8 +150,6 @@
+ 		this.newLine = format.getNormalizedNewline();
+ 
+ 		this.quoteAllFields = settings.getQuoteAllFields();
+-		this.ignoreLeading = settings.getIgnoreLeadingWhitespaces();
+-		this.ignoreTrailing = settings.getIgnoreTrailingWhitespaces();
+ 		this.escapeUnquoted = settings.isEscapeUnquotedValues();
+ 		this.inputNotEscaped = !settings.isInputEscaped();
+ 		this.dontProcessNormalizedNewLines = !settings.isNormalizeLineEndingsWithinQuotes();
+@@ -211,22 +207,24 @@
+ 				appender.enableDenormalizedLineEndings(false);
+ 			}
+ 
++			boolean allowTrim = allowTrim(i);
++
+ 			String nextElement = getStringValue(row[i]);
+ 			int originalLength = appender.length();
+-			boolean isElementQuoted = append(quoteAllFields || quotedColumns.contains(i), nextElement);
++			boolean isElementQuoted = append(quoteAllFields || quotedColumns.contains(i), allowTrim, nextElement);
+ 
+ 			//skipped all whitespaces and wrote nothing
+ 			if (appender.length() == originalLength && !usingNullOrEmptyValue) {
+ 				if (isElementQuoted) {
+ 					if (nextElement == null) {
+-						append(false, nullValue);
++						append(false, allowTrim, nullValue);
+ 					} else {
+-						append(true, emptyValue);
++						append(true, allowTrim, emptyValue);
+ 					}
+ 				} else if (nextElement == null) {
+-					append(false, nullValue);
++					append(false, allowTrim, nullValue);
+ 				} else {
+-					append(false, emptyValue);
++					append(false, allowTrim, emptyValue);
+ 				}
+ 			}
+ 
+@@ -294,7 +292,7 @@
+ 		return false;
+ 	}
+ 
+-	private boolean append(boolean isElementQuoted, String element) {
++	private boolean append(boolean isElementQuoted, boolean allowTrim, String element) {
+ 		if (element == null) {
+ 			if (nullValue == null) {
+ 				return isElementQuoted;
+@@ -303,7 +301,7 @@
+ 		}
+ 
+ 		int start = 0;
+-		if (this.ignoreLeading) {
++		if (allowTrim && this.ignoreLeading) {
+ 			start = skipLeadingWhitespace(whitespaceRangeStart, element);
+ 		}
+ 
+@@ -318,11 +316,11 @@
+ 					appender.append(element);
+ 					return false;
+ 				} else {
+-					appendQuoted(start, element);
++					appendQuoted(start, allowTrim, element);
+ 					return true;
+ 				}
+ 			} else {
+-				appendQuoted(start, element);
++				appendQuoted(start, allowTrim, element);
+ 				return true;
+ 			}
+ 		}
+@@ -339,13 +337,13 @@
+ 
+ 					if (ch == quoteChar || ch == escapeChar) {
+ 						if (quoteElement(i, element)) {
+-							appendQuoted(i, element);
++							appendQuoted(i, allowTrim, element);
+ 							return true;
+ 						} else if (escapeUnquoted) {
+-							appendQuoted(i, element);
++							appendQuoted(i, allowTrim, element);
+ 						} else {
+ 							appender.append(element, i, length);
+-							if (ignoreTrailing && element.charAt(length - 1) <= ' ' && whitespaceRangeStart < element.charAt(length - 1)) {
++							if (allowTrim && ignoreTrailing && element.charAt(length - 1) <= ' ' && whitespaceRangeStart < element.charAt(length - 1)) {
+ 								appender.updateWhitespace();
+ 							}
+ 						}
+@@ -353,7 +351,7 @@
+ 					} else if (ch == escapeChar && inputNotEscaped && escapeEscape != '\0' && escapeUnquoted) {
+ 						appender.append(escapeEscape);
+ 					} else if (ch == delimiter || ch == newLine || ch < maxTrigger && quotationTriggers[ch]) {
+-						appendQuoted(i, element);
++						appendQuoted(i, allowTrim, element);
+ 						return true;
+ 					}
+ 					appender.append(ch);
+@@ -368,13 +366,13 @@
+ 
+ 					if (ch == quoteChar || ch == escapeChar) {
+ 						if (quoteElement(i, element)) {
+-							appendQuoted(i, element);
++							appendQuoted(i, allowTrim, element);
+ 							return true;
+ 						} else if (escapeUnquoted) {
+-							appendQuoted(i, element);
++							appendQuoted(i, allowTrim, element);
+ 						} else {
+ 							appender.append(element, i, length);
+-							if (ignoreTrailing && element.charAt(length - 1) <= ' ' && whitespaceRangeStart < element.charAt(length - 1)) {
++							if (allowTrim && ignoreTrailing && element.charAt(length - 1) <= ' ' && whitespaceRangeStart < element.charAt(length - 1)) {
+ 								appender.updateWhitespace();
+ 							}
+ 						}
+@@ -382,7 +380,7 @@
+ 					} else if (ch == escapeChar && inputNotEscaped && escapeEscape != '\0' && escapeUnquoted) {
+ 						appender.append(escapeEscape);
+ 					} else if ((ch == multiDelimiter[0] && matchMultiDelimiter(element, i + 1))|| ch == newLine || ch < maxTrigger && quotationTriggers[ch]) {
+-						appendQuoted(i, element);
++						appendQuoted(i, allowTrim, element);
+ 						return true;
+ 					}
+ 					appender.append(ch);
+@@ -391,13 +389,13 @@
+ 		}
+ 
+ 		appender.append(element, start, i);
+-		if (ch <= ' ' && ignoreTrailing && whitespaceRangeStart < ch) {
++		if (allowTrim && ch <= ' ' && ignoreTrailing && whitespaceRangeStart < ch) {
+ 			appender.updateWhitespace();
+ 		}
+ 		return isElementQuoted;
+ 	}
+ 
+-	private void appendQuoted(int start, String element) {
++	private void appendQuoted(int start, boolean allowTrim, String element) {
+ 		final int length = element.length();
+ 		int i = start;
+ 		char ch = '\0';
+@@ -415,7 +413,7 @@
+ 			}
+ 		}
+ 		appender.append(element, start, i);
+-		if (ch <= ' ' && ignoreTrailing && whitespaceRangeStart < ch) {
++		if (allowTrim && ch <= ' ' && ignoreTrailing && whitespaceRangeStart < ch) {
+ 			appender.updateWhitespace();
+ 		}
+ 	}
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthFields.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthFields.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthFields.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthFields.java	2024-09-08 01:36:13.897807073 +1000
+@@ -31,7 +31,7 @@
+ 
+ 	private List<Integer> fieldLengths = new ArrayList<Integer>();
+ 	private List<Boolean> fieldsToIgnore = new ArrayList<Boolean>();
+-	private List<String> fieldNames = new ArrayList<String>();
++	private List<NormalizedString> fieldNames = new ArrayList<NormalizedString>();
+ 	private List<FieldAlignment> fieldAlignment = new ArrayList<FieldAlignment>();
+ 	private List<Character> fieldPadding = new ArrayList<Character>();
+ 	private List<Boolean> paddingsToKeep = new ArrayList<Boolean>();
+@@ -445,7 +445,7 @@
+ 		validateLength(name, length);
+ 		fieldLengths.add(length);
+ 		fieldsToIgnore.add(Boolean.FALSE);
+-		fieldNames.add(name);
++		fieldNames.add(NormalizedString.valueOf(name));
+ 		fieldPadding.add(padding);
+ 		paddingsToKeep.add(null);
+ 		if (name != null) {
+@@ -481,11 +481,11 @@
+ 	 *
+ 	 * @return the name of each field in a fixed-width record, or null if no name has been defined.
+ 	 */
+-	public String[] getFieldNames() {
++	public NormalizedString[] getFieldNames() {
+ 		if (noNames) {
+ 			return null;
+ 		}
+-		return getSelectedElements(fieldNames).toArray(ArgumentUtils.EMPTY_STRING_ARRAY);
++		return getSelectedElements(fieldNames).toArray(ArgumentUtils.EMPTY_NORMALIZED_STRING_ARRAY);
+ 	}
+ 
+ 	private <T> List<T> getSelectedElements(List<T> elements) {
+@@ -586,11 +586,10 @@
+ 		if (fieldName == null || fieldName.trim().isEmpty()) {
+ 			throw new IllegalArgumentException("Field name cannot be null/empty");
+ 		}
+-		fieldName = ArgumentUtils.normalize(fieldName);
++		NormalizedString normalizedFieldName = NormalizedString.valueOf(fieldName);
+ 		int i = 0;
+-		for (String name : this.fieldNames) {
+-			name = ArgumentUtils.normalize(name);
+-			if (name.equals(fieldName)) {
++		for (NormalizedString name : this.fieldNames) {
++			if (name.equals(normalizedFieldName)) {
+ 				return i;
+ 			}
+ 			i++;
+@@ -786,11 +785,11 @@
+ 
+ 	static void setHeadersIfPossible(FixedWidthFields fieldLengths, CommonSettings settings) {
+ 		if (fieldLengths != null && settings.getHeaders() == null) {
+-			String[] headers = fieldLengths.getFieldNames();
++			NormalizedString[] headers = fieldLengths.getFieldNames();
+ 			if (headers != null) {
+ 				int[] lengths = fieldLengths.getFieldLengths();
+ 				if (lengths.length == headers.length) {
+-					settings.setHeaders(headers);
++					settings.setHeaders(NormalizedString.toArray(headers));
+ 				}
+ 			}
+ 		}
+@@ -801,7 +800,7 @@
+ 		try {
+ 			FixedWidthFields out = (FixedWidthFields) super.clone();
+ 			out.fieldLengths = new ArrayList<Integer>(fieldLengths);
+-			out.fieldNames = new ArrayList<String>(fieldNames);
++			out.fieldNames = new ArrayList<NormalizedString>(fieldNames);
+ 			out.fieldAlignment = new ArrayList<FieldAlignment>(fieldAlignment);
+ 			out.fieldPadding = new ArrayList<Character>(fieldPadding);
+ 			out.paddingsToKeep = new ArrayList<Boolean>(paddingsToKeep);
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthParser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthParser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthParser.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthParser.java	2024-09-08 01:36:13.897807073 +1000
+@@ -52,8 +52,6 @@
+ 	private Lookup lookbehindFormat;
+ 	private int maxLookupLength;
+ 
+-	private final boolean ignoreLeadingWhitespace;
+-	private final boolean ignoreTrailingWhitespace;
+ 	private final boolean skipToNewLine;
+ 	private final boolean recordEndsOnNewLine;
+ 	private final boolean skipEmptyLines;
+@@ -77,8 +75,6 @@
+ 	 */
+ 	public FixedWidthParser(FixedWidthParserSettings settings) {
+ 		super(settings);
+-		ignoreLeadingWhitespace = settings.getIgnoreLeadingWhitespaces();
+-		ignoreTrailingWhitespace = settings.getIgnoreTrailingWhitespaces();
+ 		skipToNewLine = settings.getSkipTrailingCharsUntilNewline();
+ 		recordEndsOnNewLine = settings.getRecordEndsOnNewline();
+ 		skipEmptyLines = settings.getSkipEmptyLines();
+@@ -117,7 +113,7 @@
+ 			return new ParsingContextWrapper(context) {
+ 				@Override
+ 				public String[] headers() {
+-					return lookupFormat != null ? lookupFormat.fieldNames : super.headers();
++					return lookupFormat != null ? NormalizedString.toArray(lookupFormat.fieldNames) : super.headers();
+ 				}
+ 
+ 				public Record toRecord(String[] row){
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthParserSettings.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthParserSettings.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthParserSettings.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthParserSettings.java	2024-09-08 01:36:13.897807073 +1000
+@@ -67,9 +67,9 @@
+ 			throw new IllegalArgumentException("Field lengths cannot be null");
+ 		}
+ 		this.fieldLengths = fieldLengths;
+-		String[] names = fieldLengths.getFieldNames();
++		NormalizedString[] names = fieldLengths.getFieldNames();
+ 		if (names != null) {
+-			setHeaders(names);
++			setHeaders(NormalizedString.toArray(names));
+ 		}
+ 	}
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthWriter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthWriter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthWriter.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthWriter.java	2024-09-08 01:36:13.897807073 +1000
+@@ -32,8 +32,6 @@
+  */
+ public class FixedWidthWriter extends AbstractWriter<FixedWidthWriterSettings> {
+ 
+-	private boolean ignoreLeading;
+-	private boolean ignoreTrailing;
+ 	private int[] fieldLengths;
+ 	private FieldAlignment[] fieldAlignments;
+ 	private char[] fieldPaddings;
+@@ -151,9 +149,6 @@
+ 		this.padding = format.getPadding();
+ 		this.defaultPadding = padding;
+ 
+-		this.ignoreLeading = settings.getIgnoreLeadingWhitespaces();
+-		this.ignoreTrailing = settings.getIgnoreTrailingWhitespaces();
+-
+ 		this.fieldLengths = settings.getAllLengths();
+ 		this.fieldAlignments = settings.getFieldAlignments();
+ 		this.fieldPaddings = settings.getFieldPaddings();
+@@ -284,15 +279,16 @@
+ 					}
+ 				}
+ 				String nextElement = getStringValue(row[i - off]);
+-				processElement(nextElement);
++				boolean allowTrim = allowTrim(i);
++				processElement(nextElement, allowTrim);
+ 				appendValueToRow();
+ 			}
+ 		}
+ 	}
+ 
+-	private void append(String element) {
++	private void append(String element, boolean allowTrim) {
+ 		int start = 0;
+-		if (this.ignoreLeading) {
++		if (allowTrim && this.ignoreLeading) {
+ 			start = skipLeadingWhitespace(whitespaceRangeStart, element);
+ 		}
+ 
+@@ -300,7 +296,7 @@
+ 		length -= padCount;
+ 		appender.fill(padding, padCount);
+ 
+-		if (this.ignoreTrailing) {
++		if (allowTrim && this.ignoreTrailing) {
+ 			int i = start;
+ 			while (i < element.length() && length > 0) {
+ 				for (; i < element.length() && length-- > 0; i++) {
+@@ -332,9 +328,9 @@
+ 		}
+ 	}
+ 
+-	private void processElement(String element) {
++	private void processElement(String element, boolean allowTrim) {
+ 		if (element != null) {
+-			append(element);
++			append(element, allowTrim);
+ 		}
+ 		appender.fill(padding, length);
+ 	}
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthWriterSettings.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthWriterSettings.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthWriterSettings.java	2024-09-08 01:36:13.917807214 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthWriterSettings.java	2024-09-08 01:36:13.897807073 +1000
+@@ -54,9 +54,9 @@
+ 	 */
+ 	public FixedWidthWriterSettings(FixedWidthFields fieldLengths) {
+ 		setFieldLengths(fieldLengths);
+-		String[] names = fieldLengths.getFieldNames();
++		NormalizedString[] names = fieldLengths.getFieldNames();
+ 		if (names != null) {
+-			setHeaders(names);
++			setHeaders(NormalizedString.toArray(names));
+ 		}
+ 	}
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/Lookup.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/Lookup.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/Lookup.java	2024-09-08 01:36:13.921807241 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/Lookup.java	2024-09-08 01:36:13.897807073 +1000
+@@ -29,7 +29,7 @@
+ 	final boolean[] ignore;
+ 	final Boolean[] keepPaddingFlags;
+ 	final char[] paddings;
+-	final String[] fieldNames;
++	final NormalizedString[] fieldNames;
+ 	final char wildcard;
+ 	Context context;
+ 
+@@ -44,14 +44,15 @@
+ 		this.keepPaddingFlags = config.getKeepPaddingFlags();
+ 	}
+ 
+-	void initializeLookupContext(ParsingContext context, final String[] headersToUse) {
++	void initializeLookupContext(ParsingContext context, final NormalizedString[] headersToUse) {
++		final String[] headers = NormalizedString.toArray(headersToUse);
+ 		this.context = new ParsingContextWrapper(context) {
+ 			RecordFactory recordFactory;
+ 			final ColumnMap columnMap = new ColumnMap(this, null);
+ 
+ 			@Override
+ 			public String[] headers() {
+-				return headersToUse;
++				return headers;
+ 			}
+ 
+ 			@Override
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/tsv/TsvParser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/tsv/TsvParser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/tsv/TsvParser.java	2024-09-08 01:36:13.921807241 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/tsv/TsvParser.java	2024-09-08 01:36:13.897807073 +1000
+@@ -28,8 +28,6 @@
+  */
+ public class TsvParser extends AbstractParser<TsvParserSettings> {
+ 
+-	private final boolean ignoreTrailingWhitespace;
+-	private final boolean ignoreLeadingWhitespace;
+ 	private final boolean joinLines;
+ 
+ 	private final char newLine;
+@@ -43,8 +41,6 @@
+ 	 */
+ 	public TsvParser(TsvParserSettings settings) {
+ 		super(settings);
+-		ignoreTrailingWhitespace = settings.getIgnoreTrailingWhitespaces();
+-		ignoreLeadingWhitespace = settings.getIgnoreLeadingWhitespaces();
+ 		joinLines = settings.isLineJoiningEnabled();
+ 
+ 		TsvFormat format = settings.getFormat();
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/tsv/TsvWriter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/tsv/TsvWriter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/tsv/TsvWriter.java	2024-09-08 01:36:13.921807241 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/tsv/TsvWriter.java	2024-09-08 01:36:13.897807073 +1000
+@@ -31,8 +31,6 @@
+  */
+ public class TsvWriter extends AbstractWriter<TsvWriterSettings> {
+ 
+-	private boolean ignoreLeading;
+-	private boolean ignoreTrailing;
+ 	private boolean joinLines;
+ 
+ 	private char escapeChar;
+@@ -131,8 +129,6 @@
+ 	protected final void initialize(TsvWriterSettings settings) {
+ 		this.escapeChar = settings.getFormat().getEscapeChar();
+ 		this.escapedTabChar = settings.getFormat().getEscapedTabChar();
+-		this.ignoreLeading = settings.getIgnoreLeadingWhitespaces();
+-		this.ignoreTrailing = settings.getIgnoreTrailingWhitespaces();
+ 		this.joinLines = settings.isLineJoiningEnabled();
+ 		this.newLine = settings.getFormat().getNormalizedNewline();
+ 	}
+@@ -145,20 +141,20 @@
+ 			}
+ 
+ 			String nextElement = getStringValue(row[i]);
+-
++			boolean allowTrim = allowTrim(i);
+ 			int originalLength = appender.length();
+-			append(nextElement);
++			append(nextElement, allowTrim);
+ 
+ 			//skipped all whitespaces and wrote nothing
+ 			if (appender.length() == originalLength && nullValue != null && !nullValue.isEmpty()) {
+-				append(nullValue);
++				append(nullValue, allowTrim);
+ 			}
+ 
+ 			appendValueToRow();
+ 		}
+ 	}
+ 
+-	private void append(String element) {
++	private void append(String element, boolean allowTrim) {
+ 		if (element == null) {
+ 			element = nullValue;
+ 		}
+@@ -168,7 +164,7 @@
+ 		}
+ 
+ 		int start = 0;
+-		if (this.ignoreLeading) {
++		if (allowTrim && this.ignoreLeading) {
+ 			start = skipLeadingWhitespace(whitespaceRangeStart, element);
+ 		}
+ 
+@@ -194,7 +190,7 @@
+ 			}
+ 		}
+ 		appender.append(element, start, i);
+-		if (ch <= ' ' && ignoreTrailing && whitespaceRangeStart  < ch) {
++		if (allowTrim && ch <= ' ' && ignoreTrailing && whitespaceRangeStart < ch) {
+ 			appender.updateWhitespace();
+ 		}
+ 	}
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/univocity/parsers/common: NormalizedStringTest.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/univocity/parsers/issues/github: Github_283.java

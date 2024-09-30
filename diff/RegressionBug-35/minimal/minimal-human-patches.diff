@@ -1,0 +1,13 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvParser.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvParser.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvParser.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvParser.java
+@@ -125,6 +125,9 @@
+ 								if (ch == delimiter) {
+ 									try {
+ 										ch = input.nextChar();
++										if(ch == newLine){
++											output.emptyParsed();
++										}
+ 									} catch (EOFException e) {
+ 										output.emptyParsed();
+ 										return;

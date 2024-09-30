@@ -1,0 +1,24 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/nonapi/io/github/classgraph/fileslice/reader/ClassfileReader.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/nonapi/io/github/classgraph/fileslice/reader/ClassfileReader.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/nonapi/io/github/classgraph/fileslice/reader/ClassfileReader.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/nonapi/io/github/classgraph/fileslice/reader/ClassfileReader.java
+@@ -178,13 +178,17 @@
+                 maxArrLen);
+ 
+         // Double the size of the array if it's too small to contain the new chunk of bytes
+-        if (arr.length < maxNewArrUsed) {
+-            arr = Arrays.copyOf(arr, (int) Math.min(arr.length * 2L, maxArrLen));
++        long newArrLength = arr.length;
++        while (newArrLength < maxNewArrUsed) {
++            newArrLength = Math.min(maxNewArrUsed, newArrLength * 2L);
+         }
++        if (newArrLength > FileUtils.MAX_BUFFER_SIZE) {
++            throw new IOException("Hit 2GB limit while trying to grow buffer array");
++        }
++        arr = Arrays.copyOf(arr, (int) Math.min(newArrLength, maxArrLen));
+ 
+
+-        final int maxBytesToRead = Math.min(maxNewArrUsed - arrUsed, arr.length - arrUsed);
++        final int maxBytesToRead = arr.length - arrUsed;
+ 
+         // Read a new chunk into the buffer, starting at position arrUsed
+         if (inflaterInputStream != null) {

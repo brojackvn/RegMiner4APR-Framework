@@ -1,0 +1,48 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvParser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvParser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvParser.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvParser.java
+@@ -41,6 +41,7 @@
+ 	private final boolean keepEscape;
+ 	private final boolean keepQuotes;
+ 
++	private boolean unescaped;
+ 	private char prev;
+ 	private char delimiter;
+ 	private char quote;
+@@ -113,6 +114,7 @@
+ 			if (ch == delimiter || ch == newLine) {
+ 				output.emptyParsed();
+ 			} else {
++				unescaped = false;
+ 				prev = '\0';
+ 				if (ch == quote) {
+ 					output.trim = false;
+@@ -253,9 +256,8 @@
+ 			if (keepQuotes && prev == '\0') {
+ 				output.appender.append(quote);
+ 			}
++			ch = input.nextChar();
+ 			while (true) {
+-				ch = input.nextChar();
+
+ 				if (prev == quote && (ch <= ' ' && whitespaceRangeStart < ch || ch == delimiter || ch == newLine)) {
+ 					break;
+ 				}
+@@ -272,10 +274,16 @@
+ 						output.appender.append(quoteEscape);
+ 					}
+ 					ch = output.appender.appendUntil(ch, input, quote, quoteEscape, escapeEscape);
++					prev = ch;
++					ch = input.nextChar();
+ 				} else {
+ 					processQuoteEscape();
++					prev = ch;
++					ch = input.nextChar();
++					if(unescaped && ch == delimiter || ch == newLine){
++						return;
++					}
+ 				}
+-				prev = ch;
+ 			}
+ 
+ 			// handles whitespaces after quoted value: whitespaces are ignored. Content after whitespaces may be parsed if 'parseUnescapedQuotes' is enabled.

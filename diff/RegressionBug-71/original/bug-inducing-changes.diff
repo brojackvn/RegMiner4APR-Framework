@@ -1,0 +1,769 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/deserializer/ASMDeserializerFactory.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/deserializer/ASMDeserializerFactory.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/deserializer/ASMDeserializerFactory.java	2024-09-08 01:36:22.405866660 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/deserializer/ASMDeserializerFactory.java	2024-09-08 01:36:22.297865904 +1000
+@@ -126,6 +126,51 @@
+                 mw.visitVarInsn(BIPUSH, seperator);
+                 mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanInt", "(C)I");
+                 mw.visitVarInsn(ISTORE, context.var(fieldInfo.name + "_asm"));
++            } else if (fieldClass == Byte.class) {
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitVarInsn(BIPUSH, seperator);
++                mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanInt", "(C)I");
++                mw.visitMethodInsn(INVOKESTATIC, "java/lang/Byte", "valueOf", "(B)Ljava/lang/Byte;");
++
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                Label valueNullEnd_ = new Label();
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitFieldInsn(GETFIELD, JSONLexerBase, "matchStat", "I");
++                mw.visitLdcInsn(com.alibaba.fastjson.parser.JSONLexerBase.VALUE_NULL);
++                mw.visitJumpInsn(IF_ICMPNE, valueNullEnd_);
++                mw.visitInsn(ACONST_NULL);
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                mw.visitLabel(valueNullEnd_);
++            } else if (fieldClass == Short.class) {
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitVarInsn(BIPUSH, seperator);
++                mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanInt", "(C)I");
++                mw.visitMethodInsn(INVOKESTATIC, "java/lang/Short", "valueOf", "(S)Ljava/lang/Short;");
++
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                Label valueNullEnd_ = new Label();
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitFieldInsn(GETFIELD, JSONLexerBase, "matchStat", "I");
++                mw.visitLdcInsn(com.alibaba.fastjson.parser.JSONLexerBase.VALUE_NULL);
++                mw.visitJumpInsn(IF_ICMPNE, valueNullEnd_);
++                mw.visitInsn(ACONST_NULL);
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                mw.visitLabel(valueNullEnd_);
++            } else if (fieldClass == Integer.class) {
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitVarInsn(BIPUSH, seperator);
++                mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanInt", "(C)I");
++                mw.visitMethodInsn(INVOKESTATIC, "java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;");
++
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                Label valueNullEnd_ = new Label();
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitFieldInsn(GETFIELD, JSONLexerBase, "matchStat", "I");
++                mw.visitLdcInsn(com.alibaba.fastjson.parser.JSONLexerBase.VALUE_NULL);
++                mw.visitJumpInsn(IF_ICMPNE, valueNullEnd_);
++                mw.visitInsn(ACONST_NULL);
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                mw.visitLabel(valueNullEnd_);
+             } else if (fieldClass == long.class) {
+                 mw.visitVarInsn(ALOAD, context.var("lexer"));
+                 mw.visitVarInsn(BIPUSH, seperator);
+@@ -141,11 +186,45 @@
+                 mw.visitVarInsn(BIPUSH, seperator);
+                 mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanFloat", "(C)F");
+                 mw.visitVarInsn(FSTORE, context.var(fieldInfo.name + "_asm"));
++
++            } else if (fieldClass == Float.class) {
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitVarInsn(BIPUSH, seperator);
++                mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanFloat", "(C)F");
++                mw.visitMethodInsn(INVOKESTATIC, "java/lang/Float", "valueOf", "(F)Ljava/lang/Float;");
++
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                Label valueNullEnd_ = new Label();
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitFieldInsn(GETFIELD, JSONLexerBase, "matchStat", "I");
++                mw.visitLdcInsn(com.alibaba.fastjson.parser.JSONLexerBase.VALUE_NULL);
++                mw.visitJumpInsn(IF_ICMPNE, valueNullEnd_);
++                mw.visitInsn(ACONST_NULL);
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                mw.visitLabel(valueNullEnd_);
++
+             } else if (fieldClass == double.class) {
+                 mw.visitVarInsn(ALOAD, context.var("lexer"));
+                 mw.visitVarInsn(BIPUSH, seperator);
+                 mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanDouble", "(C)D");
+                 mw.visitVarInsn(DSTORE, context.var(fieldInfo.name + "_asm", 2));
++
++            } else if (fieldClass == Double.class) {
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitVarInsn(BIPUSH, seperator);
++                mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanDouble", "(C)D");
++                mw.visitMethodInsn(INVOKESTATIC, "java/lang/Double", "valueOf", "(D)Ljava/lang/Double;");
++
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                Label valueNullEnd_ = new Label();
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitFieldInsn(GETFIELD, JSONLexerBase, "matchStat", "I");
++                mw.visitLdcInsn(com.alibaba.fastjson.parser.JSONLexerBase.VALUE_NULL);
++                mw.visitJumpInsn(IF_ICMPNE, valueNullEnd_);
++                mw.visitInsn(ACONST_NULL);
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                mw.visitLabel(valueNullEnd_);
++
+             } else if (fieldClass == char.class) {
+                 mw.visitVarInsn(ALOAD, context.var("lexer"));
+                 mw.visitVarInsn(BIPUSH, seperator);
+@@ -614,6 +693,23 @@
+                 mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanFieldInt", "([C)I");
+                 mw.visitVarInsn(ISTORE, context.var(fieldInfo.name + "_asm"));
+ 
++            } else if (fieldClass == Byte.class) {
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitVarInsn(ALOAD, 0);
++                mw.visitFieldInsn(GETFIELD, context.className, fieldInfo.name + "_asm_prefix__", "[C");
++                mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanFieldInt", "([C)I");
++                mw.visitMethodInsn(INVOKESTATIC, "java/lang/Byte", "valueOf", "(B)Ljava/lang/Byte;");
++
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                Label valueNullEnd_ = new Label();
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitFieldInsn(GETFIELD, JSONLexerBase, "matchStat", "I");
++                mw.visitLdcInsn(com.alibaba.fastjson.parser.JSONLexerBase.VALUE_NULL);
++                mw.visitJumpInsn(IF_ICMPNE, valueNullEnd_);
++                mw.visitInsn(ACONST_NULL);
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                mw.visitLabel(valueNullEnd_);
++
+             } else if (fieldClass == short.class) {
+                 mw.visitVarInsn(ALOAD, context.var("lexer"));
+                 mw.visitVarInsn(ALOAD, 0);
+@@ -621,6 +717,23 @@
+                 mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanFieldInt", "([C)I");
+                 mw.visitVarInsn(ISTORE, context.var(fieldInfo.name + "_asm"));
+ 
++            } else if (fieldClass == Short.class) {
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitVarInsn(ALOAD, 0);
++                mw.visitFieldInsn(GETFIELD, context.className, fieldInfo.name + "_asm_prefix__", "[C");
++                mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanFieldInt", "([C)I");
++                mw.visitMethodInsn(INVOKESTATIC, "java/lang/Short", "valueOf", "(S)Ljava/lang/Short;");
++
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                Label valueNullEnd_ = new Label();
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitFieldInsn(GETFIELD, JSONLexerBase, "matchStat", "I");
++                mw.visitLdcInsn(com.alibaba.fastjson.parser.JSONLexerBase.VALUE_NULL);
++                mw.visitJumpInsn(IF_ICMPNE, valueNullEnd_);
++                mw.visitInsn(ACONST_NULL);
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                mw.visitLabel(valueNullEnd_);
++
+             } else if (fieldClass == int.class) {
+                 mw.visitVarInsn(ALOAD, context.var("lexer"));
+                 mw.visitVarInsn(ALOAD, 0);
+@@ -628,6 +741,23 @@
+                 mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanFieldInt", "([C)I");
+                 mw.visitVarInsn(ISTORE, context.var(fieldInfo.name + "_asm"));
+ 
++            } else if (fieldClass == Integer.class) {
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitVarInsn(ALOAD, 0);
++                mw.visitFieldInsn(GETFIELD, context.className, fieldInfo.name + "_asm_prefix__", "[C");
++                mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanFieldInt", "([C)I");
++                mw.visitMethodInsn(INVOKESTATIC, "java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;");
++
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                Label valueNullEnd_ = new Label();
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitFieldInsn(GETFIELD, JSONLexerBase, "matchStat", "I");
++                mw.visitLdcInsn(com.alibaba.fastjson.parser.JSONLexerBase.VALUE_NULL);
++                mw.visitJumpInsn(IF_ICMPNE, valueNullEnd_);
++                mw.visitInsn(ACONST_NULL);
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                mw.visitLabel(valueNullEnd_);
++
+             } else if (fieldClass == long.class) {
+                 mw.visitVarInsn(ALOAD, context.var("lexer"));
+                 mw.visitVarInsn(ALOAD, 0);
+@@ -635,6 +765,23 @@
+                 mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanFieldLong", "([C)J");
+                 mw.visitVarInsn(LSTORE, context.var(fieldInfo.name + "_asm", 2));
+ 
++            } else if (fieldClass == Long.class) {
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitVarInsn(ALOAD, 0);
++                mw.visitFieldInsn(GETFIELD, context.className, fieldInfo.name + "_asm_prefix__", "[C");
++                mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanFieldLong", "([C)J");
++                mw.visitMethodInsn(INVOKESTATIC, "java/lang/Long", "valueOf", "(J)Ljava/lang/Long;");
++
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                Label valueNullEnd_ = new Label();
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitFieldInsn(GETFIELD, JSONLexerBase, "matchStat", "I");
++                mw.visitLdcInsn(com.alibaba.fastjson.parser.JSONLexerBase.VALUE_NULL);
++                mw.visitJumpInsn(IF_ICMPNE, valueNullEnd_);
++                mw.visitInsn(ACONST_NULL);
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                mw.visitLabel(valueNullEnd_);
++
+             } else if (fieldClass == float.class) {
+                 mw.visitVarInsn(ALOAD, context.var("lexer"));
+                 mw.visitVarInsn(ALOAD, 0);
+@@ -642,6 +789,22 @@
+                 mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanFieldFloat", "([C)F");
+                 mw.visitVarInsn(FSTORE, context.var(fieldInfo.name + "_asm"));
+ 
++            } else if (fieldClass == Float.class) {
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitVarInsn(ALOAD, 0);
++                mw.visitFieldInsn(GETFIELD, context.className, fieldInfo.name + "_asm_prefix__", "[C");
++                mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanFieldFloat", "([C)F");
++                mw.visitMethodInsn(INVOKESTATIC, "java/lang/Float", "valueOf", "(F)Ljava/lang/Float;");
++
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                Label valueNullEnd_ = new Label();
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitFieldInsn(GETFIELD, JSONLexerBase, "matchStat", "I");
++                mw.visitLdcInsn(com.alibaba.fastjson.parser.JSONLexerBase.VALUE_NULL);
++                mw.visitJumpInsn(IF_ICMPNE, valueNullEnd_);
++                mw.visitInsn(ACONST_NULL);
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                mw.visitLabel(valueNullEnd_);
+             } else if (fieldClass == double.class) {
+                 mw.visitVarInsn(ALOAD, context.var("lexer"));
+                 mw.visitVarInsn(ALOAD, 0);
+@@ -649,6 +812,23 @@
+                 mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanFieldDouble", "([C)D");
+                 mw.visitVarInsn(DSTORE, context.var(fieldInfo.name + "_asm", 2));
+ 
++            } else if (fieldClass == Double.class) {
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitVarInsn(ALOAD, 0);
++                mw.visitFieldInsn(GETFIELD, context.className, fieldInfo.name + "_asm_prefix__", "[C");
++                mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanFieldDouble", "([C)D");
++                mw.visitMethodInsn(INVOKESTATIC, "java/lang/Double", "valueOf", "(D)Ljava/lang/Double;");
++
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++                Label valueNullEnd_ = new Label();
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitFieldInsn(GETFIELD, JSONLexerBase, "matchStat", "I");
++                mw.visitLdcInsn(com.alibaba.fastjson.parser.JSONLexerBase.VALUE_NULL);
++                mw.visitJumpInsn(IF_ICMPNE, valueNullEnd_);
++                mw.visitInsn(ACONST_NULL);
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++
++                mw.visitLabel(valueNullEnd_);
+             } else if (fieldClass == String.class) {
+                 mw.visitVarInsn(ALOAD, context.var("lexer"));
+                 mw.visitVarInsn(ALOAD, 0);
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/JSONLexerBase.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/JSONLexerBase.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/JSONLexerBase.java	2024-09-08 01:36:22.405866660 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/JSONLexerBase.java	2024-09-08 01:36:22.297865904 +1000
+@@ -2380,6 +2380,37 @@
+                 String text = this.subString(start, count);
+                 value = Float.parseFloat(text);
+             }
++        } else if (chLocal == 'n' && charAt(bp + offset) == 'u' && charAt(bp + offset + 1) == 'l' && charAt(bp + offset + 2) == 'l') {
++            matchStat = VALUE_NULL;
++            value = 0;
++            offset += 3;
++            chLocal = charAt(bp + offset++);
++
++            if (quote && chLocal == '"') {
++                chLocal = charAt(bp + offset++);
++            }
++
++            for (;;) {
++                if (chLocal == ',') {
++                    bp += offset;
++                    this.ch = charAt(bp);
++                    matchStat = VALUE_NULL;
++                    token = JSONToken.COMMA;
++                    return value;
++                } else if (chLocal == '}') {
++                    bp += offset;
++                    this.ch = charAt(bp);
++                    matchStat = VALUE_NULL;
++                    token = JSONToken.RBRACE;
++                    return value;
++                } else if (isWhitespace(chLocal)) {
++                    chLocal = charAt(bp + offset++);
++                    continue;
++                }
++                break;
++            }
++            matchStat = NOT_MATCH;
++            return 0;
+         } else {
+             matchStat = NOT_MATCH;
+             return 0;
+@@ -2441,9 +2472,8 @@
+ 
+         float value;
+         if (chLocal >= '0' && chLocal <= '9') {
+-            int intVal = chLocal - '0';
+-
+-            for (;;) {
++            long intVal = chLocal - '0';
++            for (; ; ) {
+                 chLocal = charAt(bp + (offset++));
+                 if (chLocal >= '0' && chLocal <= '9') {
+                     intVal = intVal * 10 + (chLocal - '0');
+@@ -2453,13 +2483,18 @@
+                 }
+             }
+ 
+-            if (chLocal == '.') {
++            long power = 1;
++            boolean small = (chLocal == '.');
++            if (small) {
+                 chLocal = charAt(bp + (offset++));
+                 if (chLocal >= '0' && chLocal <= '9') {
+-                    for (;;) {
++                    intVal = intVal * 10 + (chLocal - '0');
++                    power = 10;
++                    for (; ; ) {
+                         chLocal = charAt(bp + (offset++));
+                         if (chLocal >= '0' && chLocal <= '9') {
+                             intVal = intVal * 10 + (chLocal - '0');
++                            power *= 10;
+                             continue;
+                         } else {
+                             break;
+@@ -2471,6 +2506,36 @@
+                 }
+             }
+ 
++            boolean exp = chLocal == 'e' || chLocal == 'E';
++            if (exp) {
++                chLocal = charAt(bp + (offset++));
++                if (chLocal == '+' || chLocal == '-') {
++                    chLocal = charAt(bp + (offset++));
++                }
++                for (; ; ) {
++                    if (chLocal >= '0' && chLocal <= '9') {
++                        chLocal = charAt(bp + (offset++));
++                    } else {
++                        break;
++                    }
++                }
++            }
++//            int start, count;
++//            if (quote) {
++//                if (chLocal != '"') {
++//                    matchStat = NOT_MATCH;
++//                    return 0;
++//                } else {
++//                    chLocal = charAt(bp + (offset++));
++//                }
++//                start = bp + 1;
++//                count = bp + offset - start - 2;
++//            } else {
++//                start = bp;
++//                count = bp + offset - start - 1;
++//            }
++//            String text = this.subString(start, count);
++//            value = Float.parseFloat(text);
+             int start, count;
+             if (quote) {
+                 if (chLocal != '"') {
+@@ -2485,8 +2550,47 @@
+                 start = bp;
+                 count = bp + offset - start - 1;
+             }
+-            String text = this.subString(start, count);
+-            value = Float.parseFloat(text);
++
++            if (!exp && count < 20) {
++                value = ((float) intVal) / power;
++                if (negative) {
++                    value = -value;
++                }
++            } else {
++                String text = this.subString(start, count);
++                value = Float.parseFloat(text);
++            }
++        } else if (chLocal == 'n' && charAt(bp + offset) == 'u' && charAt(bp + offset + 1) == 'l' && charAt(bp + offset + 2) == 'l') {
++            matchStat = VALUE_NULL;
++            value = 0;
++            offset += 3;
++            chLocal = charAt(bp + offset++);
++
++            if (quote && chLocal == '"') {
++                chLocal = charAt(bp + offset++);
++            }
++
++            for (;;) {
++                if (chLocal == ',') {
++                    bp += offset;
++                    this.ch = charAt(bp);
++                    matchStat = VALUE_NULL;
++                    token = JSONToken.COMMA;
++                    return value;
++                } else if (chLocal == ']') {
++                    bp += offset;
++                    this.ch = charAt(bp);
++                    matchStat = VALUE_NULL;
++                    token = JSONToken.RBRACKET;
++                    return value;
++                } else if (isWhitespace(chLocal)) {
++                    chLocal = charAt(bp + offset++);
++                    continue;
++                }
++                break;
++            }
++            matchStat = NOT_MATCH;
++            return 0;
+         } else {
+             matchStat = NOT_MATCH;
+             return 0;
+@@ -2522,7 +2626,7 @@
+         double value;
+         if (chLocal >= '0' && chLocal <= '9') {
+             long intVal = chLocal - '0';
+-            for (;;) {
++            for (; ; ) {
+                 chLocal = charAt(bp + (offset++));
+                 if (chLocal >= '0' && chLocal <= '9') {
+                     intVal = intVal * 10 + (chLocal - '0');
+@@ -2539,7 +2643,7 @@
+                 if (chLocal >= '0' && chLocal <= '9') {
+                     intVal = intVal * 10 + (chLocal - '0');
+                     power = 10;
+-                    for (;;) {
++                    for (; ; ) {
+                         chLocal = charAt(bp + (offset++));
+                         if (chLocal >= '0' && chLocal <= '9') {
+                             intVal = intVal * 10 + (chLocal - '0');
+@@ -2561,7 +2665,7 @@
+                 if (chLocal == '+' || chLocal == '-') {
+                     chLocal = charAt(bp + (offset++));
+                 }
+-                for (;;) {
++                for (; ; ) {
+                     if (chLocal >= '0' && chLocal <= '9') {
+                         chLocal = charAt(bp + (offset++));
+                     } else {
+@@ -2594,6 +2698,37 @@
+                 String text = this.subString(start, count);
+                 value = Double.parseDouble(text);
+             }
++        } else if (chLocal == 'n' && charAt(bp + offset) == 'u' && charAt(bp + offset + 1) == 'l' && charAt(bp + offset + 2) == 'l') {
++            matchStat = VALUE_NULL;
++            value = 0;
++            offset += 3;
++            chLocal = charAt(bp + offset++);
++
++            if (quote && chLocal == '"') {
++                chLocal = charAt(bp + offset++);
++            }
++
++            for (;;) {
++                if (chLocal == ',') {
++                    bp += offset;
++                    this.ch = charAt(bp);
++                    matchStat = VALUE_NULL;
++                    token = JSONToken.COMMA;
++                    return value;
++                } else if (chLocal == ']') {
++                    bp += offset;
++                    this.ch = charAt(bp);
++                    matchStat = VALUE_NULL;
++                    token = JSONToken.RBRACKET;
++                    return value;
++                } else if (isWhitespace(chLocal)) {
++                    chLocal = charAt(bp + offset++);
++                    continue;
++                }
++                break;
++            }
++            matchStat = NOT_MATCH;
++            return 0;
+         } else {
+             matchStat = NOT_MATCH;
+             return 0;
+@@ -3049,6 +3184,37 @@
+                 String text = this.subString(start, count);
+                 value = Double.parseDouble(text);
+             }
++        } else if (chLocal == 'n' && charAt(bp + offset) == 'u' && charAt(bp + offset + 1) == 'l' && charAt(bp + offset + 2) == 'l') {
++            matchStat = VALUE_NULL;
++            value = 0;
++            offset += 3;
++            chLocal = charAt(bp + offset++);
++
++            if (quote && chLocal == '"') {
++                chLocal = charAt(bp + offset++);
++            }
++
++            for (;;) {
++                if (chLocal == ',') {
++                    bp += offset;
++                    this.ch = charAt(bp);
++                    matchStat = VALUE_NULL;
++                    token = JSONToken.COMMA;
++                    return value;
++                } else if (chLocal == '}') {
++                    bp += offset;
++                    this.ch = charAt(bp);
++                    matchStat = VALUE_NULL;
++                    token = JSONToken.RBRACE;
++                    return value;
++                } else if (isWhitespace(chLocal)) {
++                    chLocal = charAt(bp + offset++);
++                    continue;
++                }
++                break;
++            }
++            matchStat = NOT_MATCH;
++            return 0;
+         } else {
+             matchStat = NOT_MATCH;
+             return 0;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/JSONScanner.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/JSONScanner.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/JSONScanner.java	2024-09-08 01:36:22.405866660 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/JSONScanner.java	2024-09-08 01:36:22.297865904 +1000
+@@ -718,10 +718,15 @@
+ 
+         char ch = charAt(index++);
+ 
+-        boolean negative = false;
+-        if (ch == '-') {
++        final boolean quote = ch == '"';
++
++        if (quote) {
++            ch = charAt(index++);
++        }
++
++        final boolean negative = ch == '-';
++        if (negative) {
+             ch = charAt(index++);
+-            negative = true;
+         }
+ 
+         int value;
+@@ -744,6 +749,15 @@
+                 return 0;
+             }
+ 
++            if (quote) {
++                if (ch != '"') {
++                    matchStat = NOT_MATCH;
++                    return 0;
++                } else {
++                    ch = charAt(index++);
++                }
++            }
++
+             for (;;) {
+                 if (ch == ',' || ch == '}') {
+                     bp = index - 1;
+@@ -1153,6 +1167,11 @@
+ 
+         char ch = charAt(index++);
+ 
++        final boolean quote = ch == '"';
++        if (quote) {
++            ch = charAt(index++);
++        }
++
+         boolean negative = false;
+         if (ch == '-') {
+             ch = charAt(index++);
+@@ -1170,12 +1189,22 @@
+                     matchStat = NOT_MATCH;
+                     return 0;
+                 } else {
++                    if (quote) {
++                        if (ch != '"') {
++                            matchStat = NOT_MATCH;
++                            return 0;
++                        } else {
++                            ch = charAt(index++);
++                        }
++                    }
++
+                     if (ch == ',' || ch == '}') {
+                         bp = index - 1;
+                     }
+                     break;
+                 }
+             }
++
+             if (value < 0) {
+                 this.bp = startPos;
+                 this.ch = startChar;
+@@ -1249,6 +1278,11 @@
+ 
+         char ch = charAt(index++);
+ 
++        final boolean quote = ch == '"';
++        if (quote) {
++            ch = charAt(index++);
++        }
++
+         boolean value;
+         if (ch == 't') {
+             if (charAt(index++) != 'r') {
+@@ -1264,6 +1298,11 @@
+                 return false;
+             }
+ 
++            if (quote && charAt(index++) != '"') {
++                matchStat = NOT_MATCH;
++                return false;
++            }
++
+             bp = index;
+             ch = charAt(bp);
+             value = true;
+@@ -1285,9 +1324,32 @@
+                 return false;
+             }
+ 
++            if (quote && charAt(index++) != '"') {
++                matchStat = NOT_MATCH;
++                return false;
++            }
++
+             bp = index;
+             ch = charAt(bp);
+             value = false;
++        } else if (ch == '1') {
++                if (quote && charAt(index++) != '"') {
++                    matchStat = NOT_MATCH;
++                    return false;
++                }
++
++                bp = index;
++                ch = charAt(bp);
++                value = true;
++        } else if (ch == '0') {
++            if (quote && charAt(index++) != '"') {
++                matchStat = NOT_MATCH;
++                return false;
++            }
++
++            bp = index;
++            ch = charAt(bp);
++            value = true;
+         } else {
+             matchStat = NOT_MATCH;
+             return false;
+@@ -1418,7 +1480,7 @@
+         double value;
+         if (chLocal >= '0' && chLocal <= '9') {
+             long intVal = chLocal - '0';
+-            for (;;) {
++            for (; ; ) {
+                 chLocal = charAt(offset++);
+                 if (chLocal >= '0' && chLocal <= '9') {
+                     intVal = intVal * 10 + (chLocal - '0');
+@@ -1435,7 +1497,7 @@
+                 if (chLocal >= '0' && chLocal <= '9') {
+                     intVal = intVal * 10 + (chLocal - '0');
+                     power = 10;
+-                    for (;;) {
++                    for (; ; ) {
+                         chLocal = charAt(offset++);
+                         if (chLocal >= '0' && chLocal <= '9') {
+                             intVal = intVal * 10 + (chLocal - '0');
+@@ -1457,7 +1519,7 @@
+                 if (chLocal == '+' || chLocal == '-') {
+                     chLocal = charAt(offset++);
+                 }
+-                for (;;) {
++                for (; ; ) {
+                     if (chLocal >= '0' && chLocal <= '9') {
+                         chLocal = charAt(offset++);
+                     } else {
+@@ -1490,6 +1552,39 @@
+                 String text = this.subString(start, count);
+                 value = Double.parseDouble(text);
+             }
++        } else if (chLocal == 'n'
++                && charAt(offset++) == 'u'
++                && charAt(offset++) == 'l'
++                && charAt(offset++) == 'l') {
++            matchStat = VALUE_NULL;
++            value = 0;
++            chLocal = charAt(offset++);
++
++            if (quote && chLocal == '"') {
++                chLocal = charAt(offset++);
++            }
++
++            for (;;) {
++                if (chLocal == ',') {
++                    bp = offset;
++                    this.ch = charAt(bp);
++                    matchStat = VALUE_NULL;
++                    token = JSONToken.COMMA;
++                    return value;
++                } else if (chLocal == ']') {
++                    bp = offset;
++                    this.ch = charAt(bp);
++                    matchStat = VALUE_NULL;
++                    token = JSONToken.RBRACKET;
++                    return value;
++                } else if (isWhitespace(chLocal)) {
++                    chLocal = charAt(offset++);
++                    continue;
++                }
++                break;
++            }
++            matchStat = NOT_MATCH;
++            return 0;
+         } else {
+             matchStat = NOT_MATCH;
+             return 0;
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/bvt/basicType: DoubleNullTest.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/bvt/basicType: DoubleNullTest_primitive.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/bvt/basicType: DoubleTest2_obj.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/bvt/basicType: FloatNullTest.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/bvt/basicType: FloatNullTest_primitive.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/bvt/basicType: FloatTest2_obj.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/bvt/basicType: IntegerNullTest.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/bvt/basicType: IntNullTest_primitive.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/bvt/basicType: LongNullTest.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/bvt/basicType: LongNullTest_primitive.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/json/bvt/bug/Bug_for_primitive_double.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/bvt/bug/Bug_for_primitive_double.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/json/bvt/bug/Bug_for_primitive_double.java	2024-09-08 01:36:22.417866744 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/bvt/bug/Bug_for_primitive_double.java	2024-09-08 01:36:22.309865988 +1000
+@@ -27,7 +27,7 @@
+         }
+ 
+         public void setValue(double value) {
+-            throw new UnsupportedOperationException();
++            this.value = value;
+         }
+ 
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/json/bvt/bug/Bug_for_primitive_float.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/bvt/bug/Bug_for_primitive_float.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/json/bvt/bug/Bug_for_primitive_float.java	2024-09-08 01:36:22.417866744 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/bvt/bug/Bug_for_primitive_float.java	2024-09-08 01:36:22.309865988 +1000
+@@ -27,7 +27,7 @@
+         }
+ 
+         public void setValue(float value) {
+-            throw new UnsupportedOperationException();
++            this.value = value;
+         }
+ 
+     }
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic: BooleanBenchmark.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic: ByteBenchmark_arrayMapping_obj.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic: ByteBenchmark.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic: ByteBenchmark_obj.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/json/test/benchmark/basic/DoubleBenchmark_arrayMapping.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic/DoubleBenchmark_arrayMapping.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/json/test/benchmark/basic/DoubleBenchmark_arrayMapping.java	2024-09-08 01:36:22.441866913 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic/DoubleBenchmark_arrayMapping.java	2024-09-08 01:36:22.337866184 +1000
+@@ -21,8 +21,8 @@
+ //        System.out.println(JSON.toJSONString(model));
+ 
+         for (int i = 0; i < 10; ++i) {
+-             perf(); // 320
+-//            perf2(); // 330
++//             perf(); // 2528
++            perf2(); // 2484
+         }
+     }
+ 
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic: DoubleBenchmark_arrayMapping_obj.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic: DoubleBenchmark_obj.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic: FloatBenchmark_arrayMapping_obj.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic: FloatBenchmark_obj.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic: IntBenchmark_arrayMapping_obj.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic: IntBenchmark.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic: IntBenchmark_obj.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic: LongBenchmark.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic: LongBenchmark_obj.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic: ShortBenchmark_arrayMappinng_obj.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic: ShortBenchmark.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic: ShortBenchmark_obj.java

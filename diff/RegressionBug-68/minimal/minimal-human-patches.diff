@@ -1,0 +1,149 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/pom.xml ./RegMiner4APR-Regression-Bugs/BFC/pom.xml
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/pom.xml	2024-09-08 01:36:20.549853661 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/pom.xml	2024-09-08 01:36:20.405852653 +1000
+@@ -4,7 +4,7 @@
+ 	<modelVersion>4.0.0</modelVersion>
+ 	<groupId>com.alibaba</groupId>
+ 	<artifactId>fastjson</artifactId>
+-	<version>1.2.59_preview_07</version>
++	<version>1.2.60_preview_01</version>
+ 
+ 	<packaging>jar</packaging>
+ 	<name>fastjson</name>
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/JSON.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/JSON.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/JSON.java	2024-09-08 01:36:20.553853690 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/JSON.java	2024-09-08 01:36:20.409852681 +1000
+@@ -1107,6 +1107,10 @@
+      * @since 1.2.9
+      */
+     public <T> T toJavaObject(Class<T> clazz) {
++        if (clazz == JSONArray.class || clazz == JSON.class || clazz == Collection.class || clazz == List.class) {
++            return (T) this;
++        }
++
+         return TypeUtils.cast(this, clazz, ParserConfig.getGlobalInstance());
+     }
+ 
+@@ -1252,5 +1256,5 @@
+         parser.handleResovleTask(value);
+     }
+ 
+-    public final static String VERSION = "1.2.59";
++    public final static String VERSION = "1.2.60";
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/JSONObject.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/JSONObject.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/JSONObject.java	2024-09-08 01:36:20.553853690 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/JSONObject.java	2024-09-08 01:36:20.409852681 +1000
+@@ -588,7 +588,7 @@
+     }
+ 
+     public <T> T toJavaObject(Class<T> clazz) {
+-        if (clazz == Map.class) {
++        if (clazz == Map.class || clazz == JSONObject.class || clazz == JSON.class) {
+             return (T) this;
+         }
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/parser/deserializer/JavaBeanDeserializer.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/parser/deserializer/JavaBeanDeserializer.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/parser/deserializer/JavaBeanDeserializer.java	2024-09-08 01:36:20.553853690 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/parser/deserializer/JavaBeanDeserializer.java	2024-09-08 01:36:20.413852709 +1000
+@@ -1335,7 +1335,8 @@
+                 Type paramType = fieldInfo.fieldType;
+ 
+                 if (field != null) {
+-                    if (paramType == boolean.class) {
++                    Class fieldType = field.getType();
++                    if (fieldType == boolean.class) {
+                         if (value == Boolean.FALSE) {
+                             field.setBoolean(object, false);
+                             continue;
+@@ -1345,17 +1346,17 @@
+                             field.setBoolean(object, true);
+                             continue;
+                         }
+-                    } else if (paramType == int.class) {
++                    } else if (fieldType == int.class) {
+                         if (value instanceof Number) {
+                             field.setInt(object, ((Number) value).intValue());
+                             continue;
+                         }
+-                    } else if (paramType == long.class) {
++                    } else if (fieldType == long.class) {
+                         if (value instanceof Number) {
+                             field.setLong(object, ((Number) value).longValue());
+                             continue;
+                         }
+-                    } else if (paramType == float.class) {
++                    } else if (fieldType == float.class) {
+                         if (value instanceof Number) {
+                             field.setFloat(object, ((Number) value).floatValue());
+                             continue;
+@@ -1371,7 +1372,7 @@
+                             field.setFloat(object, floatValue);
+                             continue;
+                         }
+-                    } else if (paramType == double.class) {
++                    } else if (fieldType == double.class) {
+                         if (value instanceof Number) {
+                             field.setDouble(object, ((Number) value).doubleValue());
+                             continue;
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/parser/ParserConfig.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/parser/ParserConfig.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/parser/ParserConfig.java	2024-09-08 01:36:20.553853690 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/parser/ParserConfig.java	2024-09-08 01:36:20.409852681 +1000
+@@ -156,17 +156,20 @@
+                 3794316665763266033L,
+                 4147696707147271408L,
+                 4904007817188630457L,
++                5100336081510080343L,
+                 5347909877633654828L,
+                 5450448828334921485L,
+                 5688200883751798389L,
+                 5751393439502795295L,
+                 5944107969236155580L,
++                6456855723474196908L,
+                 6742705432718011780L,
+                 7017492163108594270L,
+                 7179336928365889465L,
+                 7442624256860549330L,
+                 8389032537095247355L,
+                 8409640769019589119L,
++                8537233257283452655L,
+                 8838294710098435315L
+         };
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/serializer/DateCodec.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/serializer/DateCodec.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/serializer/DateCodec.java	2024-09-08 01:36:20.553853690 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/serializer/DateCodec.java	2024-09-08 01:36:20.413852709 +1000
+@@ -55,7 +55,7 @@
+             long millis = ((java.sql.Date) object).getTime();
+             TimeZone timeZone = serializer.timeZone;
+             int offset = timeZone.getOffset(millis);
+-            if (millis % offset == 0) {
++            if (offset == 0 || millis % offset == 0) {
+                 out.writeString(object.toString());
+                 return;
+             }
+Only in ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/alibaba/json/bvt/issue_2300: Issue2387.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/alibaba/json/bvt/util/Base64Test.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/alibaba/json/bvt/util/Base64Test.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/alibaba/json/bvt/util/Base64Test.java	2024-09-08 01:36:20.593853970 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/alibaba/json/bvt/util/Base64Test.java	2024-09-08 01:36:20.469853101 +1000
+@@ -12,17 +12,17 @@
+ 
+         {
+             byte[] bytes2 = Base64.decodeFast(base64Str);
+-            assertEquals(str, new String(bytes2));
++            assertEquals(str, new String(bytes2, "UTF8"));
+         }
+ 
+         {
+             byte[] bytes2 = Base64.decodeFast(base64Str, 0, base64Str.length());
+-            assertEquals(str, new String(bytes2));
++            assertEquals(str, new String(bytes2, "UTF8"));
+         }
+ 
+         {
+             byte[] bytes2 = Base64.decodeFast(base64Str.toCharArray(), 0, base64Str.length());
+-            assertEquals(str, new String(bytes2));
++            assertEquals(str, new String(bytes2, "UTF8"));
+         }
+     }
+ }

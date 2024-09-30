@@ -1,0 +1,245 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java	2024-09-25 15:33:06.547879298 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java	2024-09-25 15:33:18.607998607 +1000
+@@ -432,7 +432,12 @@
+ 
+ 	private static boolean allFieldsIndexOrNameBased(boolean searchName, Class<?> beanClass) {
+ 		boolean hasAnnotation = false;
+-		for (Field field : getAllFields(beanClass).keySet()) {
++
++		for (TransformedHeader header : getFieldSequence(beanClass, true, null)) {
++			if (header == null || header.getField() == null) {
++				continue;
++			}
++			Field field = header.getField();
+ 			Parsed annotation = findAnnotation(field, Parsed.class);
+ 			if (annotation != null) {
+ 				hasAnnotation = true;
+@@ -477,18 +482,19 @@
+ 	 */
+ 	public static Integer[] getSelectedIndexes(Class<?> beanClass) {
+ 		List<Integer> indexes = new ArrayList<Integer>();
+-		for (Field field : getAllFields(beanClass).keySet()) {
+-			Parsed annotation = findAnnotation(field, Parsed.class);
+-			if (annotation != null) {
+-				if (annotation.index() != -1) {
+-					if (indexes.contains(annotation.index())) {
+-						throw new IllegalArgumentException("Duplicate field index '" + annotation.index() + "' found in attribute '" + field.getName() + "' of class " + beanClass.getName());
+-					}
+-					indexes.add(annotation.index());
++		for (TransformedHeader header : getFieldSequence(beanClass, true, null)) {
++			if(header == null){
++				continue;
++			}
++			int index = header.getHeaderIndex();
++
++			if (index != -1) {
++				if (indexes.contains(index)) {
++					throw new IllegalArgumentException("Duplicate field index '" + index + "' found in attribute '" + header.getAttributeName() + "' of class " + beanClass.getName());
+ 				}
++				indexes.add(index);
+ 			}
+ 		}
+-
+ 		return indexes.toArray(new Integer[indexes.size()]);
+ 	}
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/FieldMapping.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/FieldMapping.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/FieldMapping.java	2024-09-25 15:33:06.547879298 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/FieldMapping.java	2024-09-25 15:33:18.607998607 +1000
+@@ -86,6 +86,9 @@
+ 
+ 			if (index >= 0) {
+ 				fieldName = null;
++				if(transformer != null){
++					index = transformer.transformIndex(field, index);
++				}
+ 				return;
+ 			}
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/TransformedHeader.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/TransformedHeader.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/TransformedHeader.java	2024-09-25 15:33:06.547879298 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/TransformedHeader.java	2024-09-25 15:33:18.607998607 +1000
+@@ -4,6 +4,8 @@
+ 
+ import java.lang.reflect.*;
+ 
++import static com.univocity.parsers.annotations.helpers.AnnotationHelper.*;
++
+ /**
+  * A pair associating a Field of an annotated class to an optional {@likn HeaderTransformer} obtained from
+  * {@link Nested#headerTransformer()} when nested classes are used to process beans.
+@@ -32,7 +34,7 @@
+ 		}
+ 		String name = null;
+ 
+-		Parsed annotation = AnnotationHelper.findAnnotation(field, Parsed.class);
++		Parsed annotation = findAnnotation(field, Parsed.class);
+ 		if (annotation != null) {
+ 			if (annotation.field().isEmpty()) {
+ 				name = field.getName();
+@@ -49,11 +51,30 @@
+ 	}
+ 
+ 	/**
++	 * Returns the index that determines which column the current field represents, as specified by {@link Parsed#index()}
++	 *
++	 * @return the current header index.
++	 */
++	public int getHeaderIndex() {
++		Parsed annotation = findAnnotation(field, Parsed.class);
++		if (annotation != null) {
++			int index = annotation.index();
++			if (index != -1) {
++				if (transformer != null) {
++					return transformer.transformIndex(field, index);
++				}
++				return index;
++			}
++		}
++		return -1;
++	}
++
++	/**
+ 	 * Returns the original attribute name of the field in its containing class.
+ 	 *
+ 	 * @return the original attribute name of the field
+ 	 */
+-	public String attributeName() {
++	public String getAttributeName() {
+ 		if (field == null) {
+ 			return null;
+ 		}
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthFields.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthFields.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthFields.java	2024-09-25 15:33:06.547879298 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthFields.java	2024-09-25 15:33:18.607998607 +1000
+@@ -115,7 +115,7 @@
+ 
+ 			FixedWidth fw = AnnotationHelper.findAnnotation(field.getField(), FixedWidth.class);
+ 			if (fw == null) {
+-				fieldNamesWithoutConfig.add(field.attributeName());
++				fieldNamesWithoutConfig.add(field.getAttributeName());
+ 				continue;
+ 			}
+ 
+@@ -125,7 +125,7 @@
+ 
+ 			if (length != -1) {
+ 				if (from != -1 || to != -1) {
+-					throw new IllegalArgumentException("Can't initialize fixed-width field from attribute '" + field.attributeName() + "' of class '" + beanClass.getName() + "'. " +
++					throw new IllegalArgumentException("Can't initialize fixed-width field from attribute '" + field.getAttributeName() + "' of class '" + beanClass.getName() + "'. " +
+ 							"Can't have field length (" + length + ") defined along with position from (" + from + ") and to (" + to + ")");
+ 
+ 				}
+@@ -134,7 +134,7 @@
+ 			} else if (from != -1 && to != -1) {
+ 				addField(fieldName, from, to, fw.alignment(), fw.padding());
+ 			} else {
+-				throw new IllegalArgumentException("Can't initialize fixed-width field from attribute '" + field.attributeName() + "' of class '" + beanClass.getName() + "'. " +
++				throw new IllegalArgumentException("Can't initialize fixed-width field from attribute '" + field.getAttributeName() + "' of class '" + beanClass.getName() + "'. " +
+ 						"Field length/position undefined defined");
+ 			}
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/univocity/parsers/issues/github/Github_159.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/univocity/parsers/issues/github/Github_159.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/univocity/parsers/issues/github/Github_159.java	2024-09-25 15:33:06.551879338 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/univocity/parsers/issues/github/Github_159.java	2024-09-25 15:33:18.611998647 +1000
+@@ -46,6 +46,20 @@
+ 		}
+ 	}
+ 
++	public static class IndexTransformer extends HeaderTransformer {
++
++		private int startFrom;
++
++		public IndexTransformer(String... args) {
++			startFrom = Integer.parseInt(args[0]);
++		}
++
++		@Override
++		public int transformIndex(Field field, int index) {
++			return startFrom + index;
++		}
++	}
++
+ 	public static class Wheel {
+ 		@Parsed
+ 		String brand;
+@@ -54,6 +68,15 @@
+ 		int miles;
+ 	}
+ 
++	public static class Wheel2 {
++		@Parsed(index = 0)
++		String brand;
++
++		@Parsed(index = 1)
++		int miles;
++	}
++
++
+ 	public static class Car {
+ 		@Nested(headerTransformer = NameTransformer.class, args = "frontLeftWheel")
+ 		Wheel frontLeft;
+@@ -68,6 +91,20 @@
+ 		Wheel rearRight;
+ 	}
+ 
++	public static class Car2 {
++		@Nested(headerTransformer = IndexTransformer.class, args = "0")
++		Wheel2 frontLeft;
++
++		@Nested(headerTransformer = IndexTransformer.class, args = "2")
++		Wheel2 frontRight;
++
++		@Nested(headerTransformer = IndexTransformer.class, args = "4")
++		Wheel2 rearLeft;
++
++		@Nested(headerTransformer = IndexTransformer.class, args = "6")
++		Wheel2 rearRight;
++	}
++
+ 	@Test
+ 	public void testNestedWithPrefix() throws IOException {
+ 		String input = "frontLeftWheelBrand,frontLeftWheelMiles,frontRightWheelBrand,frontRightWheelMiles,rearLeftWheelBrand,rearLeftWheelMiles,rearRightWheelBrand,rearRightWheelMiles\n" +
+@@ -105,4 +142,41 @@
+ 		new CsvRoutines(s).writeAll(cars, Car.class, out);
+ 		assertEquals(out.toString(), input);
+ 	}
++
++	@Test
++	public void testNestedTransformingIndex() throws IOException {
++		String input =
++				"b,2,b,4,b,6,v,3\n" +
++				"c,1,c,3,c,1,z,9\n";
++
++		List<Car2> cars = new CsvRoutines().parseAll(Car2.class, new StringReader(input));
++
++		Car2 car = cars.get(0);
++
++		assertEquals(car.frontLeft.brand, "b");
++		assertEquals(car.frontLeft.miles, 2);
++		assertEquals(car.frontRight.brand, "b");
++		assertEquals(car.frontRight.miles, 4);
++		assertEquals(car.rearLeft.brand, "b");
++		assertEquals(car.rearLeft.miles, 6);
++		assertEquals(car.rearRight.brand, "v");
++		assertEquals(car.rearRight.miles, 3);
++
++		car = cars.get(1);
++
++		assertEquals(car.frontLeft.brand, "c");
++		assertEquals(car.frontLeft.miles, 1);
++		assertEquals(car.frontRight.brand, "c");
++		assertEquals(car.frontRight.miles, 3);
++		assertEquals(car.rearLeft.brand, "c");
++		assertEquals(car.rearLeft.miles, 1);
++		assertEquals(car.rearRight.brand, "z");
++		assertEquals(car.rearRight.miles, 9);
++
++		StringWriter out = new StringWriter();
++		CsvWriterSettings s = new CsvWriterSettings();
++		s.getFormat().setLineSeparator("\n");
++		new CsvRoutines(s).writeAll(cars, Car2.class, out);
++		assertEquals(out.toString(), input);
++	}
+ }

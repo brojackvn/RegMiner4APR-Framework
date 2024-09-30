@@ -1,0 +1,27 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/cactoos/func/RepeatedFunc.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/cactoos/func/RepeatedFunc.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/cactoos/func/RepeatedFunc.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/cactoos/func/RepeatedFunc.java
+@@ -75,18 +74,15 @@
+ 
+     @Override
+     public Y apply(final X input) throws Exception {
++        if (this.times <= 0) {
++            throw new IllegalArgumentException(
++                "The number of repetitions must be at least 1"
++            );
++        }
+         Y result = null;
+         for (int idx = 0; idx < this.times; ++idx) {
+             result = this.func.apply(input);
+         }
+-        if (result == null) {
+-            throw new IllegalArgumentException(
+-                new FormattedText(
+-                    "Repeat counter is equal or less than zero: %d",
+-                    this.times
+-                ).asString()
+-            );
+-        }
+         return result;
+     }
+ 

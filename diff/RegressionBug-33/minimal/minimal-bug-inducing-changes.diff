@@ -1,0 +1,56 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvParser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvParser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvParser.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvParser.java
+@@ -53,6 +54,7 @@
+ 	private UnescapedQuoteHandling quoteHandling;
+ 	private final String nullValue;
+ 	private final int maxColumnLength;
++	private final String emptyValue;
+ 
+ 	/**
+ 	 * The CsvParser supports all settings provided by {@link CsvParserSettings}, and requires this configuration to be properly initialized.
+@@ -70,6 +72,7 @@
+ 		keepQuotes = settings.getKeepQuotes();
+ 		normalizeLineEndingsInQuotes = settings.isNormalizeLineEndingsWithinQuotes();
+ 		nullValue = settings.getNullValue();
++		emptyValue = settings.getEmptyValue();
+ 		maxColumnLength = settings.getMaxCharsPerColumn();
+ 
+ 
+@@ -118,13 +121,29 @@
+ 				prev = '\0';
+ 				if (ch == quote) {
+ 					output.trim = false;
+-					if (normalizeLineEndingsInQuotes) {
+-						parseQuotedValue();
+-					} else {
+-						input.enableNormalizeLineEndings(false);
+-						parseQuotedValue();
+-						input.enableNormalizeLineEndings(true);
++					input.enableNormalizeLineEndings(normalizeLineEndingsInQuotes);
++					if (output.appender.length() == 0) {
++						String value = input.getQuotedString(quote, quoteEscape, escapeEscape, maxColumnLength, delimiter, newLine, keepQuotes, keepEscape);
++						if (value != null) {
++							output.valueParsed(value == "" ? emptyValue : value);
++							try {
++								ch = input.nextChar();
++								if (ch == delimiter) {
++									try {
++										ch = input.nextChar();
++									} catch (EOFException e) {
++										output.emptyParsed();
++										return;
++									}
++								}
++							} catch (EOFException e) {
++								return;
++							}
++							continue;
++						}
+ 					}
++					parseQuotedValue();
++					input.enableNormalizeLineEndings(true);
+ 					output.valueParsed();
+ 				} else if (doNotEscapeUnquotedValues) {
+ 					String value = null;
+

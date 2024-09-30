@@ -1,0 +1,958 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/ast/expr/SQLNumberExpr.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/ast/expr/SQLNumberExpr.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/ast/expr/SQLNumberExpr.java	2024-09-08 01:36:12.473797100 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/ast/expr/SQLNumberExpr.java	2024-09-08 01:36:12.173794999 +1000
+@@ -19,30 +19,54 @@
+ import com.alibaba.druid.sql.ast.SQLDataTypeImpl;
+ import com.alibaba.druid.sql.visitor.SQLASTVisitor;
+ 
++import java.io.IOException;
++import java.math.BigDecimal;
++
+ public class SQLNumberExpr extends SQLNumericLiteralExpr {
+     private static SQLDataType defaultDataType = new SQLDataTypeImpl("number");
+ 
+     private Number number;
+ 
++    private char[] chars;
++
+     public SQLNumberExpr(){
+ 
+     }
+ 
+     public SQLNumberExpr(Number number){
+-
+         this.number = number;
+     }
+ 
++    public SQLNumberExpr(char[] chars){
++        this.chars = chars;
++    }
++
+     public Number getNumber() {
++        if (chars != null && number == null) {
++            this.number = new BigDecimal(chars);
++        }
+         return this.number;
+     }
+ 
+     public void setNumber(Number number) {
+         this.number = number;
++        this.chars = null;
++    }
++
++    public void output(StringBuilder buf) {
++        if (chars != null) {
++            buf.append(chars);
++        } else {
++            buf.append(this.number.toString());
++        }
+     }
+ 
+     public void output(StringBuffer buf) {
+-        buf.append(this.number.toString());
++        if (chars != null) {
++            buf.append(chars);
++        } else {
++            buf.append(this.number.toString());
++        }
+     }
+ 
+     protected void accept0(SQLASTVisitor visitor) {
+@@ -52,6 +76,9 @@
+ 
+     @Override
+     public int hashCode() {
++        if (chars != null && number == null) {
++            this.number = new BigDecimal(chars);
++        }
+         final int prime = 31;
+         int result = 1;
+         result = prime * result + ((number == null) ? 0 : number.hashCode());
+@@ -60,6 +87,10 @@
+ 
+     @Override
+     public boolean equals(Object obj) {
++        if (chars != null && number == null) {
++            this.number = new BigDecimal(chars);
++        }
++
+         if (this == obj) {
+             return true;
+         }
+@@ -70,6 +101,10 @@
+             return false;
+         }
+         SQLNumberExpr other = (SQLNumberExpr) obj;
++        if (other.chars != null && other.number == null) {
++            other.number = new BigDecimal(other.chars);
++        }
++
+         if (number == null) {
+             if (other.number != null) {
+                 return false;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/dialect/mysql/visitor/MySqlOutputVisitor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/dialect/mysql/visitor/MySqlOutputVisitor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/dialect/mysql/visitor/MySqlOutputVisitor.java	2024-09-08 01:36:12.481797156 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/dialect/mysql/visitor/MySqlOutputVisitor.java	2024-09-08 01:36:12.181795055 +1000
+@@ -53,6 +53,7 @@
+ import com.alibaba.druid.sql.visitor.SQLASTOutputVisitor;
+ import com.alibaba.druid.util.JdbcConstants;
+ 
++import java.io.IOException;
+ import java.security.AccessControlException;
+ import java.util.List;
+ import java.util.Map;
+@@ -567,44 +568,59 @@
+     }
+ 
+     public boolean visit(SQLCharExpr x) {
+-        if (this.parameterized
+-                && ParameterizedOutputVisitorUtils.checkParameterize(x)) {
+-            print('?');
+-            incrementReplaceCunt();
+-            if (this instanceof ExportParameterVisitor || this.parameters != null) {
+-                ExportParameterVisitorUtils.exportParameter(this.parameters, x);
+-            }
++        if (this.appender == null) {
+             return false;
+         }
+ 
+-        print('\'');
++        try {
++            if (this.parameterized
++                    && ParameterizedOutputVisitorUtils.checkParameterize(x)) {
++                this.appender.append('?');
++                incrementReplaceCunt();
++                if (this instanceof ExportParameterVisitor || this.parameters != null) {
++                    ExportParameterVisitorUtils.exportParameter(this.parameters, x);
++                }
++                return false;
++            }
+ 
+-        String text = x.getText();
++            this.appender.append('\'');
+ 
+-        StringBuilder buf = new StringBuilder(text.length());
+-        for (int i = 0; i < text.length(); ++i) {
+-            char ch = text.charAt(i);
+-            if (ch == '\'') {
+-                buf.append('\'');
+-                buf.append('\'');
+-            } else if (ch == '\\') {
+-                buf.append('\\');
+-                buf.append('\\');
+-            } else if (ch == '\0') {
+-                buf.append('\\');
+-                buf.append('0');
+-            } else {
+-                buf.append(ch);
++            String text = x.getText();
++
++            boolean hasSpecial = false;
++            for (int i = 0; i < text.length(); ++i) {
++                char ch = text.charAt(i);
++                if (ch == '\'' || ch == '\\' || ch == '\0') {
++                    hasSpecial = true;
++                    break;
++                }
+             }
+-        }
+-        if (buf.length() != text.length()) {
+-            text = buf.toString();
+-        }
+ 
+-        print0(text);
++            if (hasSpecial) {
++                for (int i = 0; i < text.length(); ++i) {
++                    char ch = text.charAt(i);
++                    if (ch == '\'') {
++                        appender.append('\'');
++                        appender.append('\'');
++                    } else if (ch == '\\') {
++                        appender.append('\\');
++                        appender.append('\\');
++                    } else if (ch == '\0') {
++                        appender.append('\\');
++                        appender.append('0');
++                    } else {
++                        appender.append(ch);
++                    }
++                }
++            } else {
++                appender.append(text);
++            }
+ 
+-        print('\'');
++            appender.append('\'');
+         return false;
++        } catch (IOException e) {
++            throw new RuntimeException("println error", e);
++        }
+     }
+ 
+     public boolean visit(SQLVariantRefExpr x) {
+@@ -924,12 +940,18 @@
+ 
+         print0(ucase ? "INTO " : "into ");
+ 
+-        x.getTableSource().accept(this);
++        SQLExprTableSource tableSource = x.getTableSource();
++        if (tableSource.getClass() == SQLExprTableSource.class) {
++            visit(tableSource);
++        } else {
++            tableSource.accept(this);
++        }
+ 
+-        if (x.getColumns().size() > 0) {
++        List<SQLExpr> columns = x.getColumns();
++        if (columns.size() > 0) {
+             incrementIndent();
+             print0(" (");
+-            for (int i = 0, size = x.getColumns().size(); i < size; ++i) {
++            for (int i = 0, size = columns.size(); i < size; ++i) {
+                 if (i != 0) {
+                     if (i % 5 == 0) {
+                         println();
+@@ -937,15 +959,22 @@
+                     print0(", ");
+                 }
+ 
+-                x.getColumns().get(i).accept(this);
++                SQLExpr columnn = columns.get(i);
++                if (columnn instanceof SQLIdentifierExpr) {
++                    visit((SQLIdentifierExpr) columnn);
++                }
++                else {
++                    columnn.accept(this);
++                }
+             }
+             print(')');
+             decrementIndent();
+         }
+ 
+-        if (!x.getValuesList().isEmpty()) {
++        List<SQLInsertStatement.ValuesClause>  valuesList = x.getValuesList();
++        if (!valuesList.isEmpty()) {
+             println();
+-            printValuesList(x);
++            printValuesList(valuesList);
+         }
+ 
+         if (x.getQuery() != null) {
+@@ -970,8 +999,7 @@
+         return false;
+     }
+ 
+-    protected void printValuesList(MySqlInsertStatement x) {
+-        List<SQLInsertStatement.ValuesClause> valuesList = x.getValuesList();
++    protected void printValuesList(List<SQLInsertStatement.ValuesClause> valuesList) {
+ 
+         if (parameterized) {
+             print0(ucase ? "VALUES " : "values ");
+@@ -985,18 +1013,20 @@
+         }
+ 
+         print0(ucase ? "VALUES " : "values ");
+-        if (x.getValuesList().size() > 1) {
+-            incrementIndent();
++        if (valuesList.size() > 1) {
++            this.indentCount++;
+         }
+         for (int i = 0, size = valuesList.size(); i < size; ++i) {
+             if (i != 0) {
+                 print(',');
+                 println();
+             }
+-            valuesList.get(i).accept(this);
++
++            SQLInsertStatement.ValuesClause item = valuesList.get(i);
++            visit(item);
+         }
+         if (valuesList.size() > 1) {
+-            decrementIndent();
++            this.indentCount--;
+         }
+     }
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/dialect/oracle/ast/stmt/OracleAlterStatement.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/dialect/oracle/ast/stmt/OracleAlterStatement.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/dialect/oracle/ast/stmt/OracleAlterStatement.java	2024-09-08 01:36:12.481797156 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/dialect/oracle/ast/stmt/OracleAlterStatement.java	2024-09-08 01:36:12.181795055 +1000
+@@ -1,3 +1,18 @@
++/*
++ * Copyright 1999-2017 Alibaba Group Holding Ltd.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
+ package com.alibaba.druid.sql.dialect.oracle.ast.stmt;
+ 
+ import com.alibaba.druid.sql.ast.SQLStatement;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/dialect/oracle/ast/stmt/OracleCreateSynonymStatement.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/dialect/oracle/ast/stmt/OracleCreateSynonymStatement.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/dialect/oracle/ast/stmt/OracleCreateSynonymStatement.java	2024-09-08 01:36:12.481797156 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/dialect/oracle/ast/stmt/OracleCreateSynonymStatement.java	2024-09-08 01:36:12.181795055 +1000
+@@ -1,3 +1,18 @@
++/*
++ * Copyright 1999-2017 Alibaba Group Holding Ltd.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *      http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
+ package com.alibaba.druid.sql.dialect.oracle.ast.stmt;
+ 
+ import com.alibaba.druid.sql.ast.SQLName;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/dialect/oracle/parser/OracleExprParser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/dialect/oracle/parser/OracleExprParser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/dialect/oracle/parser/OracleExprParser.java	2024-09-08 01:36:12.481797156 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/dialect/oracle/parser/OracleExprParser.java	2024-09-08 01:36:12.181795055 +1000
+@@ -330,7 +330,7 @@
+                         lexer.nextToken();
+                         break;
+                     case LITERAL_FLOAT:
+-                        sqlExpr = new SQLNumberExpr(lexer.decimalValue());
++                        sqlExpr = lexer.numberExpr();
+                         lexer.nextToken();
+                         break;
+                     case BINARY_FLOAT:
+@@ -382,7 +382,7 @@
+                         lexer.nextToken();
+                         break;
+                     case LITERAL_FLOAT:
+-                        sqlExpr = new SQLNumberExpr(lexer.decimalValue().negate());
++                        sqlExpr = lexer.numberExpr();
+                         lexer.nextToken();
+                         break;
+                     case BINARY_FLOAT:
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/parser/Lexer.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/parser/Lexer.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/parser/Lexer.java	2024-09-08 01:36:12.485797184 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/parser/Lexer.java	2024-09-08 01:36:12.185795083 +1000
+@@ -39,6 +39,7 @@
+ import java.util.Arrays;
+ import java.util.List;
+ 
++import com.alibaba.druid.sql.ast.expr.SQLNumberExpr;
+ import com.alibaba.druid.util.JdbcConstants;
+ import com.alibaba.druid.util.StringUtils;
+ 
+@@ -89,6 +90,8 @@
+ 
+     protected String         dbType;
+ 
++    protected boolean        hasSpecial = false;
++
+     private int startPos;
+     private int posLine;
+     private int posColumn;
+@@ -144,6 +147,12 @@
+         return text.substring(offset, offset + count);
+     }
+ 
++    public final char[] sub_chars(int offset, int count) {
++        char[] chars = new char[count];
++        text.getChars(offset, offset + count, chars, 0);
++        return chars;
++    }
++
+     protected void initBuff(int size) {
+         if (buf == null) {
+             if (size < 32) {
+@@ -1522,11 +1531,36 @@
+     }
+ 
+     public BigDecimal decimalValue() {
+-        String value = subString(mark, bufPos);
++        char[] value = sub_chars(mark, bufPos);
+         if (!StringUtils.isNumber(value)){
+             throw new ParserException(value+" is not a number! " + info());
+         }
+-        return new BigDecimal(value.toCharArray());
++        return new BigDecimal(value);
++    }
++
++    public SQLNumberExpr numberExpr() {
++        char[] value = sub_chars(mark, bufPos);
++        if (!StringUtils.isNumber(value)){
++            throw new ParserException(value+" is not a number! " + info());
++        }
++
++        return new SQLNumberExpr(value);
++    }
++
++    public SQLNumberExpr numberExpr(boolean negate) {
++        char[] value = sub_chars(mark, bufPos);
++        if (!StringUtils.isNumber(value)){
++            throw new ParserException(value+" is not a number! " + info());
++        }
++
++        if (negate) {
++            char[] chars = new char[value.length + 1];
++            chars[0] = '-';
++            System.arraycopy(value, 0, chars, 1, value.length);
++            return new SQLNumberExpr(chars);
++        } else {
++            return new SQLNumberExpr(value);
++        }
+     }
+ 
+     public static interface CommentHandler {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/parser/SQLExprParser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/parser/SQLExprParser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/parser/SQLExprParser.java	2024-09-08 01:36:12.485797184 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/parser/SQLExprParser.java	2024-09-08 01:36:12.185795083 +1000
+@@ -297,7 +297,7 @@
+                 lexer.nextToken();
+                 break;
+             case LITERAL_FLOAT:
+-                sqlExpr = new SQLNumberExpr(lexer.decimalValue());
++                sqlExpr = lexer.numberExpr();
+                 lexer.nextToken();
+                 break;
+             case LITERAL_CHARS:
+@@ -521,7 +521,7 @@
+                         lexer.nextToken();
+                         break;
+                     case LITERAL_FLOAT:
+-                        sqlExpr = new SQLNumberExpr(lexer.decimalValue().negate());
++                        sqlExpr = lexer.numberExpr(true);
+                         lexer.nextToken();
+                         break;
+                     case IDENTIFIER: // 当负号后面为字段的情况
+@@ -559,7 +559,7 @@
+                         lexer.nextToken();
+                         break;
+                     case LITERAL_FLOAT:
+-                        sqlExpr = new SQLNumberExpr(lexer.decimalValue());
++                        sqlExpr = lexer.numberExpr();
+                         lexer.nextToken();
+                         break;
+                     case IDENTIFIER: // 当+号后面为字段的情况
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/visitor/SQLASTOutputVisitor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/visitor/SQLASTOutputVisitor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/visitor/SQLASTOutputVisitor.java	2024-09-08 01:36:12.485797184 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/visitor/SQLASTOutputVisitor.java	2024-09-08 01:36:12.185795083 +1000
+@@ -53,7 +53,7 @@
+ 
+     protected final Appendable appender;
+     private String indent = "\t";
+-    private int indentCount = 0;
++    protected int indentCount = 0;
+     private boolean prettyFormat = true;
+     protected boolean ucase = true;
+     protected int selectListNumberOfLine = 5;
+@@ -166,11 +166,11 @@
+     }
+ 
+     public void decrementIndent() {
+-        this.indentCount -= 1;
++        this.indentCount--;
+     }
+ 
+     public void incrementIndent() {
+-        this.indentCount += 1;
++        this.indentCount++;
+     }
+ 
+     public boolean isParameterized() {
+@@ -214,9 +214,30 @@
+             return;
+         }
+ 
+-        print0(Integer.toString(value));
++        if (appender instanceof StringBuffer) {
++            ((StringBuffer) appender).append(value);
++        } else if (appender instanceof StringBuilder) {
++            ((StringBuilder) appender).append(value);
++        } else {
++            print0(Integer.toString(value));
++        }
++    }
++
++    public void print(long value) {
++        if (this.appender == null) {
++            return;
++        }
++
++        if (appender instanceof StringBuilder) {
++            ((StringBuilder) appender).append(value);
++        } else if (appender instanceof StringBuffer) {
++            ((StringBuffer) appender).append(value);
++        } else {
++            print0(Long.toString(value));
++        }
+     }
+ 
++
+     public void print(Date date) {
+         if (this.appender == null) {
+             return;
+@@ -231,13 +252,6 @@
+         print0("'" + dateFormat.format(date) + "'");
+     }
+ 
+-    public void print(long value) {
+-        if (this.appender == null) {
+-            return;
+-        }
+-        print0(Long.toString(value));
+-    }
+-
+     public void print(String text) {
+         if (this.appender == null) {
+             return;
+@@ -707,7 +721,11 @@
+             print0(ucase ? "NULL" : "null");
+         } else {
+             print('\'');
+-            print0(text.replaceAll("'", "''"));
++            int index = text.indexOf('\'');
++            if (index >= 0) {
++                text = text.replaceAll("'", "''");
++            }
++            print0(text);
+             print('\'');
+         }
+     }
+@@ -957,7 +975,7 @@
+     }
+ 
+     public boolean visit(SQLIntegerExpr x) {
+-        int val = x.getNumber().intValue();
++        long val = x.getNumber().longValue();
+         SQLObject parent = x.getParent();
+ 
+         if (val == 1) {
+@@ -980,7 +998,8 @@
+         if (this.parameterized
+             && ParameterizedOutputVisitorUtils.checkParameterize(x)) {
+             if (!ParameterizedOutputVisitorUtils.checkParameterize(x)) {
+-                return SQLASTOutputVisitorUtils.visit(this, x);
++                print(val);
++                return false;
+             }
+ 
+             print('?');
+@@ -992,7 +1011,8 @@
+             return false;
+         }
+ 
+-        return SQLASTOutputVisitorUtils.visit(this, x);
++        print(val);
++        return false;
+     }
+ 
+     public boolean visit(SQLMethodInvokeExpr x) {
+@@ -1180,7 +1200,14 @@
+             return false;
+         }
+ 
+-        return SQLASTOutputVisitorUtils.visit(this, x);
++        if (appender instanceof StringBuilder) {
++            x.output((StringBuilder) appender);
++        } else if (appender instanceof StringBuilder) {
++            x.output((StringBuilder) appender);
++        } else {
++            print0(x.getNumber().toString());
++        }
++        return false;
+     }
+ 
+     public boolean visit(SQLPropertyExpr x) {
+@@ -1612,7 +1639,14 @@
+             }
+         }
+ 
+-        expr.accept(this);
++        if (expr instanceof SQLIdentifierExpr) {
++            visit((SQLIdentifierExpr) expr);
++        } else if (expr instanceof SQLPropertyExpr) {
++            visit((SQLPropertyExpr) expr);
++        } else {
++            expr.accept(this);
++        }
++
+     }
+ 
+     public boolean visit(SQLExprTableSource x) {
+@@ -2315,8 +2349,10 @@
+     @Override
+     public boolean visit(ValuesClause x) {
+         print('(');
+-        incrementIndent();
+-        for (int i = 0, size = x.getValues().size(); i < size; ++i) {
++        this.indentCount++;
++
++        final List<SQLExpr> values = x.getValues();
++        for (int i = 0, size = values.size(); i < size; ++i) {
+             if (i != 0) {
+                 if (i % 5 == 0) {
+                     println();
+@@ -2324,11 +2360,27 @@
+                 print0(", ");
+             }
+ 
+-            SQLExpr expr = x.getValues().get(i);
+-            expr.setParent(x);
+-            expr.accept(this);
++            SQLExpr expr = values.get(i);
++            if (expr instanceof SQLIntegerExpr) {
++                visit((SQLIntegerExpr) expr);
++            } else if (expr instanceof SQLCharExpr) {
++                visit((SQLCharExpr) expr);
++            } else if (expr instanceof SQLBooleanExpr) {
++                visit((SQLBooleanExpr) expr);
++            } else if (expr instanceof SQLNumberExpr) {
++                visit((SQLNumberExpr) expr);
++            } else if (expr instanceof SQLNullExpr) {
++                visit((SQLNullExpr) expr);
++            } else if (expr instanceof SQLVariantRefExpr) {
++                visit((SQLVariantRefExpr) expr);
++            } else if (expr instanceof SQLNCharExpr) {
++                visit((SQLNCharExpr) expr);
++            } else {
++                expr.accept(this);
++            }
+         }
+-        decrementIndent();
++
++        this.indentCount--;
+         print(')');
+         return false;
+     }
+@@ -3374,7 +3426,6 @@
+ 
+     public boolean visit(SQLBooleanExpr x) {
+         print0(x.getValue() ? "true" : "false");
+-
+         return false;
+     }
+ 
+Only in ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/visitor: SQLASTOutputVisitorUtils.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/util/StringUtils.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/util/StringUtils.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/util/StringUtils.java	2024-09-08 01:36:12.485797184 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/util/StringUtils.java	2024-09-08 01:36:12.189795111 +1000
+@@ -152,10 +152,108 @@
+     }
+ 
+     public static boolean isNumber(String str) {
+-        if (isEmpty(str)) {
++        if (str.length() == 0) {
++            return false;
++        }
++        int sz = str.length();
++        boolean hasExp = false;
++        boolean hasDecPoint = false;
++        boolean allowSigns = false;
++        boolean foundDigit = false;
++        // deal with any possible sign up front
++        int start = (str.charAt(0) == '-') ? 1 : 0;
++        if (sz > start + 1) {
++            if (str.charAt(start) == '0' && str.charAt(start + 1) == 'x') {
++                int i = start + 2;
++                if (i == sz) {
++                    return false; // str == "0x"
++                }
++                // checking hex (it can't be anything else)
++                for (; i < str.length(); i++) {
++                    char ch = str.charAt(i);
++                    if ((ch < '0' || ch > '9')
++                            && (ch < 'a' || ch > 'f')
++                            && (ch < 'A' || ch > 'F')) {
++                        return false;
++                    }
++                }
++                return true;
++            }
++        }
++        sz--; // don't want to loop to the last char, check it afterwords
++        // for type qualifiers
++        int i = start;
++        // loop to the next to last char or to the last char if we need another digit to
++        // make a valid number (e.g. chars[0..5] = "1234E")
++        while (i < sz || (i < sz + 1 && allowSigns && !foundDigit)) {
++            char ch = str.charAt(i);
++            if (ch >= '0' && ch <= '9') {
++                foundDigit = true;
++                allowSigns = false;
++
++            } else if (ch == '.') {
++                if (hasDecPoint || hasExp) {
++                    // two decimal points or dec in exponent
++                    return false;
++                }
++                hasDecPoint = true;
++            } else if (ch == 'e' || ch == 'E') {
++                // we've already taken care of hex.
++                if (hasExp) {
++                    // two E's
++                    return false;
++                }
++                if (!foundDigit) {
++                    return false;
++                }
++                hasExp = true;
++                allowSigns = true;
++            } else if (ch == '+' || ch == '-') {
++                if (!allowSigns) {
++                    return false;
++                }
++                allowSigns = false;
++                foundDigit = false; // we need a digit after the E
++            } else {
++                return false;
++            }
++            i++;
++        }
++        if (i < str.length()) {
++            char ch = str.charAt(i);
++
++            if (ch >= '0' && ch <= '9') {
++                // no type qualifier, OK
++                return true;
++            }
++            if (ch == 'e' || ch == 'E') {
++                // can't have an E at the last byte
++                return false;
++            }
++            if (!allowSigns
++                    && (ch == 'd'
++                    || ch == 'D'
++                    || ch == 'f'
++                    || ch == 'F')) {
++                return foundDigit;
++            }
++            if (ch == 'l'
++                    || ch == 'L') {
++                // not allowing L with an exponent
++                return foundDigit && !hasExp;
++            }
++            // last character is illegal
++            return false;
++        }
++        // allowSigns is true iff the val ends in 'E'
++        // found digit it to make sure weird stuff like '.' and '1E-' doesn't pass
++        return !allowSigns && foundDigit;
++    }
++
++    public static boolean isNumber(char[] chars) {
++        if (chars.length == 0) {
+             return false;
+         }
+-        char[] chars = str.toCharArray();
+         int sz = chars.length;
+         boolean hasExp = false;
+         boolean hasDecPoint = false;
+@@ -171,9 +269,10 @@
+                 }
+                 // checking hex (it can't be anything else)
+                 for (; i < chars.length; i++) {
+-                    if ((chars[i] < '0' || chars[i] > '9')
+-                            && (chars[i] < 'a' || chars[i] > 'f')
+-                            && (chars[i] < 'A' || chars[i] > 'F')) {
++                    char ch = chars[i];
++                    if ((ch < '0' || ch > '9')
++                            && (ch < 'a' || ch > 'f')
++                            && (ch < 'A' || ch > 'F')) {
+                         return false;
+                     }
+                 }
+@@ -186,17 +285,18 @@
+         // loop to the next to last char or to the last char if we need another digit to
+         // make a valid number (e.g. chars[0..5] = "1234E")
+         while (i < sz || (i < sz + 1 && allowSigns && !foundDigit)) {
+-            if (chars[i] >= '0' && chars[i] <= '9') {
++            char ch = chars[i];
++            if (ch >= '0' && ch <= '9') {
+                 foundDigit = true;
+                 allowSigns = false;
+ 
+-            } else if (chars[i] == '.') {
++            } else if (ch == '.') {
+                 if (hasDecPoint || hasExp) {
+                     // two decimal points or dec in exponent
+                     return false;
+                 }
+                 hasDecPoint = true;
+-            } else if (chars[i] == 'e' || chars[i] == 'E') {
++            } else if (ch == 'e' || ch == 'E') {
+                 // we've already taken care of hex.
+                 if (hasExp) {
+                     // two E's
+@@ -207,7 +307,7 @@
+                 }
+                 hasExp = true;
+                 allowSigns = true;
+-            } else if (chars[i] == '+' || chars[i] == '-') {
++            } else if (ch == '+' || ch == '-') {
+                 if (!allowSigns) {
+                     return false;
+                 }
+@@ -219,23 +319,24 @@
+             i++;
+         }
+         if (i < chars.length) {
+-            if (chars[i] >= '0' && chars[i] <= '9') {
++            char ch = chars[i];
++            if (ch >= '0' && ch <= '9') {
+                 // no type qualifier, OK
+                 return true;
+             }
+-            if (chars[i] == 'e' || chars[i] == 'E') {
++            if (ch == 'e' || ch == 'E') {
+                 // can't have an E at the last byte
+                 return false;
+             }
+             if (!allowSigns
+-                    && (chars[i] == 'd'
+-                    || chars[i] == 'D'
+-                    || chars[i] == 'f'
+-                    || chars[i] == 'F')) {
++                    && (ch == 'd'
++                    || ch == 'D'
++                    || ch == 'f'
++                    || ch == 'F')) {
+                 return foundDigit;
+             }
+-            if (chars[i] == 'l'
+-                    || chars[i] == 'L') {
++            if (ch == 'l'
++                    || ch == 'L') {
+                 // not allowing L with an exponent
+                 return foundDigit && !hasExp;
+             }
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/druid/benckmark/sql: MySqlInsertBenchmark_2.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/druid/benckmark/sql: MySqlInsertBenchmark.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/druid/bvt/sql/cobar/DMLInsertParserTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/druid/bvt/sql/cobar/DMLInsertParserTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/druid/bvt/sql/cobar/DMLInsertParserTest.java	2024-09-08 01:36:12.501797296 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/druid/bvt/sql/cobar/DMLInsertParserTest.java	2024-09-08 01:36:12.209795252 +1000
+@@ -61,7 +61,7 @@
+         SQLStatement stmt = parser.parseStatementList().get(0);
+         parser.match(Token.EOF);
+         String output = SQLUtils.toMySqlString(stmt);
+-        Assert.assertEquals("INSERT LOW_PRIORITY INTO t1\nVALUES (0.12, 1, 2)," + //
++        Assert.assertEquals("INSERT LOW_PRIORITY INTO t1\nVALUES (12e-2, 1, 2)," + //
+                             "\n\t(?)," + //
+                             "\n\t(DEFAULT)", output);
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/druid/bvt/sql/cobar/DMLReplaceParserTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/druid/bvt/sql/cobar/DMLReplaceParserTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/druid/bvt/sql/cobar/DMLReplaceParserTest.java	2024-09-08 01:36:12.501797296 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/druid/bvt/sql/cobar/DMLReplaceParserTest.java	2024-09-08 01:36:12.209795252 +1000
+@@ -59,7 +59,7 @@
+         SQLStatement stmt = parser.parseStatementList().get(0);
+         parser.match(Token.EOF);
+         String output = SQLUtils.toMySqlString(stmt);
+-        Assert.assertEquals("REPLACE LOW_PRIORITY INTO t1\nVALUES (0.12), (?)", output);
++        Assert.assertEquals("REPLACE LOW_PRIORITY INTO t1\nVALUES (12e-2), (?)", output);
+     }
+     
+     public void testReplace_4() throws Exception {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/druid/bvt/sql/mysql/MathematicalFunctionsTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/druid/bvt/sql/mysql/MathematicalFunctionsTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/druid/bvt/sql/mysql/MathematicalFunctionsTest.java	2024-09-08 01:36:12.505797324 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/druid/bvt/sql/mysql/MathematicalFunctionsTest.java	2024-09-08 01:36:12.213795279 +1000
+@@ -268,7 +268,7 @@
+ 
+         String text = output(stmtList);
+ 
+-        Assert.assertEquals("SELECT PI() + 0E-18", text);
++        Assert.assertEquals("SELECT PI() + 0.000000000000000000", text);
+     }
+ 
+     public void test_22() throws Exception {
+@@ -323,7 +323,7 @@
+ 
+         String text = output(stmtList);
+ 
+-        Assert.assertEquals("SELECT ROUND(2.5), ROUND(2.5)", text);
++        Assert.assertEquals("SELECT ROUND(2.5), ROUND(25E-1)", text);
+     }
+ 
+     private String output(List<SQLStatement> stmtList) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/druid/bvt/sql/mysql/NumberTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/druid/bvt/sql/mysql/NumberTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/druid/bvt/sql/mysql/NumberTest.java	2024-09-08 01:36:12.505797324 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/druid/bvt/sql/mysql/NumberTest.java	2024-09-08 01:36:12.213795279 +1000
+@@ -38,7 +38,7 @@
+ 
+         String text = SQLUtils.toSQLString(stmtList, JdbcConstants.MYSQL);
+ 
+-        Assert.assertEquals("SELECT -3.20326809E+14;", text);
++        Assert.assertEquals("SELECT -32032.6809e+10;", text);
+     }
+ 
+     public void test_1() throws Exception {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/druid/bvt/sql/odps/OdpsSelectTest22.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/druid/bvt/sql/odps/OdpsSelectTest22.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/druid/bvt/sql/odps/OdpsSelectTest22.java	2024-09-08 01:36:12.513797380 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/druid/bvt/sql/odps/OdpsSelectTest22.java	2024-09-08 01:36:12.221795336 +1000
+@@ -56,10 +56,10 @@
+                 ") A\n" +
+                 "group by bucket_id;";//
+         assertEquals("SELECT bucket_id, SUM(pv) AS pv, SUM(clk) AS clk\n" +
+-                "\t, SUM(clk) / (SUM(pv) + 1E-10) AS ctr\n" +
++                "\t, SUM(clk) / (SUM(pv) + 1e-10) AS ctr\n" +
+                 "\t, SUM(ut_ad_clk) AS ut_ad_clk, SUM(ad_clk) AS ad_clk\n" +
+                 "\t, SUM(cost) AS cost\n" +
+-                "\t, SUM(cost) * 1000 / (SUM(pv) + 1E-10) / 100 AS rpm\n" +
++                "\t, SUM(cost) * 1000 / (SUM(pv) + 1e-10) / 100 AS rpm\n" +
+                 "FROM (\n" +
+                 "\tSELECT bucket_id, UT.pv AS pv, UT.clk AS clk, UT.ad_clk AS ut_ad_clk, CLK.clk AS ad_clk\n" +
+                 "\t\t, CLK.cost AS cost\n" +
+@@ -95,10 +95,10 @@
+                 "GROUP BY bucket_id;", SQLUtils.formatOdps(sql));
+ 
+         assertEquals("select bucket_id, sum(pv) as pv, sum(clk) as clk\n" +
+-                "\t, sum(clk) / (sum(pv) + 1E-10) as ctr\n" +
++                "\t, sum(clk) / (sum(pv) + 1e-10) as ctr\n" +
+                 "\t, sum(ut_ad_clk) as ut_ad_clk, sum(ad_clk) as ad_clk\n" +
+                 "\t, sum(cost) as cost\n" +
+-                "\t, sum(cost) * 1000 / (sum(pv) + 1E-10) / 100 as rpm\n" +
++                "\t, sum(cost) * 1000 / (sum(pv) + 1e-10) / 100 as rpm\n" +
+                 "from (\n" +
+                 "\tselect bucket_id, UT.pv as pv, UT.clk as clk, UT.ad_clk as ut_ad_clk, CLK.clk as ad_clk\n" +
+                 "\t\t, CLK.cost as cost\n" +
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/druid/bvt/sql/oracle/insert/OracleInsertTest12.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/druid/bvt/sql/oracle/insert/OracleInsertTest12.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/druid/bvt/sql/oracle/insert/OracleInsertTest12.java	2024-09-08 01:36:12.517797408 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/druid/bvt/sql/oracle/insert/OracleInsertTest12.java	2024-09-08 01:36:12.225795364 +1000
+@@ -46,7 +46,7 @@
+                             + "\n\t(employee_id, last_name, email, hire_date, job_id" //
+                             + "\n\t, salary, commission_pct)" //
+                             + "\nVALUES (207, 'Gregory', 'pgregory@example.com', SYSDATE, 'PU_CLERK'" //
+-                            + "\n\t, 1.2E+3, NULL);",//
++                            + "\n\t, 1.2E3, NULL);",//
+                             SQLUtils.toSQLString(stmt, JdbcConstants.ORACLE));
+ 
+         OracleSchemaStatVisitor visitor = new OracleSchemaStatVisitor();
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/druid/bvt/sql/oracle/insert/OracleInsertTest14.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/druid/bvt/sql/oracle/insert/OracleInsertTest14.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/druid/bvt/sql/oracle/insert/OracleInsertTest14.java	2024-09-08 01:36:12.517797408 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/druid/bvt/sql/oracle/insert/OracleInsertTest14.java	2024-09-08 01:36:12.225795364 +1000
+@@ -45,7 +45,7 @@
+         Assert.assertEquals("INSERT INTO raises" //
+                             + "\nSELECT employee_id, salary * 1.1"//
+                             + "\nFROM employees"//
+-                            + "\nWHERE commission_pct > 0.2"//
++                            + "\nWHERE commission_pct > .2"//
+                             + "\nLOG ERRORS INTO errlog ('my_bad') REJECT LIMIT 10;",//
+                             SQLUtils.toSQLString(stmt, JdbcConstants.ORACLE));
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/druid/bvt/sql/oracle/OracleNumberLiteralTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/druid/bvt/sql/oracle/OracleNumberLiteralTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/druid/bvt/sql/oracle/OracleNumberLiteralTest.java	2024-09-08 01:36:12.513797380 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/druid/bvt/sql/oracle/OracleNumberLiteralTest.java	2024-09-08 01:36:12.221795336 +1000
+@@ -32,7 +32,7 @@
+ 
+         String text = TestUtils.outputOracle(stmt);
+ 
+-        Assert.assertEquals("SELECT 7, 255, 0.5, 6.34, 0.025\n\t, 6.34F, 0.5D, -1.0D\nFROM DUAL", text);
++        Assert.assertEquals("SELECT 7, 255, 0.5, 6.34, 25e-03\n\t, 6.34F, 0.5D, -1.0D\nFROM DUAL", text);
+ 
+         System.out.println(text);
+     }

@@ -1,0 +1,46 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/JSONScanner.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/JSONScanner.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/JSONScanner.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/JSONScanner.java
+@@ -1249,6 +1278,11 @@
+ 
+         char ch = charAt(index++);
+ 
++        final boolean quote = ch == '"';
++        if (quote) {
++            ch = charAt(index++);
++        }
+
+         boolean value;
+         if (ch == 't') {
+             if (charAt(index++) != 'r') {
+@@ -1285,9 +1324,32 @@
+                 return false;
+             }
+ 
++            if (quote && charAt(index++) != '"') {
++                matchStat = NOT_MATCH;
++                return false;
++            }
+
+             bp = index;
+             ch = charAt(bp);
+             value = false;
++        } else if (ch == '1') {
++                if (quote && charAt(index++) != '"') {
++                    matchStat = NOT_MATCH;
++                    return false;
++                }
++                bp = index;
++                ch = charAt(bp);
++                value = true;
++        } else if (ch == '0') {
++            if (quote && charAt(index++) != '"') {
++                matchStat = NOT_MATCH;
++                return false;
++            }
++            bp = index;
++            ch = charAt(bp);
++            value = true;
+         } else {
+             matchStat = NOT_MATCH;
+             return false;

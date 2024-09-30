@@ -1,0 +1,12 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/parser/JSONLexerBase.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/parser/JSONLexerBase.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/parser/JSONLexerBase.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/parser/JSONLexerBase.java
+@@ -2472,7 +2472,7 @@
+                 count = bp + offset - start - 1;
+             }
+ 
+-            if (!exp && count < 20) {
++            if (!exp && count < 18) {
+                 value = ((float) intVal) / power;
+                 if (negative) {
+                     value = -value;

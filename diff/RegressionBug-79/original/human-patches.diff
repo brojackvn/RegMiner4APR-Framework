@@ -1,0 +1,86 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java	2024-09-25 15:33:28.080092305 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java	2024-09-25 15:33:38.588196240 +1000
+@@ -244,7 +244,7 @@
+ 			Constructor constructor = type.getConstructor(String[].class);
+ 			return (T) constructor.newInstance((Object) args);
+ 		} catch (NoSuchMethodException e) {
+-			if(args.length == 0) {
++			if (args.length == 0) {
+ 				try {
+ 					return type.newInstance();
+ 				} catch (Exception ex) {
+@@ -527,7 +527,7 @@
+ 			int index = header.getHeaderIndex();
+ 
+ 			if (index != -1) {
+-				if (indexes.contains(index)) {
++				if (filter == MethodFilter.ONLY_GETTERS && indexes.contains(index)) { //allows the same column to be mapped to multiple fields when parsing, but not when writing.
+ 					throw new IllegalArgumentException("Duplicate field index '" + index + "' found in attribute '" + header.getTargetName() + "' of class " + beanClass.getName());
+ 				}
+ 				indexes.add(index);
+@@ -637,7 +637,9 @@
+ 		Parsed annotation = findAnnotation(element, Parsed.class);
+ 		if (annotation != null) {
+ 			TransformedHeader header = new TransformedHeader(element, transformer);
+-			if (header.getHeaderIndex() >= 0 && indexes.contains(header.getHeaderIndex())) {
++
++			if (filter == MethodFilter.ONLY_GETTERS && header.getHeaderIndex() >= 0 && indexes.contains(header.getHeaderIndex())) {
++				//allows the same column to be mapped to multiple fields when parsing, but not when writing.
+ 				throw new IllegalArgumentException("Duplicate field index '" + header.getHeaderIndex() + "' found in " + describeElement(element));
+ 			}
+ 			tmp.add(header);
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/fields/FieldSet.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/fields/FieldSet.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/fields/FieldSet.java	2024-09-25 15:33:28.080092305 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/fields/FieldSet.java	2024-09-25 15:33:38.584196200 +1000
+@@ -100,9 +100,6 @@
+ 	 * @param field information that uniquely identifies a field
+ 	 */
+ 	private void addElement(T field) {
+-		if (this.fields.contains(field)) {
+-			throw new IllegalArgumentException("Field '" + field + "' is already selected");
+-		}
+ 		fields.add(field);
+ 	}
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/univocity/parsers/common/processor/BeanWriterProcessorTest.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/univocity/parsers/common/processor/BeanWriterProcessorTest.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/univocity/parsers/common/processor/BeanWriterProcessorTest.java	2024-09-25 15:33:28.084092344 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/univocity/parsers/common/processor/BeanWriterProcessorTest.java	2024-09-25 15:33:38.592196280 +1000
+@@ -17,6 +17,7 @@
+ 
+ import com.univocity.parsers.annotations.*;
+ import com.univocity.parsers.conversions.*;
++import com.univocity.parsers.csv.*;
+ import org.testng.annotations.*;
+ 
+ import java.math.*;
+@@ -84,4 +85,18 @@
+ 		assertEquals(row[3], "no");
+ 		assertEquals(row[4], "something"); // trimmed
+ 	}
++
++	@Test
++	public void testRepeatedIndexInAnnotation() {
++		BeanWriterProcessor<AnnotatedBeanProcessorTest.Data> rowProcessor = new BeanWriterProcessor<AnnotatedBeanProcessorTest.Data>(AnnotatedBeanProcessorTest.Data.class);
++		CsvWriterSettings settings = new CsvWriterSettings();
++		settings.setRowWriterProcessor(rowProcessor);
++
++		try {
++			new CsvWriter(settings);
++			fail("Expecting validation error on duplicate field");
++		} catch(Exception e){
++			assertTrue(e.getMessage().startsWith("Duplicate field index '1' found in attribute"));
++		}
++	}
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/univocity/parsers/csv/CsvParserTest.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/univocity/parsers/csv/CsvParserTest.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/univocity/parsers/csv/CsvParserTest.java	2024-09-25 15:33:28.088092384 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/univocity/parsers/csv/CsvParserTest.java	2024-09-25 15:33:38.596196319 +1000
+@@ -22,7 +22,6 @@
+ import org.testng.annotations.*;
+ 
+ import java.io.*;
+-import java.net.*;
+ import java.util.*;
+ 
+ import static org.testng.Assert.*;

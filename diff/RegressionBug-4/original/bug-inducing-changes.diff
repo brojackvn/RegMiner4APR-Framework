@@ -1,0 +1,3208 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/pom.xml ./RegMiner4APR-Regression-Bugs/BIC/pom.xml
+--- ./RegMiner4APR-Regression-Bugs/WORKING/pom.xml	2024-09-08 01:36:07.769764156 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/pom.xml	2024-09-08 01:36:07.685763568 +1000
+@@ -26,7 +26,7 @@
+   <modelVersion>4.0.0</modelVersion>
+   <groupId>org.logicng</groupId>
+   <artifactId>logicng</artifactId>
+-  <version>2.0.2</version>
++  <version>2.1.0-SNAPSHOT</version>
+   <packaging>jar</packaging>
+ 
+   <name>LogicNG</name>
+@@ -78,6 +78,7 @@
+     <version.antlr>4.8</version.antlr>
+     <version.junit>5.6.2</version.junit>
+     <version.assertj>3.16.1</version.assertj>
++    <version.mockito>3.11.2</version.mockito>
+ 
+     <!-- Plugin Versions -->
+     <version.antlr-plugin>4.8</version.antlr-plugin>
+@@ -256,6 +257,20 @@
+       <version>${version.assertj}</version>
+       <scope>test</scope>
+     </dependency>
++
++    <dependency>
++      <groupId>org.mockito</groupId>
++      <artifactId>mockito-core</artifactId>
++      <version>${version.mockito}</version>
++      <scope>test</scope>
++    </dependency>
++
++    <dependency>
++      <groupId>org.mockito</groupId>
++      <artifactId>mockito-junit-jupiter</artifactId>
++      <version>${version.mockito}</version>
++      <scope>test</scope>
++    </dependency>
+   </dependencies>
+ 
+   <pluginRepositories>
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/backbones/BackboneGeneration.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/backbones/BackboneGeneration.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/backbones/BackboneGeneration.java	2024-09-08 01:36:07.769764156 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/backbones/BackboneGeneration.java	2024-09-08 01:36:07.689763596 +1000
+@@ -31,6 +31,7 @@
+ import org.logicng.formulas.Formula;
+ import org.logicng.formulas.FormulaFactory;
+ import org.logicng.formulas.Variable;
++import org.logicng.handlers.SATHandler;
+ import org.logicng.solvers.MiniSat;
+ import org.logicng.solvers.functions.BackboneFunction;
+ import org.logicng.solvers.sat.MiniSatConfig;
+@@ -43,7 +44,7 @@
+  * Main entry point for backbone computations.
+  * <p>
+  * This class provides convenient methods for backbone computation for many use cases.
+- * @version 1.6.0
++ * @version 2.1.0
+  * @since 1.5.0
+  */
+ public final class BackboneGeneration {
+@@ -60,16 +61,28 @@
+      * @param formulas  the given collection of formulas
+      * @param variables the given collection of relevant variables for the backbone computation
+      * @param type      the type of backbone variables that should be computed
++     * @param handler   the handler
+      * @return the backbone or {@code null} if the formula is UNSAT
+      */
+-    public static Backbone compute(final Collection<Formula> formulas, final Collection<Variable> variables, final BackboneType type) {
++    public static Backbone compute(final Collection<Formula> formulas, final Collection<Variable> variables, final BackboneType type, final SATHandler handler) {
+         if (formulas == null || formulas.isEmpty()) {
+             throw new IllegalArgumentException("Provide at least one formula for backbone computation");
+         }
+         final FormulaFactory f = formulas.iterator().next().factory();
+         final MiniSat miniSat = MiniSat.miniSat(f, MiniSatConfig.builder().cnfMethod(MiniSatConfig.CNFMethod.PG_ON_SOLVER).build());
+         miniSat.add(formulas);
+-        return miniSat.execute(BackboneFunction.builder().variables(variables).type(type).build());
++        return miniSat.execute(BackboneFunction.builder().handler(handler).variables(variables).type(type).build());
++    }
++
++    /**
++     * Computes the backbone for a given collection of formulas w.r.t. a collection of variables and a backbone type.
++     * @param formulas  the given collection of formulas
++     * @param variables the given collection of relevant variables for the backbone computation
++     * @param type      the type of backbone variables that should be computed
++     * @return the backbone or {@code null} if the formula is UNSAT
++     */
++    public static Backbone compute(final Collection<Formula> formulas, final Collection<Variable> variables, final BackboneType type) {
++        return compute(formulas, variables, type, null);
+     }
+ 
+     /**
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/explanations/mus/DeletionBasedMUS.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/explanations/mus/DeletionBasedMUS.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/explanations/mus/DeletionBasedMUS.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/explanations/mus/DeletionBasedMUS.java	2024-09-08 01:36:07.689763596 +1000
+@@ -28,6 +28,9 @@
+ 
+ package org.logicng.explanations.mus;
+ 
++import static org.logicng.handlers.Handler.aborted;
++import static org.logicng.handlers.Handler.start;
++
+ import org.logicng.datastructures.Tristate;
+ import org.logicng.explanations.UNSATCore;
+ import org.logicng.formulas.FormulaFactory;
+@@ -40,13 +43,14 @@
+ 
+ /**
+  * A naive deletion-based MUS algorithm.
+- * @version 1.3
++ * @version 2.1.0
+  * @since 1.1
+  */
+ public final class DeletionBasedMUS extends MUSAlgorithm {
+ 
+     @Override
+     public <T extends Proposition> UNSATCore<T> computeMUS(final List<T> propositions, final FormulaFactory f, final MUSConfig config) {
++        start(config.handler);
+         final List<T> mus = new ArrayList<>(propositions.size());
+         final List<SolverState> solverStates = new ArrayList<>(propositions.size());
+         final MiniSat solver = MiniSat.miniSat(f);
+@@ -54,7 +58,11 @@
+             solverStates.add(solver.saveState());
+             solver.add(proposition);
+         }
+-        if (solver.sat() != Tristate.FALSE) {
++        boolean sat = solver.sat() == Tristate.TRUE;
++        if (aborted(config.handler)) {
++            return null;
++        }
++        if (sat) {
+             throw new IllegalArgumentException("Cannot compute a MUS for a satisfiable formula set.");
+         }
+         for (int i = solverStates.size() - 1; i >= 0; i--) {
+@@ -62,7 +70,11 @@
+             for (final Proposition prop : mus) {
+                 solver.add(prop);
+             }
+-            if (solver.sat() == Tristate.TRUE) {
++            sat = solver.sat(config.handler) == Tristate.TRUE;
++            if (aborted(config.handler)) {
++                return null;
++            }
++            if (sat) {
+                 mus.add(propositions.get(i));
+             }
+         }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/explanations/mus/MUSConfig.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/explanations/mus/MUSConfig.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/explanations/mus/MUSConfig.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/explanations/mus/MUSConfig.java	2024-09-08 01:36:07.689763596 +1000
+@@ -30,10 +30,11 @@
+ 
+ import org.logicng.configurations.Configuration;
+ import org.logicng.configurations.ConfigurationType;
++import org.logicng.handlers.SATHandler;
+ 
+ /**
+  * The configuration object for the MUS generation.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 1.1
+  */
+ public final class MUSConfig extends Configuration {
+@@ -46,6 +47,7 @@
+     }
+ 
+     final Algorithm algorithm;
++    final SATHandler handler;
+ 
+     /**
+      * Constructs a new configuration with a given type.
+@@ -54,6 +56,7 @@
+     private MUSConfig(final Builder builder) {
+         super(ConfigurationType.MUS);
+         this.algorithm = builder.algorithm;
++        this.handler = builder.handler;
+     }
+ 
+     /**
+@@ -78,6 +81,7 @@
+     public static class Builder {
+ 
+         private Algorithm algorithm = Algorithm.DELETION;
++        private SATHandler handler = null;
+ 
+         private Builder() {
+             // Initialize only via factory
+@@ -93,6 +97,16 @@
+             return this;
+         }
+ 
++        /**
++         * Sets the SAT handler for the MUS generation.
++         * @param handler the SAT handler
++         * @return the current builder
++         */
++        public Builder handler(final SATHandler handler) {
++            this.handler = handler;
++            return this;
++        }
++
+         /**
+          * Builds the configuration.
+          * @return the configuration.
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/explanations/mus/PlainInsertionBasedMUS.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/explanations/mus/PlainInsertionBasedMUS.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/explanations/mus/PlainInsertionBasedMUS.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/explanations/mus/PlainInsertionBasedMUS.java	2024-09-08 01:36:07.689763596 +1000
+@@ -28,24 +28,30 @@
+ 
+ package org.logicng.explanations.mus;
+ 
++import static org.logicng.handlers.Handler.aborted;
++import static org.logicng.handlers.Handler.start;
++
+ import org.logicng.datastructures.Tristate;
+ import org.logicng.explanations.UNSATCore;
+ import org.logicng.formulas.FormulaFactory;
++import org.logicng.handlers.SATHandler;
+ import org.logicng.propositions.Proposition;
+ import org.logicng.solvers.MiniSat;
++import org.logicng.solvers.SATSolver;
+ 
+ import java.util.ArrayList;
+ import java.util.List;
+ 
+ /**
+  * A naive plain insertion-based MUS algorithm.
+- * @version 1.3
++ * @version 2.1.0
+  * @since 1.1
+  */
+ public class PlainInsertionBasedMUS extends MUSAlgorithm {
+ 
+     @Override
+     public <T extends Proposition> UNSATCore<T> computeMUS(final List<T> propositions, final FormulaFactory f, final MUSConfig config) {
++        start(config.handler);
+         final List<T> currentFormula = new ArrayList<>(propositions.size());
+         currentFormula.addAll(propositions);
+         final List<T> mus = new ArrayList<>(propositions.size());
+@@ -58,7 +64,7 @@
+                 solver.add(p);
+             }
+             int count = currentFormula.size();
+-            while (solver.sat() == Tristate.TRUE) {
++            while (shouldProceed(solver, config.handler)) {
+                 if (count == 0) {
+                     throw new IllegalArgumentException("Cannot compute a MUS for a satisfiable formula set.");
+                 }
+@@ -67,6 +73,9 @@
+                 transitionProposition = removeProposition;
+                 solver.add(removeProposition);
+             }
++            if (aborted(config.handler)) {
++                return null;
++            }
+             currentFormula.clear();
+             currentFormula.addAll(currentSubset);
+             if (transitionProposition != null) {
+@@ -76,4 +85,9 @@
+         }
+         return new UNSATCore<>(mus, true);
+     }
++
++    private static boolean shouldProceed(final SATSolver solver, final SATHandler handler) {
++        final boolean sat = solver.sat(handler) == Tristate.TRUE;
++        return sat && !aborted(handler);
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/explanations/smus/SmusComputation.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/explanations/smus/SmusComputation.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/explanations/smus/SmusComputation.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/explanations/smus/SmusComputation.java	2024-09-08 01:36:07.689763596 +1000
+@@ -28,11 +28,16 @@
+ 
+ package org.logicng.explanations.smus;
+ 
++import static org.logicng.handlers.Handler.aborted;
++import static org.logicng.handlers.Handler.start;
++import static org.logicng.handlers.OptimizationHandler.satHandler;
++
+ import org.logicng.datastructures.Assignment;
+ import org.logicng.datastructures.Tristate;
+ import org.logicng.formulas.Formula;
+ import org.logicng.formulas.FormulaFactory;
+ import org.logicng.formulas.Variable;
++import org.logicng.handlers.OptimizationHandler;
+ import org.logicng.propositions.Proposition;
+ import org.logicng.propositions.StandardProposition;
+ import org.logicng.solvers.MiniSat;
+@@ -55,7 +60,7 @@
+  * Implementation is based on &quot;Smallest MUS extraction with minimal
+  * hitting set dualization&quot; (Ignatiev, Previti, Liffiton, &amp;
+  * Marques-Silva, 2015).
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 2.0.0
+  */
+ public final class SmusComputation {
+@@ -71,13 +76,31 @@
+ 
+     /**
+      * Computes the SMUS for the given list of propositions modulo some additional constraint.
++     * @param <P>                   the subtype of the propositions
+      * @param propositions          the propositions
+      * @param additionalConstraints the additional constraints
+      * @param f                     the formula factory
+-     * @param <P>                   the subtype of the propositions
+      * @return the SMUS or {@code null} if the given propositions are satisfiable
+      */
+     public static <P extends Proposition> List<P> computeSmus(final List<P> propositions, final List<Formula> additionalConstraints, final FormulaFactory f) {
++        return computeSmus(propositions, additionalConstraints, f, null);
++    }
++
++    /**
++     * Computes the SMUS for the given list of propositions modulo some additional constraint.
++     * <p>
++     * The SMUS computation can be called with an {@link OptimizationHandler}. The given handler instance will be used for every subsequent
++     * * {@link org.logicng.solvers.functions.OptimizationFunction} call and the handler's SAT handler is used for every subsequent SAT call.
++     * @param <P>                   the subtype of the propositions
++     * @param propositions          the propositions
++     * @param additionalConstraints the additional constraints
++     * @param f                     the formula factory
++     * @param handler               the handler, can be {@code null}
++     * @return the SMUS or {@code null} if the given propositions are satisfiable
++     */
++    public static <P extends Proposition> List<P> computeSmus(final List<P> propositions, final List<Formula> additionalConstraints, final FormulaFactory f,
++                                                              final OptimizationHandler handler) {
++        start(handler);
+         final SATSolver growSolver = MiniSat.miniSat(f);
+         growSolver.add(additionalConstraints == null ? Collections.singletonList(f.verum()) : additionalConstraints);
+         final Map<Variable, P> propositionMapping = new TreeMap<>();
+@@ -86,13 +109,23 @@
+             propositionMapping.put(selector, proposition);
+             growSolver.add(f.equivalence(selector, proposition.formula()));
+         }
+-        if (growSolver.sat(propositionMapping.keySet()) == Tristate.TRUE) {
+-            return null; // no MUS, since propositions are SAT
++        final boolean sat = growSolver.sat(satHandler(handler), propositionMapping.keySet()) == Tristate.TRUE;
++        if (aborted(handler)) {
++            return null;
++        }
++        if (sat) {
++            throw new IllegalArgumentException("Cannot compute a smallest MUS for a satisfiable formula set.");
+         }
+         final SATSolver hSolver = MiniSat.miniSat(f);
+         while (true) {
+-            final SortedSet<Variable> h = minimumHs(hSolver, propositionMapping.keySet());
+-            final SortedSet<Variable> c = grow(growSolver, h, propositionMapping.keySet());
++            final SortedSet<Variable> h = minimumHs(hSolver, propositionMapping.keySet(), handler);
++            if (aborted(handler)) {
++                return null;
++            }
++            final SortedSet<Variable> c = grow(growSolver, h, propositionMapping.keySet(), handler);
++            if (aborted(handler)) {
++                return null;
++            }
+             if (c == null) {
+                 return h.stream().map(propositionMapping::get).collect(Collectors.toList());
+             }
+@@ -108,26 +141,47 @@
+      * @return the SMUS or {@code null} if the given formulas are satisfiable
+      */
+     public static List<Formula> computeSmusForFormulas(final List<Formula> formulas, final List<Formula> additionalConstraints, final FormulaFactory f) {
++        return computeSmusForFormulas(formulas, additionalConstraints, f, null);
++    }
++
++    /**
++     * Computes the SMUS for the given list of formulas and some additional constraints.
++     * @param formulas              the formulas
++     * @param additionalConstraints the additional constraints
++     * @param f                     the formula factory
++     * @param handler               the SMUS handler, can be {@code null}
++     * @return the SMUS or {@code null} if the given formulas are satisfiable
++     */
++    public static List<Formula> computeSmusForFormulas(final List<Formula> formulas, final List<Formula> additionalConstraints, final FormulaFactory f,
++                                                       final OptimizationHandler handler) {
+         final List<Proposition> props = formulas.stream().map(StandardProposition::new).collect(Collectors.toList());
+-        final List<Proposition> smus = computeSmus(props, additionalConstraints, f);
++        final List<Proposition> smus = computeSmus(props, additionalConstraints, f, handler);
+         return smus == null ? null : smus.stream().map(Proposition::formula).collect(Collectors.toList());
+     }
+ 
+-    private static SortedSet<Variable> minimumHs(final SATSolver hSolver, final Set<Variable> variables) {
+-        return new TreeSet<>(hSolver.execute(OptimizationFunction.minimize(variables)).positiveVariables());
++    private static SortedSet<Variable> minimumHs(final SATSolver hSolver, final Set<Variable> variables, final OptimizationHandler handler) {
++        final Assignment minimumHsModel = hSolver.execute(OptimizationFunction.builder()
++                .handler(handler)
++                .literals(variables)
++                .minimize().build());
++        return aborted(handler) ? null : new TreeSet<>(minimumHsModel.positiveVariables());
+     }
+ 
+-    private static SortedSet<Variable> grow(final SATSolver growSolver, final SortedSet<Variable> h, final Set<Variable> variables) {
++    private static SortedSet<Variable> grow(final SATSolver growSolver, final SortedSet<Variable> h, final Set<Variable> variables, final OptimizationHandler handler) {
+         final SolverState solverState = growSolver.saveState();
+         growSolver.add(h);
+-        final Assignment maxModel = growSolver.execute(OptimizationFunction.maximize(variables));
+-        if (maxModel == null) {
++        final Assignment maxModel = growSolver.execute(OptimizationFunction.builder()
++                .handler(handler)
++                .literals(variables)
++                .maximize().build());
++        if (maxModel == null || aborted(handler)) {
+             return null;
++        } else {
++            final List<Variable> maximumSatisfiableSet = maxModel.positiveVariables();
++            growSolver.loadState(solverState);
++            final SortedSet<Variable> minimumCorrectionSet = new TreeSet<>(variables);
++            minimumCorrectionSet.removeAll(maximumSatisfiableSet);
++            return minimumCorrectionSet;
+         }
+-        final List<Variable> maximumSatisfiableSet = maxModel.positiveVariables();
+-        growSolver.loadState(solverState);
+-        final SortedSet<Variable> minimumCorrectionSet = new TreeSet<>(variables);
+-        minimumCorrectionSet.removeAll(maximumSatisfiableSet);
+-        return minimumCorrectionSet;
+     }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/BDDHandler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/BDDHandler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/BDDHandler.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/BDDHandler.java	2024-09-08 01:36:07.689763596 +1000
+@@ -30,14 +30,16 @@
+ 
+ /**
+  * Interface for a handler for the BDD factory.
+- * @version 1.6.2
++ * @version 2.1.0
+  * @since 1.6.2
+  */
+ public interface BDDHandler extends Handler {
+ 
+     /**
+      * This method is called every a new reference is added, i.e the method {@link org.logicng.knowledgecompilation.bdds.jbuddy.BDDKernel#addRef(int, BDDHandler)} is called.
+-     * @return whether BDD generation should be continued or not
++     * @return {@code true} if the BDD generation should be continued, otherwise {@code false}
+      */
+-    boolean newRefAdded();
++    default boolean newRefAdded() {
++        return true;
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/ComputationHandler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/ComputationHandler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/ComputationHandler.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/ComputationHandler.java	2024-09-08 01:36:07.689763596 +1000
+@@ -30,7 +30,7 @@
+ 
+ /**
+  * A computation handler.
+- * @version 1.6.2
++ * @version 2.1.0
+  * @since 1.6.2
+  */
+ public abstract class ComputationHandler implements Handler {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/DnnfCompilationHandler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/DnnfCompilationHandler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/DnnfCompilationHandler.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/DnnfCompilationHandler.java	2024-09-08 01:36:07.689763596 +1000
+@@ -30,19 +30,16 @@
+ 
+ /**
+  * Interface for a handler for DNNF compilations.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 2.0.0
+  */
+ public interface DnnfCompilationHandler extends Handler {
+ 
+     /**
+      * This method is called when an shannon expansion was performed.
+-     * @return true when the computation should be continued, false if it should be aborted with a {@link java.util.concurrent.TimeoutException}
++     * @return {@code true} when the computation should be continued, {@code false} if it should be aborted with a {@link java.util.concurrent.TimeoutException}
+      */
+-    boolean shannonExpansion();
+-
+-    /**
+-     * This method is called when the computation ends.
+-     */
+-    void end();
++    default boolean shannonExpansion() {
++        return true;
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/FactorizationHandler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/FactorizationHandler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/FactorizationHandler.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/FactorizationHandler.java	2024-09-08 01:36:07.689763596 +1000
+@@ -32,21 +32,25 @@
+ 
+ /**
+  * A handler for factorization methods (CNF, DNF).
+- * @version 1.6.2
++ * @version 2.1.0
+  * @since 1.0
+  */
+ public interface FactorizationHandler extends Handler {
+ 
+     /**
+      * This method is called every time a distribution is performed.
+-     * @return whether the factorization should be continued or not
++     * @return {@code true} if the factorization should be continued, otherwise {@code false}
+      */
+-    boolean performedDistribution();
++    default boolean performedDistribution() {
++        return true;
++    }
+ 
+     /**
+      * This method is called every time a new clause is created.
+      * @param clause the clause
+-     * @return whether the factorization should be continued or not
++     * @return {@code true} if the factorization should be continued, otherwise {@code false}
+      */
+-    boolean createdClause(final Formula clause);
++    default boolean createdClause(final Formula clause) {
++        return true;
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/Handler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/Handler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/Handler.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/Handler.java	2024-09-08 01:36:07.689763596 +1000
+@@ -32,7 +32,7 @@
+  * Interface for a handler.  A handler can be used as callback for different time-intensive computations in order
+  * to abort these computations.  There are same often used default handlers already implemented and users can
+  * implement their own handlers by implementing the respective interfaces.
+- * @version 1.6.2
++ * @version 2.1.0
+  * @since 1.6.2
+  */
+ public interface Handler {
+@@ -41,10 +41,33 @@
+      * Returns whether the computation was aborted by the handler.
+      * @return {@code true} if the computation was aborted by the handler, otherwise {@code false}
+      */
+-    boolean aborted();
++    default boolean aborted() {
++        return false;
++    }
+ 
+     /**
+      * This method is called when the computation starts.
+      */
+-    void started();
++    default void started() {
++
++    }
++
++    /**
++     * Returns {@code true} if the handler is not {@code null} and is already aborted.
++     * @param handler the handler to check
++     * @return {@code true} if the handler is not {@code null} and is already aborted, otherwise {@code false}
++     */
++    static boolean aborted(final Handler handler) {
++        return handler != null && handler.aborted();
++    }
++
++    /**
++     * Null-safe helper method to start a handler.
++     * @param handler the handler to start, may be {@code null}
++     */
++    static void start(final Handler handler) {
++        if (handler != null) {
++            handler.started();
++        }
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/MaxSATHandler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/MaxSATHandler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/MaxSATHandler.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/MaxSATHandler.java	2024-09-08 01:36:07.689763596 +1000
+@@ -32,7 +32,7 @@
+ 
+ /**
+  * Interface for a handler for MaxSAT solvers.
+- * @version 1.6.2
++ * @version 2.1.0
+  * @since 1.0
+  */
+ public interface MaxSATHandler extends Handler {
+@@ -43,11 +43,16 @@
+      */
+     SATHandler satHandler();
+ 
++    @Override
++    default boolean aborted() {
++        return satHandler() != null && satHandler().aborted();
++    }
++
+     /**
+      * This method is called when the MaxSAT solver found a new lower bound for a solution.
+      * @param lowerBound the cost of the lower bound
+      * @param model      the model of the lower bound, may be null if not applicable
+-     * @return whether solving process should be continued or not
++     * @return {@code true} if the solving process should be continued, otherwise {@code false}
+      */
+     boolean foundLowerBound(final int lowerBound, final Assignment model);
+ 
+@@ -55,20 +60,16 @@
+      * This method is called when the MaxSAT solver found a new upper bound for a solution.
+      * @param upperBound the cost of the upper bound
+      * @param model      the model of the upper bound, may be null if not applicable
+-     * @return whether solving process should be continued or not
++     * @return {@code true} if the solving process should be continued, otherwise {@code false}
+      */
+     boolean foundUpperBound(final int upperBound, final Assignment model);
+ 
+     /**
+-     * This method is called every time the SAT solver finished.
+-     * @return whether more models should be searched or not
+-     */
+-    boolean satSolverFinished();
+-
+-    /**
+      * This method is called when the MaxSAT solver finished solving.
+      */
+-    void finishedSolving();
++    default void finishedSolving() {
++
++    }
+ 
+     /**
+      * Returns the last approximation of the result or -1 if there is no approximation for the lower bound.
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/ModelEnumerationHandler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/ModelEnumerationHandler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/ModelEnumerationHandler.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/ModelEnumerationHandler.java	2024-09-08 01:36:07.689763596 +1000
+@@ -32,7 +32,7 @@
+ 
+ /**
+  * Interface for a handler for the enumeration of models.
+- * @version 1.6.2
++ * @version 2.1.0
+  * @since 1.0
+  */
+ public interface ModelEnumerationHandler extends Handler {
+@@ -43,16 +43,15 @@
+      */
+     SATHandler satHandler();
+ 
++    @Override
++    default boolean aborted() {
++        return satHandler() != null && satHandler().aborted();
++    }
++
+     /**
+      * This method is called every time a model is found.
+      * @param assignment the respective model
+-     * @return whether more models should be searched or not
++     * @return {@code true} if more models should be searched, otherwise {@code false}
+      */
+     boolean foundModel(Assignment assignment);
+-
+-    /**
+-     * This method is called every time the SAT solver finished.
+-     * @return whether more models should be searched or not
+-     */
+-    boolean satSolverFinished();
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/NumberOfModelsHandler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/NumberOfModelsHandler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/NumberOfModelsHandler.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/NumberOfModelsHandler.java	2024-09-08 01:36:07.689763596 +1000
+@@ -32,7 +32,7 @@
+ 
+ /**
+  * A model enumeration handler that terminates the solving process after a given number of models.
+- * @version 1.6.2
++ * @version 2.1.0
+  * @since 1.0
+  */
+ public final class NumberOfModelsHandler extends ComputationHandler implements ModelEnumerationHandler {
+@@ -66,11 +66,6 @@
+     @Override
+     public boolean foundModel(final Assignment assignment) {
+         this.aborted = ++this.count >= this.bound;
+-        return !aborted;
+-    }
+-
+-    @Override
+-    public boolean satSolverFinished() {
+-        return true;
++        return !this.aborted;
+     }
+ }
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers: OptimizationHandler.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/SATHandler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/SATHandler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/SATHandler.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/SATHandler.java	2024-09-08 01:36:07.689763596 +1000
+@@ -30,19 +30,33 @@
+ 
+ /**
+  * Interface for a handler for SAT solvers.
+- * @version 1.6.2
++ * @version 2.1.0
+  * @since 1.0
+  */
+ public interface SATHandler extends Handler {
+ 
+     /**
+      * This method is called every time a conflict is found.
+-     * @return whether SAT solving should be continued or not
++     * @return {@code true} if the SAT solving should be continued, otherwise {@code false}
+      */
+-    boolean detectedConflict();
++    default boolean detectedConflict() {
++        return true;
++    }
+ 
+     /**
+      * This method is called when the SAT solver finished solving.
+      */
+-    void finishedSolving();
++    default void finishedSolving() {
++
++    }
++
++    /**
++     * Null-safe helper method to call {@link SATHandler#finishedSolving} on a handler.
++     * @param handler the handler to finished, may be {@code null}
++     */
++    static void finishSolving(final SATHandler handler) {
++        if (handler != null) {
++            handler.finishedSolving();
++        }
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/TimeoutBDDHandler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/TimeoutBDDHandler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/TimeoutBDDHandler.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/TimeoutBDDHandler.java	2024-09-08 01:36:07.689763596 +1000
+@@ -30,16 +30,32 @@
+ 
+ /**
+  * A BDD handler which cancels the build process after a given timeout.
+- * @version 1.6.2
++ * @version 2.1.0
+  * @since 1.6.2
+  */
+-public final class TimeoutBDDHandler extends TimeoutHandler implements BDDHandler {
++public class TimeoutBDDHandler extends TimeoutHandler implements BDDHandler {
+ 
+     /**
+-     * Constructs a new instance with a given timeout in milliseconds.
+-     * <p>
+-     * Note that it might take a few milliseconds more until the build process is actually canceled, since the handler
+-     * depends on the BDD factory's call to {@link org.logicng.knowledgecompilation.bdds.jbuddy.BDDKernel#addRef(int, BDDHandler)}.
++     * Constructs a new timeout handler with a given timeout and a timeout type. The interpretation of the timeout depends on the timeout type:
++     * <ul>
++     *     <li>{@link TimerType#SINGLE_TIMEOUT}: The timeout is started when {@link Handler#started()} is called. Further calls to {@link Handler#started()} have no effect on
++     *     the timeout. Thus, the timeout can only be started once.</li>
++     *     <li>{@link TimerType#RESTARTING_TIMEOUT}: The timeout is restarted when {@link Handler#started()} is called.</li>
++     *     <li>{@link TimerType#FIXED_END}: Timeout which is interpreted as fixed point in time (in milliseconds) at which the computation should be aborted. The method
++     *     {@link Handler#started()} must still be called, but does not have an effect on the timeout.</li>
++     * </ul>
++     * Note that it might take a few milliseconds more until the build process is actually canceled, since the handler depends on the BDD factory's call to
++     * {@link org.logicng.knowledgecompilation.bdds.jbuddy.BDDKernel#addRef(int, BDDHandler)}.
++     * @param timeout the timeout in milliseconds, its meaning is defined by the timeout type
++     * @param type    the type of the timer, must not be {@code null}
++     */
++    public TimeoutBDDHandler(final long timeout, final TimerType type) {
++        super(timeout, type);
++    }
++
++    /**
++     * Constructs a new timeout handler with a given timeout and uses the timeout type {@link TimerType#SINGLE_TIMEOUT}.
++     * Thus, the timeout is started when {@link Handler#started()} is called and further calls to {@link Handler#started()} have no effect on the timeout.
+      * @param timeout the timeout in milliseconds
+      */
+     public TimeoutBDDHandler(final long timeout) {
+@@ -48,6 +64,6 @@
+ 
+     @Override
+     public boolean newRefAdded() {
+-        return timeLimitExceeded();
++        return !timeLimitExceeded();
+     }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/TimeoutHandler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/TimeoutHandler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/TimeoutHandler.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/TimeoutHandler.java	2024-09-08 01:36:07.689763596 +1000
+@@ -30,27 +30,49 @@
+ 
+ /**
+  * An abstract timeout handler.
+- * @version 1.6.2
++ * @version 2.1.0
+  * @since 1.6.2
+  */
+ public abstract class TimeoutHandler extends ComputationHandler {
+ 
+-    protected final long timeout;
++    protected long timeout;
++    protected final TimerType type;
+     protected long designatedEnd;
+ 
+     /**
+-     * Constructs a new abstract timeout handler with a given timeout in milliseconds.
++     * Constructs a new abstract timeout handler with a given timeout and a timeout type. The interpretation of the timeout depends on the timeout type:
++     * <ul>
++     *     <li>{@link TimerType#SINGLE_TIMEOUT}: The timeout is started when {@link Handler#started()} is called. Further calls to {@link Handler#started()} have no effect on
++     *     the timeout. Thus, the timeout can only be started once.</li>
++     *     <li>{@link TimerType#RESTARTING_TIMEOUT}: The timeout is restarted when {@link Handler#started()} is called.</li>
++     *     <li>{@link TimerType#FIXED_END}: Timeout which is interpreted as fixed point in time (in milliseconds) at which the computation should be aborted. The method
++     *     {@link Handler#started()} must still be called, but does not have an effect on the timeout.</li>
++     * </ul>
++     * Note that it might take a few milliseconds more until the computation is actually canceled, since the cancellation depends on the next call to the handler.
++     * @param timeout the timeout in milliseconds, its meaning is defined by the timeout type
++     * @param type    the type of the timer, must not be {@code null}
++     */
++    public TimeoutHandler(final long timeout, final TimerType type) {
++        this.type = type;
++        this.timeout = type == TimerType.FIXED_END ? 0 : timeout;
++        this.designatedEnd = type == TimerType.FIXED_END ? timeout : 0;
++    }
++
++    /**
++     * Constructs a new abstract timeout handler with a given timeout and uses the timeout type {@link TimerType#SINGLE_TIMEOUT}.
++     * Thus, the timeout is started when {@link Handler#started()} is called and further calls to {@link Handler#started()} have no effect on the timeout.
+      * @param timeout the timeout in milliseconds
+      */
+     public TimeoutHandler(final long timeout) {
+-        this.timeout = timeout;
++        this(timeout, TimerType.SINGLE_TIMEOUT);
+     }
+ 
+     @Override
+     public void started() {
+         super.started();
+-        final long start = System.currentTimeMillis();
+-        this.designatedEnd = start + this.timeout;
++        if (this.type == TimerType.RESTARTING_TIMEOUT || this.designatedEnd == 0) {
++            this.designatedEnd = System.currentTimeMillis() + this.timeout;
++        }
+     }
+ 
+     /**
+@@ -59,6 +81,32 @@
+      */
+     protected boolean timeLimitExceeded() {
+         this.aborted = System.currentTimeMillis() >= this.designatedEnd;
+-        return !this.aborted;
++        return this.aborted;
++    }
++
++    /**
++     * A timeout type determines how a timeout is interpreted.
++     */
++    public enum TimerType {
++        /**
++         * Simple timeout which is started when {@link Handler#started()} is called.
++         * <p>
++         * Multiple calls to {@link Handler#started()} do not restart the timeout.
++         */
++        SINGLE_TIMEOUT,
++
++        /**
++         * Timeout which is restarted on every call to {@link Handler#started()}.
++         */
++        RESTARTING_TIMEOUT,
++
++        /**
++         * Timeout which is interpreted as fixed point in time (in milliseconds) at
++         * which the computation should be aborted.
++         * <p>
++         * The method {@link Handler#started()} must still be called, but does not have
++         * an effect on the timeout.
++         */
++        FIXED_END
+     }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/TimeoutMaxSATHandler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/TimeoutMaxSATHandler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/TimeoutMaxSATHandler.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/TimeoutMaxSATHandler.java	2024-09-08 01:36:07.689763596 +1000
+@@ -32,38 +32,65 @@
+ 
+ /**
+  * A MaxSAT handler which cancels the solving process after a given timeout.
+- * @version 1.6.2
++ * @version 2.1.0
+  * @since 1.0
+  */
+-public final class TimeoutMaxSATHandler extends TimeoutHandler implements MaxSATHandler {
++public class TimeoutMaxSATHandler extends TimeoutHandler implements MaxSATHandler {
+ 
+-    private final TimeoutSATHandler satHandler;
++    private TimeoutSATHandler satHandler;
+     private int currentLb;
+     private int currentUb;
+ 
+     /**
+-     * Constructs a new instance with a given timeout in milliseconds.
+-     * <p>
+-     * Note that it might take a few milliseconds more until the solver is actually canceled,
+-     * since the handler depends on the solvers call to {@code foundApproximation()} or {@link SATHandler#detectedConflict()}.
++     * Constructs a new timeout handler with a given timeout and a timeout type. The interpretation of the timeout depends on the timeout type:
++     * <ul>
++     *     <li>{@link TimerType#SINGLE_TIMEOUT}: The timeout is started when {@link Handler#started()} is called. Further calls to {@link Handler#started()} have no effect on
++     *     the timeout. Thus, the timeout can only be started once.</li>
++     *     <li>{@link TimerType#RESTARTING_TIMEOUT}: The timeout is restarted when {@link Handler#started()} is called.</li>
++     *     <li>{@link TimerType#FIXED_END}: Timeout which is interpreted as fixed point in time (in milliseconds) at which the computation should be aborted. The method
++     *     {@link Handler#started()} must still be called, but does not have an effect on the timeout.</li>
++     * </ul>
++     * Note that it might take a few milliseconds more until the solver is actually canceled, since the handler depends on the solvers call to {@code foundApproximation()} or
++     * {@link SATHandler#detectedConflict()}.
++     * @param timeout the timeout in milliseconds, its meaning is defined by the timeout type
++     * @param type    the type of the timer, must not be {@code null}
++     */
++    public TimeoutMaxSATHandler(final long timeout, final TimerType type) {
++        super(timeout, type);
++        this.currentLb = -1;
++        this.currentUb = -1;
++    }
++
++    /**
++     * Constructs a new timeout handler with a given timeout and uses the timeout type {@link TimerType#SINGLE_TIMEOUT}.
++     * Thus, the timeout is started when {@link Handler#started()} is called and further calls to {@link Handler#started()} have no effect on the timeout.
+      * @param timeout the timeout in milliseconds
+      */
+     public TimeoutMaxSATHandler(final long timeout) {
+         super(timeout);
+-        this.satHandler = new TimeoutSATHandler(timeout);
+-        this.currentLb = -1;
+-        this.currentUb = -1;
+     }
+ 
+     @Override
+     public void started() {
+         super.started();
+-        this.satHandler.started();
++        if (this.satHandler == null || this.type == TimerType.RESTARTING_TIMEOUT) {
++            this.satHandler = new TimeoutSATHandler(this.designatedEnd, TimerType.FIXED_END);
++        }
+         this.currentLb = -1;
+         this.currentUb = -1;
+     }
+ 
+     @Override
++    public boolean aborted() {
++        return super.aborted() || Handler.aborted(this.satHandler);
++    }
++
++    /**
++     * Returns a SAT handler which can be used to cancel internal SAT calls of the model enumeration process.
++     * Note that this handler will only be available after the first call to {@link #started()}.
++     * @return the SAT handler
++     */
++    @Override
+     public SATHandler satHandler() {
+         return this.satHandler;
+     }
+@@ -71,19 +98,13 @@
+     @Override
+     public boolean foundLowerBound(final int lowerBound, final Assignment model) {
+         this.currentLb = lowerBound;
+-        return timeLimitExceeded();
++        return !timeLimitExceeded();
+     }
+ 
+     @Override
+     public boolean foundUpperBound(final int upperBound, final Assignment model) {
+         this.currentUb = upperBound;
+-        return timeLimitExceeded();
+-    }
+-
+-    @Override
+-    public boolean satSolverFinished() {
+-        this.aborted = this.satHandler.aborted();
+-        return !this.aborted;
++        return !timeLimitExceeded();
+     }
+ 
+     @Override
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/TimeoutModelEnumerationHandler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/TimeoutModelEnumerationHandler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/TimeoutModelEnumerationHandler.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/TimeoutModelEnumerationHandler.java	2024-09-08 01:36:07.689763596 +1000
+@@ -32,7 +32,7 @@
+ 
+ /**
+  * A model enumeration handler which cancels the computation process after a given timeout.
+- * @version 1.6.2
++ * @version 2.1.0
+  * @since 1.0
+  */
+ public class TimeoutModelEnumerationHandler extends TimeoutHandler implements ModelEnumerationHandler {
+@@ -40,39 +40,57 @@
+     private TimeoutSATHandler satHandler;
+ 
+     /**
+-     * Constructs a new instance with a given timeout in milliseconds.
+-     * <p>
+-     * Note that it might take a few milliseconds more until the computation is actually
+-     * canceled, since the handler depends on the next found model.
++     * Constructs a new timeout handler with a given timeout and a timeout type. The interpretation of the timeout depends on the timeout type:
++     * <ul>
++     *     <li>{@link TimerType#SINGLE_TIMEOUT}: The timeout is started when {@link Handler#started()} is called. Further calls to {@link Handler#started()} have no effect on
++     *     the timeout. Thus, the timeout can only be started once.</li>
++     *     <li>{@link TimerType#RESTARTING_TIMEOUT}: The timeout is restarted when {@link Handler#started()} is called.</li>
++     *     <li>{@link TimerType#FIXED_END}: Timeout which is interpreted as fixed point in time (in milliseconds) at which the computation should be aborted. The method
++     *     {@link Handler#started()} must still be called, but does not have an effect on the timeout.</li>
++     * </ul>
++     * Note that it might take a few milliseconds more until the computation is actually canceled, since the handler depends on the next found model.
++     * {@link SATHandler#detectedConflict()}.
++     * @param timeout the timeout in milliseconds, its meaning is defined by the timeout type
++     * @param type    the type of the timer, must not be {@code null}
++     */
++    public TimeoutModelEnumerationHandler(final long timeout, final TimerType type) {
++        super(timeout, type);
++    }
++
++    /**
++     * Constructs a new timeout handler with a given timeout and uses the timeout type {@link TimerType#SINGLE_TIMEOUT}.
++     * Thus, the timeout is started when {@link Handler#started()} is called and further calls to {@link Handler#started()} have no effect on the timeout.
+      * @param timeout the timeout in milliseconds
+      */
+     public TimeoutModelEnumerationHandler(final long timeout) {
+         super(timeout);
+     }
+ 
++    /**
++     * Returns a SAT handler which can be used to cancel internal SAT calls of the model enumeration process.
++     * Note that this handler will only be available after the first call to {@link #started()}.
++     * @return the SAT handler
++     */
+     @Override
+     public SATHandler satHandler() {
+-        this.satHandler = new TimeoutSATHandler(remainingTime());
+         return this.satHandler;
+     }
+ 
+-    /**
+-     * Returns the remaining time until the designated end.
+-     * @return the remaining time in milliseconds
+-     */
+-    private long remainingTime() {
+-        final long remainingTime = this.designatedEnd - System.currentTimeMillis();
+-        return remainingTime >= 0 ? remainingTime : 0L;
++    @Override
++    public boolean aborted() {
++        return super.aborted() || Handler.aborted(this.satHandler);
+     }
+ 
+     @Override
+-    public boolean foundModel(final Assignment assignment) {
+-        return timeLimitExceeded();
++    public void started() {
++        super.started();
++        if (this.satHandler == null || this.type == TimerType.RESTARTING_TIMEOUT) {
++            this.satHandler = new TimeoutSATHandler(this.designatedEnd, TimerType.FIXED_END);
++        }
+     }
+ 
+     @Override
+-    public boolean satSolverFinished() {
+-        this.aborted = this.satHandler.aborted();
+-        return !this.aborted;
++    public boolean foundModel(final Assignment assignment) {
++        return !timeLimitExceeded();
+     }
+ }
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers: TimeoutOptimizationHandler.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/TimeoutSATHandler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/TimeoutSATHandler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/TimeoutSATHandler.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/TimeoutSATHandler.java	2024-09-08 01:36:07.689763596 +1000
+@@ -30,16 +30,32 @@
+ 
+ /**
+  * A SAT handler which cancels the solving process after a given timeout.
+- * @version 1.6.2
++ * @version 2.1.0
+  * @since 1.0
+  */
+-public final class TimeoutSATHandler extends TimeoutHandler implements SATHandler {
++public class TimeoutSATHandler extends TimeoutHandler implements SATHandler {
+ 
+     /**
+-     * Constructs a new instance with a given timeout in milliseconds.
+-     * <p>
+-     * Note that it might take a few milliseconds more until the sat solver is actually
+-     * canceled, since the handler depends on the solvers call to {@code detectedConflict()}.
++     * Constructs a new timeout handler with a given timeout and a timeout type. The interpretation of the timeout depends on the timeout type:
++     * <ul>
++     *     <li>{@link TimerType#SINGLE_TIMEOUT}: The timeout is started when {@link Handler#started()} is called. Further calls to {@link Handler#started()} have no effect on
++     *     the timeout. Thus, the timeout can only be started once.</li>
++     *     <li>{@link TimerType#RESTARTING_TIMEOUT}: The timeout is restarted when {@link Handler#started()} is called.</li>
++     *     <li>{@link TimerType#FIXED_END}: Timeout which is interpreted as fixed point in time (in milliseconds) at which the computation should be aborted. The method
++     *     {@link Handler#started()} must still be called, but does not have an effect on the timeout.</li>
++     * </ul>
++     * Note that it might take a few milliseconds more until the sat solver is actually canceled, since the handler depends on the solvers call to {@code detectedConflict()}.
++     * {@link SATHandler#detectedConflict()}.
++     * @param timeout the timeout in milliseconds, its meaning is defined by the timeout type
++     * @param type    the type of the timer, must not be {@code null}
++     */
++    public TimeoutSATHandler(final long timeout, final TimerType type) {
++        super(timeout, type);
++    }
++
++    /**
++     * Constructs a new timeout handler with a given timeout and uses the timeout type {@link TimerType#SINGLE_TIMEOUT}.
++     * Thus, the timeout is started when {@link Handler#started()} is called and further calls to {@link Handler#started()} have no effect on the timeout.
+      * @param timeout the timeout in milliseconds
+      */
+     public TimeoutSATHandler(final long timeout) {
+@@ -48,11 +64,6 @@
+ 
+     @Override
+     public boolean detectedConflict() {
+-        return timeLimitExceeded();
+-    }
+-
+-    @Override
+-    public void finishedSolving() {
+-        // nothing to do here
++        return !timeLimitExceeded();
+     }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/knowledgecompilation/bdds/BDDFactory.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/knowledgecompilation/bdds/BDDFactory.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/knowledgecompilation/bdds/BDDFactory.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/knowledgecompilation/bdds/BDDFactory.java	2024-09-08 01:36:07.689763596 +1000
+@@ -57,6 +57,8 @@
+ 
+ package org.logicng.knowledgecompilation.bdds;
+ 
++import static org.logicng.handlers.Handler.start;
++
+ import org.logicng.formulas.And;
+ import org.logicng.formulas.BinaryOperator;
+ import org.logicng.formulas.Formula;
+@@ -123,9 +125,7 @@
+      * @return the top node of the BDD or {@link BDDKernel#BDD_ABORT} if the computation was aborted
+      */
+     public static BDD build(final Formula formula, final BDDKernel kernel, final BDDHandler handler) {
+-        if (handler != null) {
+-            handler.started();
+-        }
++        start(handler);
+         final int varNum = formula.variables().size();
+         final BDDKernel bddKernel = kernel == null
+                 ? new BDDKernel(formula.factory(), varNum, varNum * 30, varNum * 20)
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/knowledgecompilation/dnnf/DnnfCompiler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/knowledgecompilation/dnnf/DnnfCompiler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/knowledgecompilation/dnnf/DnnfCompiler.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/knowledgecompilation/dnnf/DnnfCompiler.java	2024-09-08 01:36:07.693763624 +1000
+@@ -28,6 +28,8 @@
+ 
+ package org.logicng.knowledgecompilation.dnnf;
+ 
++import static org.logicng.handlers.Handler.start;
++
+ import org.logicng.formulas.Formula;
+ import org.logicng.formulas.FormulaFactory;
+ import org.logicng.formulas.Literal;
+@@ -173,9 +175,7 @@
+         }
+         initializeCaches(dTree);
+         this.handler = handler;
+-        if (handler != null) {
+-            handler.started();
+-        }
++        start(handler);
+ 
+         Formula result;
+         try {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/primecomputation/NaivePrimeReduction.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/primecomputation/NaivePrimeReduction.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/primecomputation/NaivePrimeReduction.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/primecomputation/NaivePrimeReduction.java	2024-09-08 01:36:07.693763624 +1000
+@@ -28,10 +28,14 @@
+ 
+ package org.logicng.primecomputation;
+ 
++import static org.logicng.handlers.Handler.aborted;
++import static org.logicng.handlers.Handler.start;
++
+ import org.logicng.datastructures.Tristate;
+ import org.logicng.formulas.Formula;
+ import org.logicng.formulas.FormulaFactory;
+ import org.logicng.formulas.Literal;
++import org.logicng.handlers.SATHandler;
+ import org.logicng.solvers.MiniSat;
+ import org.logicng.solvers.SATSolver;
+ import org.logicng.solvers.sat.MiniSatConfig;
+@@ -47,7 +51,7 @@
+  * <p>
+  * The computation is initialized with the formula for which
+  * the prime implicants/implicates should be computed.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 2.0.0
+  */
+ public final class NaivePrimeReduction {
+@@ -74,10 +78,26 @@
+      * @return a prime implicant
+      */
+     public SortedSet<Literal> reduceImplicant(final SortedSet<Literal> implicant) {
++        return reduceImplicant(implicant, null);
++    }
++
++    /**
++     * Computes a prime implicant from the given implicant for the given formula.
++     * Assumption: Given implicant is a satisfying assignment for the formula
++     * @param implicant the implicant
++     * @param handler   the SAT handler
++     * @return a prime implicant
++     */
++    public SortedSet<Literal> reduceImplicant(final SortedSet<Literal> implicant, final SATHandler handler) {
++        start(handler);
+         final SortedSet<Literal> primeImplicant = new TreeSet<>(implicant);
+         for (final Literal lit : implicant) {
+             primeImplicant.remove(lit);
+-            if (this.implicantSolver.sat(primeImplicant) == Tristate.TRUE) {
++            final boolean sat = this.implicantSolver.sat(handler, primeImplicant) == Tristate.TRUE;
++            if (aborted(handler)) {
++                return null;
++            }
++            if (sat) {
+                 primeImplicant.add(lit);
+             }
+         }
+@@ -92,11 +112,28 @@
+      * @return a prime implicate
+      */
+     public SortedSet<Literal> reduceImplicate(final SortedSet<Literal> implicate) {
++        return reduceImplicate(implicate, null);
++    }
++
++    /**
++     * Computes a prime implicate from the given implicate for the given formula.
++     * Assumption: Given implicate is a falsifying assignment for the formula, i.e. a satisfying assignment for the
++     * negated formula
++     * @param implicate the implicate
++     * @param handler   the SAT handler
++     * @return a prime implicate
++     */
++    public SortedSet<Literal> reduceImplicate(final SortedSet<Literal> implicate, final SATHandler handler) {
++        start(handler);
+         final SortedSet<Literal> primeImplicate = new TreeSet<>(implicate);
+         for (final Literal lit : implicate) {
+             primeImplicate.remove(lit);
+             final List<Literal> assumptions = FormulaHelper.negateLiterals(primeImplicate, ArrayList::new);
+-            if (this.implicateSolver.sat(assumptions) == Tristate.TRUE) {
++            final boolean sat = this.implicateSolver.sat(handler, assumptions) == Tristate.TRUE;
++            if (aborted(handler)) {
++                return null;
++            }
++            if (sat) {
+                 primeImplicate.add(lit);
+             }
+         }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/primecomputation/PrimeCompiler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/primecomputation/PrimeCompiler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/primecomputation/PrimeCompiler.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/primecomputation/PrimeCompiler.java	2024-09-08 01:36:07.693763624 +1000
+@@ -28,12 +28,17 @@
+ 
+ package org.logicng.primecomputation;
+ 
++import static org.logicng.handlers.Handler.aborted;
++import static org.logicng.handlers.Handler.start;
++import static org.logicng.handlers.OptimizationHandler.satHandler;
++
+ import org.logicng.datastructures.Assignment;
+ import org.logicng.datastructures.Tristate;
+ import org.logicng.formulas.Formula;
+ import org.logicng.formulas.FormulaFactory;
+ import org.logicng.formulas.Literal;
+ import org.logicng.formulas.Variable;
++import org.logicng.handlers.OptimizationHandler;
+ import org.logicng.solvers.MiniSat;
+ import org.logicng.solvers.SATSolver;
+ import org.logicng.solvers.functions.OptimizationFunction;
+@@ -64,7 +69,7 @@
+  * {@link #getWithMaximization()} and another which searches for minimum models
+  * {@link #getWithMaximization()}. From experience, the one with minimum models usually
+  * outperforms the one with maximum models.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 2.0.0
+  */
+ public final class PrimeCompiler {
+@@ -105,16 +110,36 @@
+      * @return the prime result
+      */
+     public PrimeResult compute(final Formula formula, final PrimeResult.CoverageType type) {
++        return compute(formula, type, null);
++    }
++
++    /**
++     * Computes prime implicants and prime implicates for a given formula.
++     * The coverage type specifies if the implicants or the implicates will
++     * be complete, the other one will still be a cover of the given formula.
++     * <p>
++     * The prime compiler can be called with an {@link OptimizationHandler}. The given handler instance will be used for every subsequent
++     * {@link org.logicng.solvers.functions.OptimizationFunction} call and the handler's SAT handler is used for every subsequent SAT call.
++     * @param formula the formula
++     * @param type    the coverage type
++     * @param handler the handler, can be {@code null}
++     * @return the prime result
++     */
++    public PrimeResult compute(final Formula formula, final PrimeResult.CoverageType type, final OptimizationHandler handler) {
++        start(handler);
+         final boolean completeImplicants = type == PrimeResult.CoverageType.IMPLICANTS_COMPLETE;
+         final Formula formulaForComputation = completeImplicants ? formula : formula.negate();
+-        final Pair<List<SortedSet<Literal>>, List<SortedSet<Literal>>> result = computeGeneric(formulaForComputation);
++        final Pair<List<SortedSet<Literal>>, List<SortedSet<Literal>>> result = computeGeneric(formulaForComputation, handler);
++        if (aborted(handler)) {
++            return null;
++        }
+         return new PrimeResult(
+                 completeImplicants ? result.first() : negateAll(result.second()),
+                 completeImplicants ? result.second() : negateAll(result.first()),
+                 type);
+     }
+ 
+-    private Pair<List<SortedSet<Literal>>, List<SortedSet<Literal>>> computeGeneric(final Formula formula) {
++    private Pair<List<SortedSet<Literal>>, List<SortedSet<Literal>>> computeGeneric(final Formula formula, final OptimizationHandler handler) {
+         final FormulaFactory f = formula.factory();
+         final SubstitutionResult sub = createSubstitution(formula);
+         final SATSolver hSolver = MiniSat.miniSat(f, MiniSatConfig.builder().cnfMethod(MiniSatConfig.CNFMethod.PG_ON_SOLVER).build());
+@@ -126,15 +151,24 @@
+         final List<SortedSet<Literal>> primeImplicates = new ArrayList<>();
+         while (true) {
+             final Assignment hModel = hSolver.execute(this.computeWithMaximization
+-                    ? OptimizationFunction.maximize(sub.newVar2oldLit.keySet())
+-                    : OptimizationFunction.minimize(sub.newVar2oldLit.keySet()));
++                    ? OptimizationFunction.builder().handler(handler).literals(sub.newVar2oldLit.keySet()).maximize().build()
++                    : OptimizationFunction.builder().handler(handler).literals(sub.newVar2oldLit.keySet()).minimize().build());
++            if (aborted(handler)) {
++                return null;
++            }
+             if (hModel == null) {
+                 return new Pair<>(primeImplicants, primeImplicates);
+             }
+             final Assignment fModel = transformModel(hModel, sub.newVar2oldLit);
+-            final Tristate fSat = fSolver.sat(fModel.literals());
++            final Tristate fSat = fSolver.sat(satHandler(handler), fModel.literals());
++            if (aborted(handler)) {
++                return null;
++            }
+             if (fSat == Tristate.FALSE) {
+-                final SortedSet<Literal> primeImplicant = this.computeWithMaximization ? primeReduction.reduceImplicant(fModel.literals()) : fModel.literals();
++                final SortedSet<Literal> primeImplicant = this.computeWithMaximization ? primeReduction.reduceImplicant(fModel.literals(), satHandler(handler)) : fModel.literals();
++                if (aborted(handler)) {
++                    return null;
++                }
+                 primeImplicants.add(primeImplicant);
+                 final List<Literal> blockingClause = new ArrayList<>();
+                 for (final Literal lit : primeImplicant) {
+@@ -146,7 +180,10 @@
+                 for (final Literal lit : (this.computeWithMaximization ? fModel : fSolver.model(formula.variables())).literals()) {
+                     implicate.add(lit.negate());
+                 }
+-                final SortedSet<Literal> primeImplicate = primeReduction.reduceImplicate(implicate);
++                final SortedSet<Literal> primeImplicate = primeReduction.reduceImplicate(implicate, satHandler(handler));
++                if (aborted(handler)) {
++                    return null;
++                }
+                 primeImplicates.add(primeImplicate);
+                 hSolver.add(f.or(primeImplicate).transform(sub.substitution));
+             }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/functions/BackboneFunction.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/functions/BackboneFunction.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/functions/BackboneFunction.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/functions/BackboneFunction.java	2024-09-08 01:36:07.693763624 +1000
+@@ -28,10 +28,13 @@
+ 
+ package org.logicng.solvers.functions;
+ 
++import static org.logicng.handlers.Handler.start;
++
+ import org.logicng.backbones.Backbone;
+ import org.logicng.backbones.BackboneType;
+ import org.logicng.datastructures.Tristate;
+ import org.logicng.formulas.Variable;
++import org.logicng.handlers.SATHandler;
+ import org.logicng.solvers.MiniSat;
+ import org.logicng.solvers.SolverState;
+ 
+@@ -43,15 +46,17 @@
+  * A solver function which computes a backbone for the formula on the solver.
+  * <p>
+  * Backbone functions are instantiated via their builder {@link #builder()}.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 2.0.0
+  */
+ public final class BackboneFunction implements SolverFunction<Backbone> {
+ 
++    private final SATHandler handler;
+     private final Collection<Variable> variables;
+     private final BackboneType type;
+ 
+-    private BackboneFunction(final Collection<Variable> variables, final BackboneType type) {
++    private BackboneFunction(final SATHandler handler, final Collection<Variable> variables, final BackboneType type) {
++        this.handler = handler;
+         this.variables = variables;
+         this.type = type;
+     }
+@@ -66,11 +71,12 @@
+ 
+     @Override
+     public Backbone apply(final MiniSat solver, final Consumer<Tristate> resultSetter) {
++        start(handler);
+         SolverState stateBeforeBackbone = null;
+         if (solver.getStyle() == MiniSat.SolverStyle.MINISAT && solver.isIncremental()) {
+             stateBeforeBackbone = solver.saveState();
+         }
+-        final Backbone backbone = solver.underlyingSolver().computeBackbone(this.variables, this.type);
++        final Backbone backbone = solver.underlyingSolver().computeBackbone(this.variables, this.type, handler);
+         if (solver.getStyle() == MiniSat.SolverStyle.MINISAT && solver.isIncremental()) {
+             solver.loadState(stateBeforeBackbone);
+         }
+@@ -82,6 +88,7 @@
+      */
+     public static class Builder {
+ 
++        private SATHandler handler;
+         private Collection<Variable> variables;
+         private BackboneType type = BackboneType.POSITIVE_AND_NEGATIVE;
+ 
+@@ -90,6 +97,16 @@
+         }
+ 
+         /**
++         * Sets the SAT handler for this function.
++         * @param handler the handler
++         * @return the current builder
++         */
++        public Builder handler(final SATHandler handler) {
++            this.handler = handler;
++            return this;
++        }
++
++        /**
+          * Sets the variables which are relevant for the backbone computation.
+          * @param variables the variables
+          * @return the current builder
+@@ -124,7 +141,7 @@
+          * @return the backbone function
+          */
+         public BackboneFunction build() {
+-            return new BackboneFunction(this.variables, this.type);
++            return new BackboneFunction(this.handler, this.variables, this.type);
+         }
+     }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/functions/ModelEnumerationFunction.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/functions/ModelEnumerationFunction.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/functions/ModelEnumerationFunction.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/functions/ModelEnumerationFunction.java	2024-09-08 01:36:07.693763624 +1000
+@@ -30,6 +30,7 @@
+ 
+ import static org.logicng.datastructures.Tristate.TRUE;
+ import static org.logicng.datastructures.Tristate.UNDEF;
++import static org.logicng.handlers.Handler.start;
+ 
+ import org.logicng.collections.LNGBooleanVector;
+ import org.logicng.collections.LNGIntVector;
+@@ -81,9 +82,7 @@
+ 
+     @Override
+     public List<Assignment> apply(final MiniSat solver, final Consumer<Tristate> resultSetter) {
+-        if (this.handler != null) {
+-            this.handler.started();
+-        }
++        start(this.handler);
+         final List<Assignment> models = new ArrayList<>();
+         SolverState stateBeforeEnumeration = null;
+         if (solver.getStyle() == MiniSat.SolverStyle.MINISAT && solver.isIncremental()) {
+@@ -150,7 +149,7 @@
+             return solver.sat((SATHandler) null) == TRUE;
+         }
+         final Tristate tristate = solver.sat(handler.satHandler());
+-        return handler.satSolverFinished() && tristate == TRUE;
++        return !handler.aborted() && tristate == TRUE;
+     }
+ 
+     /**
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/functions/OptimizationFunction.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/functions/OptimizationFunction.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/functions/OptimizationFunction.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/functions/OptimizationFunction.java	2024-09-08 01:36:07.693763624 +1000
+@@ -28,6 +28,10 @@
+ 
+ package org.logicng.solvers.functions;
+ 
++import static org.logicng.handlers.Handler.aborted;
++import static org.logicng.handlers.Handler.start;
++import static org.logicng.handlers.OptimizationHandler.satHandler;
++
+ import org.logicng.cardinalityconstraints.CCIncrementalData;
+ import org.logicng.collections.LNGBooleanVector;
+ import org.logicng.collections.LNGIntVector;
+@@ -39,6 +43,7 @@
+ import org.logicng.formulas.FormulaFactory;
+ import org.logicng.formulas.Literal;
+ import org.logicng.formulas.Variable;
++import org.logicng.handlers.OptimizationHandler;
+ import org.logicng.solvers.MiniSat;
+ import org.logicng.solvers.SolverState;
+ 
+@@ -54,10 +59,11 @@
+ /**
+  * A solver function for computing a model for the formula on the solver
+  * which has a global minimum or maximum of satisfied literals. If the formula
+- * is UNSAT, {@code null} will be returned.
++ * is UNSAT or the optimization handler aborted the computation, {@code null}
++ * will be returned.
+  * <p>
+  * Optimization functions are instantiated via their builder {@link #builder()}.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 2.0.0
+  */
+ public final class OptimizationFunction implements SolverFunction<Assignment> {
+@@ -67,14 +73,17 @@
+     private final Collection<? extends Literal> literals;
+     private final SortedSet<Variable> resultModelVariables;
+     private final boolean maximize;
++    private final OptimizationHandler handler;
+ 
+-    private OptimizationFunction(final Collection<? extends Literal> literals, final Collection<Variable> additionalVariables, final boolean maximize) {
++    private OptimizationFunction(final Collection<? extends Literal> literals, final Collection<Variable> additionalVariables, final boolean maximize,
++                                 final OptimizationHandler handler) {
+         this.literals = literals;
+         this.resultModelVariables = new TreeSet<>(additionalVariables);
+         for (final Literal lit : literals) {
+             this.resultModelVariables.add(lit.variable());
+         }
+         this.maximize = maximize;
++        this.handler = handler;
+     }
+ 
+     /**
+@@ -117,6 +126,7 @@
+     }
+ 
+     private Assignment maximize(final MiniSat solver) {
++        start(this.handler);
+         final FormulaFactory f = solver.factory();
+         LNGBooleanVector internalModel;
+         final Map<Variable, Literal> selectorMap = new TreeMap<>();
+@@ -132,7 +142,8 @@
+             selectorMap.forEach((selVar, lit) -> solver.add(f.or(selVar.negate(), lit.negate())));
+             selectorMap.forEach((selVar, lit) -> solver.add(f.or(lit, selVar)));
+         }
+-        if (solver.sat() != Tristate.TRUE) {
++        Tristate sat = solver.sat(satHandler(handler));
++        if (sat != Tristate.TRUE || aborted(handler)) {
+             return null;
+         }
+         internalModel = solver.underlyingSolver().model();
+@@ -140,7 +151,10 @@
+         int currentBound = currentModel.positiveVariables().size();
+         if (currentBound == 0) {
+             solver.add(f.cc(CType.GE, 1, selectors));
+-            if (solver.sat() == Tristate.FALSE) {
++            sat = solver.sat(satHandler(handler));
++            if (aborted(handler)) {
++                return null;
++            } else if (sat == Tristate.FALSE) {
+                 return mkResultModel(solver, internalModel);
+             } else {
+                 internalModel = solver.underlyingSolver().model();
+@@ -153,14 +167,26 @@
+         final Formula cc = f.cc(CType.GE, currentBound + 1, selectors);
+         assert cc instanceof CardinalityConstraint;
+         final CCIncrementalData incrementalData = solver.addIncrementalCC((CardinalityConstraint) cc);
+-        while (solver.sat() == Tristate.TRUE) {
+-            internalModel = solver.underlyingSolver().model();
++        sat = solver.sat(satHandler(handler));
++        if (aborted(handler)) {
++            return null;
++        }
++        while (sat == Tristate.TRUE) {
++            final LNGBooleanVector modelCopy = new LNGBooleanVector(solver.underlyingSolver().model());
++            if (this.handler != null && !this.handler.foundBetterBound(() -> mkResultModel(solver, modelCopy))) {
++                return null;
++            }
++            internalModel = modelCopy;
+             currentModel = solver.model(selectors);
+             currentBound = currentModel.positiveVariables().size();
+             if (currentBound == selectors.size()) {
+                 return mkResultModel(solver, internalModel);
+             }
+             incrementalData.newLowerBoundForSolver(currentBound + 1);
++            sat = solver.sat(satHandler(handler));
++            if (aborted(handler)) {
++                return null;
++            }
+         }
+         return mkResultModel(solver, internalModel);
+     }
+@@ -180,6 +206,7 @@
+         private Collection<? extends Literal> literals;
+         private Collection<Variable> additionalVariables = new TreeSet<>();
+         private boolean maximize = true;
++        private OptimizationHandler handler = null;
+ 
+         private Builder() {
+             // Initialize only via factory
+@@ -244,11 +271,21 @@
+         }
+ 
+         /**
++         * Sets the handler for the optimization.
++         * @param handler the handler
++         * @return the current builder
++         */
++        public Builder handler(final OptimizationHandler handler) {
++            this.handler = handler;
++            return this;
++        }
++
++        /**
+          * Builds the optimization function with the current builder's configuration.
+          * @return the optimization function
+          */
+         public OptimizationFunction build() {
+-            return new OptimizationFunction(this.literals, this.additionalVariables, this.maximize);
++            return new OptimizationFunction(this.literals, this.additionalVariables, this.maximize, this.handler);
+         }
+     }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/maxsat/algorithms/IncWBO.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/maxsat/algorithms/IncWBO.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/maxsat/algorithms/IncWBO.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/maxsat/algorithms/IncWBO.java	2024-09-08 01:36:07.693763624 +1000
+@@ -51,6 +51,7 @@
+ 
+ import static org.logicng.datastructures.Tristate.FALSE;
+ import static org.logicng.datastructures.Tristate.UNDEF;
++import static org.logicng.handlers.Handler.aborted;
+ import static org.logicng.solvers.maxsat.algorithms.MaxSATConfig.Verbosity;
+ import static org.logicng.solvers.maxsat.algorithms.MaxSATConfig.WeightStrategy;
+ import static org.logicng.solvers.sat.MiniSatStyleSolver.not;
+@@ -61,6 +62,7 @@
+ import org.logicng.collections.LNGIntVector;
+ import org.logicng.collections.LNGVector;
+ import org.logicng.datastructures.Tristate;
++import org.logicng.handlers.SATHandler;
+ import org.logicng.solvers.maxsat.encodings.Encoder;
+ import org.logicng.util.Pair;
+ 
+@@ -345,9 +347,9 @@
+                     this.assumptions.push(not(this.softClauses.get(i).assumptionVar()));
+                 }
+             }
+-            final Tristate res = searchSATSolver(this.solver, satHandler(), this.assumptions);
+-            satSolverFinished();
+-            if (res == UNDEF) {
++            final SATHandler satHandler = satHandler();
++            final Tristate res = searchSATSolver(this.solver, satHandler, this.assumptions);
++            if (aborted(satHandler)) {
+                 return MaxSATResult.UNDEF;
+             } else if (res == FALSE) {
+                 this.nbCores++;
+@@ -443,9 +445,9 @@
+                     this.assumptions.push(not(this.softClauses.get(i).assumptionVar()));
+                 }
+             }
+-            final Tristate res = searchSATSolver(this.solver, satHandler(), this.assumptions);
+-            satSolverFinished();
+-            if (res == UNDEF) {
++            final SATHandler satHandler = satHandler();
++            final Tristate res = searchSATSolver(this.solver, satHandler, this.assumptions);
++            if (aborted(satHandler)) {
+                 return MaxSATResult.UNDEF;
+             } else if (res == FALSE) {
+                 this.nbCores++;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/maxsat/algorithms/LinearSU.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/maxsat/algorithms/LinearSU.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/maxsat/algorithms/LinearSU.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/maxsat/algorithms/LinearSU.java	2024-09-08 01:36:07.693763624 +1000
+@@ -49,6 +49,7 @@
+ 
+ package org.logicng.solvers.maxsat.algorithms;
+ 
++import static org.logicng.handlers.Handler.aborted;
+ import static org.logicng.solvers.maxsat.algorithms.MaxSATConfig.CardinalityEncoding;
+ import static org.logicng.solvers.maxsat.algorithms.MaxSATConfig.Verbosity;
+ 
+@@ -56,6 +57,7 @@
+ import org.logicng.collections.LNGIntVector;
+ import org.logicng.collections.LNGVector;
+ import org.logicng.datastructures.Tristate;
++import org.logicng.handlers.SATHandler;
+ import org.logicng.solvers.datastructures.MSSoftClause;
+ import org.logicng.solvers.maxsat.encodings.Encoder;
+ import org.logicng.solvers.sat.MiniSatStyleSolver;
+@@ -133,9 +135,9 @@
+         int localCost = 0;
+         this.ubCost = 0;
+         while (true) {
+-            res = searchSATSolver(this.solver, satHandler());
+-            satSolverFinished();
+-            if (res == Tristate.UNDEF) {
++            final SATHandler satHandler = satHandler();
++            res = searchSATSolver(this.solver, satHandler);
++            if (aborted(satHandler)) {
+                 return MaxSATResult.UNDEF;
+             }
+             if (res == Tristate.TRUE) {
+@@ -209,9 +211,9 @@
+         this.initRelaxation();
+         this.solver = this.rebuildSolver(1);
+         while (true) {
+-            res = searchSATSolver(this.solver, satHandler());
+-            satSolverFinished();
+-            if (res == Tristate.UNDEF) {
++            final SATHandler satHandler = satHandler();
++            res = searchSATSolver(this.solver, satHandler);
++            if (aborted(satHandler)) {
+                 return MaxSATResult.UNDEF;
+             } else if (res == Tristate.TRUE) {
+                 this.nbSatisfiable++;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/maxsat/algorithms/LinearUS.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/maxsat/algorithms/LinearUS.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/maxsat/algorithms/LinearUS.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/maxsat/algorithms/LinearUS.java	2024-09-08 01:36:07.693763624 +1000
+@@ -49,10 +49,12 @@
+ 
+ package org.logicng.solvers.maxsat.algorithms;
+ 
++import static org.logicng.handlers.Handler.aborted;
+ import static org.logicng.solvers.sat.MiniSatStyleSolver.not;
+ 
+ import org.logicng.collections.LNGIntVector;
+ import org.logicng.datastructures.Tristate;
++import org.logicng.handlers.SATHandler;
+ import org.logicng.solvers.maxsat.encodings.Encoder;
+ import org.logicng.solvers.sat.MiniSatStyleSolver;
+ 
+@@ -118,9 +120,9 @@
+         final LNGIntVector assumptions = new LNGIntVector();
+         this.encoder.setIncremental(MaxSATConfig.IncrementalStrategy.NONE);
+         while (true) {
+-            res = searchSATSolver(this.solver, satHandler(), assumptions);
+-            satSolverFinished();
+-            if (res == Tristate.UNDEF) {
++            final SATHandler satHandler = satHandler();
++            res = searchSATSolver(this.solver, satHandler, assumptions);
++            if (aborted(satHandler)) {
+                 return MaxSATResult.UNDEF;
+             } else if (res == Tristate.TRUE) {
+                 this.nbSatisfiable++;
+@@ -175,9 +177,9 @@
+         final LNGIntVector assumptions = new LNGIntVector();
+         this.encoder.setIncremental(MaxSATConfig.IncrementalStrategy.ITERATIVE);
+         while (true) {
+-            res = searchSATSolver(this.solver, satHandler(), assumptions);
+-            satSolverFinished();
+-            if (res == Tristate.UNDEF) {
++            final SATHandler satHandler = satHandler();
++            res = searchSATSolver(this.solver, satHandler, assumptions);
++            if (aborted(satHandler)) {
+                 return MaxSATResult.UNDEF;
+             } else if (res == Tristate.TRUE) {
+                 this.nbSatisfiable++;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/maxsat/algorithms/MaxSAT.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/maxsat/algorithms/MaxSAT.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/maxsat/algorithms/MaxSAT.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/maxsat/algorithms/MaxSAT.java	2024-09-08 01:36:07.693763624 +1000
+@@ -49,6 +49,7 @@
+ 
+ package org.logicng.solvers.maxsat.algorithms;
+ 
++import static org.logicng.handlers.Handler.start;
+ import static org.logicng.solvers.maxsat.algorithms.MaxSATConfig.SolverType;
+ import static org.logicng.solvers.maxsat.algorithms.MaxSATConfig.Verbosity;
+ import static org.logicng.solvers.sat.MiniSatStyleSolver.LIT_UNDEF;
+@@ -183,9 +184,7 @@
+      */
+     public final MaxSATResult search(final MaxSATHandler handler) {
+         this.handler = handler;
+-        if (handler != null) {
+-            handler.started();
+-        }
++        start(handler);
+         final MaxSATResult result = search();
+         if (handler != null) {
+             handler.finishedSolving();
+@@ -447,10 +446,6 @@
+         return this.handler == null || this.handler.foundUpperBound(upperBound, model);
+     }
+ 
+-    boolean satSolverFinished() {
+-        return this.handler == null || this.handler.satSolverFinished();
+-    }
+-
+     /**
+      * The MaxSAT solver statistics.
+      */
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/maxsat/algorithms/MSU3.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/maxsat/algorithms/MSU3.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/maxsat/algorithms/MSU3.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/maxsat/algorithms/MSU3.java	2024-09-08 01:36:07.693763624 +1000
+@@ -49,6 +49,7 @@
+ 
+ package org.logicng.solvers.maxsat.algorithms;
+ 
++import static org.logicng.handlers.Handler.aborted;
+ import static org.logicng.solvers.maxsat.algorithms.MaxSATConfig.CardinalityEncoding;
+ import static org.logicng.solvers.maxsat.algorithms.MaxSATConfig.IncrementalStrategy;
+ import static org.logicng.solvers.maxsat.algorithms.MaxSATConfig.Verbosity;
+@@ -57,6 +58,7 @@
+ import org.logicng.collections.LNGBooleanVector;
+ import org.logicng.collections.LNGIntVector;
+ import org.logicng.datastructures.Tristate;
++import org.logicng.handlers.SATHandler;
+ import org.logicng.solvers.maxsat.encodings.Encoder;
+ import org.logicng.solvers.sat.MiniSatStyleSolver;
+ 
+@@ -133,9 +135,9 @@
+             this.coreMapping.put(this.softClauses.get(i).assumptionVar(), i);
+         }
+         while (true) {
+-            res = searchSATSolver(this.solver, satHandler(), assumptions);
+-            satSolverFinished();
+-            if (res == Tristate.UNDEF) {
++            final SATHandler satHandler = satHandler();
++            res = searchSATSolver(this.solver, satHandler, assumptions);
++            if (aborted(satHandler)) {
+                 return MaxSATResult.UNDEF;
+             } else if (res == Tristate.TRUE) {
+                 this.nbSatisfiable++;
+@@ -213,9 +215,9 @@
+             this.coreMapping.put(this.softClauses.get(i).assumptionVar(), i);
+         }
+         while (true) {
+-            res = searchSATSolver(this.solver, satHandler(), assumptions);
+-            satSolverFinished();
+-            if (res == Tristate.UNDEF) {
++            final SATHandler satHandler = satHandler();
++            res = searchSATSolver(this.solver, satHandler, assumptions);
++            if (aborted(satHandler)) {
+                 return MaxSATResult.UNDEF;
+             } else if (res == Tristate.TRUE) {
+                 this.nbSatisfiable++;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/maxsat/algorithms/WBO.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/maxsat/algorithms/WBO.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/maxsat/algorithms/WBO.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/maxsat/algorithms/WBO.java	2024-09-08 01:36:07.693763624 +1000
+@@ -52,6 +52,7 @@
+ import static org.logicng.datastructures.Tristate.FALSE;
+ import static org.logicng.datastructures.Tristate.TRUE;
+ import static org.logicng.datastructures.Tristate.UNDEF;
++import static org.logicng.handlers.Handler.aborted;
+ import static org.logicng.solvers.maxsat.algorithms.MaxSATConfig.Verbosity;
+ import static org.logicng.solvers.maxsat.algorithms.MaxSATConfig.WeightStrategy;
+ import static org.logicng.solvers.sat.MiniSatStyleSolver.not;
+@@ -60,6 +61,7 @@
+ import org.logicng.collections.LNGIntVector;
+ import org.logicng.collections.LNGVector;
+ import org.logicng.datastructures.Tristate;
++import org.logicng.handlers.SATHandler;
+ import org.logicng.solvers.sat.MiniSatStyleSolver;
+ import org.logicng.util.Pair;
+ 
+@@ -443,9 +445,11 @@
+     Tristate unsatSearch() {
+         assert this.assumptions.size() == 0;
+         this.solver = this.rebuildHardSolver();
+-        final Tristate res = searchSATSolver(this.solver, satHandler(), this.assumptions);
+-        satSolverFinished();
+-        if (res == FALSE) {
++        final SATHandler satHandler = satHandler();
++        final Tristate res = searchSATSolver(this.solver, satHandler, this.assumptions);
++        if (aborted(satHandler)) {
++            return UNDEF;
++        } else if (res == FALSE) {
+             this.nbCores++;
+         } else if (res == TRUE) {
+             this.nbSatisfiable++;
+@@ -473,9 +477,9 @@
+         this.updateCurrentWeight(this.weightStrategy);
+         this.solver = this.rebuildWeightSolver(this.weightStrategy);
+         while (true) {
+-            final Tristate res = searchSATSolver(this.solver, satHandler(), this.assumptions);
+-            satSolverFinished();
+-            if (res == UNDEF) {
++            final SATHandler satHandler = satHandler();
++            final Tristate res = searchSATSolver(this.solver, satHandler, this.assumptions);
++            if (aborted(satHandler)) {
+                 return MaxSATResult.UNDEF;
+             } else if (res == FALSE) {
+                 this.nbCores++;
+@@ -539,9 +543,9 @@
+         this.initAssumptions(this.assumptions);
+         this.solver = this.rebuildSolver();
+         while (true) {
+-            final Tristate res = searchSATSolver(this.solver, satHandler(), this.assumptions);
+-            satSolverFinished();
+-            if (res == UNDEF) {
++            final SATHandler satHandler = satHandler();
++            final Tristate res = searchSATSolver(this.solver, satHandler, this.assumptions);
++            if (aborted(satHandler)) {
+                 return MaxSATResult.UNDEF;
+             } else if (res == FALSE) {
+                 this.nbCores++;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/maxsat/algorithms/WMSU3.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/maxsat/algorithms/WMSU3.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/maxsat/algorithms/WMSU3.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/maxsat/algorithms/WMSU3.java	2024-09-08 01:36:07.693763624 +1000
+@@ -50,7 +50,7 @@
+ package org.logicng.solvers.maxsat.algorithms;
+ 
+ import static org.logicng.datastructures.Tristate.TRUE;
+-import static org.logicng.datastructures.Tristate.UNDEF;
++import static org.logicng.handlers.Handler.aborted;
+ import static org.logicng.solvers.maxsat.algorithms.MaxSATConfig.CardinalityEncoding;
+ import static org.logicng.solvers.maxsat.algorithms.MaxSATConfig.IncrementalStrategy;
+ import static org.logicng.solvers.maxsat.algorithms.MaxSATConfig.Verbosity;
+@@ -60,6 +60,7 @@
+ import org.logicng.collections.LNGIntVector;
+ import org.logicng.collections.LNGVector;
+ import org.logicng.datastructures.Tristate;
++import org.logicng.handlers.SATHandler;
+ import org.logicng.solvers.maxsat.encodings.Encoder;
+ import org.logicng.solvers.sat.MiniSatStyleSolver;
+ 
+@@ -179,9 +180,9 @@
+         final LNGIntVector fullObjFunction = new LNGIntVector();
+         final LNGIntVector fullCoeffsFunction = new LNGIntVector();
+         while (true) {
+-            res = searchSATSolver(this.solver, satHandler(), this.assumptions);
+-            satSolverFinished();
+-            if (res == UNDEF) {
++            final SATHandler satHandler = satHandler();
++            res = searchSATSolver(this.solver, satHandler, this.assumptions);
++            if (aborted(satHandler)) {
+                 return MaxSATResult.UNDEF;
+             } else if (res == TRUE) {
+                 this.nbSatisfiable++;
+@@ -274,9 +275,9 @@
+         }
+         this.assumptions.clear();
+         while (true) {
+-            res = searchSATSolver(this.solver, satHandler(), this.assumptions);
+-            satSolverFinished();
+-            if (res == UNDEF) {
++            final SATHandler satHandler = satHandler();
++            res = searchSATSolver(this.solver, satHandler, this.assumptions);
++            if (aborted(satHandler)) {
+                 return MaxSATResult.UNDEF;
+             } else if (res == TRUE) {
+                 this.nbSatisfiable++;
+@@ -374,9 +375,9 @@
+         bmoEncodings.push(e);
+         firstEncoding.push(true);
+         while (true) {
+-            res = searchSATSolver(this.solver, satHandler(), this.assumptions);
+-            satSolverFinished();
+-            if (res == UNDEF) {
++            final SATHandler satHandler = satHandler();
++            res = searchSATSolver(this.solver, satHandler, this.assumptions);
++            if (aborted(satHandler)) {
+                 return MaxSATResult.UNDEF;
+             } else if (res == TRUE) {
+                 this.nbSatisfiable++;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/MaxSATSolver.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/MaxSATSolver.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/MaxSATSolver.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/MaxSATSolver.java	2024-09-08 01:36:07.693763624 +1000
+@@ -182,6 +182,14 @@
+     }
+ 
+     /**
++     * Returns whether this solver can handle weighted instances or not.
++     * @return whether this solver can handle weighted instances or not
++     */
++    public boolean isWeighted() {
++        return this.algorithm == Algorithm.INC_WBO || this.algorithm == Algorithm.WMSU3 || this.algorithm == Algorithm.WBO;
++    }
++
++    /**
+      * Resets the solver.
+      * @throws IllegalArgumentException if the algorithm was unknown
+      */
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/sat/GlucoseSyrup.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/sat/GlucoseSyrup.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/sat/GlucoseSyrup.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/sat/GlucoseSyrup.java	2024-09-08 01:36:07.693763624 +1000
+@@ -77,6 +77,9 @@
+ 
+ package org.logicng.solvers.sat;
+ 
++import static org.logicng.handlers.Handler.start;
++import static org.logicng.handlers.SATHandler.finishSolving;
++
+ import org.logicng.collections.LNGBooleanVector;
+ import org.logicng.collections.LNGIntVector;
+ import org.logicng.collections.LNGVector;
+@@ -302,9 +305,7 @@
+             throw new IllegalStateException("Cannot use incremental and proof generation at the same time");
+         }
+         this.handler = handler;
+-        if (this.handler != null) {
+-            this.handler.started();
+-        }
++        start(handler);
+         this.model.clear();
+         this.conflict.clear();
+         if (!this.ok) {
+@@ -333,9 +334,7 @@
+         } else if (status == Tristate.FALSE && this.conflict.size() == 0) {
+             this.ok = false;
+         }
+-        if (this.handler != null) {
+-            this.handler.finishedSolving();
+-        }
++        finishSolving(handler);
+         cancelUntil(0);
+         this.handler = null;
+         this.canceledByHandler = false;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/sat/MiniCard.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/sat/MiniCard.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/sat/MiniCard.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/sat/MiniCard.java	2024-09-08 01:36:07.693763624 +1000
+@@ -50,6 +50,9 @@
+ 
+ package org.logicng.solvers.sat;
+ 
++import static org.logicng.handlers.Handler.start;
++import static org.logicng.handlers.SATHandler.finishSolving;
++
+ import org.logicng.collections.LNGBooleanVector;
+ import org.logicng.collections.LNGIntVector;
+ import org.logicng.collections.LNGVector;
+@@ -152,9 +155,7 @@
+     @Override
+     public Tristate solve(final SATHandler handler) {
+         this.handler = handler;
+-        if (this.handler != null) {
+-            this.handler.started();
+-        }
++        start(handler);
+         this.model.clear();
+         this.conflict.clear();
+         if (!this.ok) {
+@@ -178,9 +179,7 @@
+         } else if (status == Tristate.FALSE && this.conflict.empty()) {
+             this.ok = false;
+         }
+-        if (this.handler != null) {
+-            this.handler.finishedSolving();
+-        }
++        finishSolving(handler);
+         cancelUntil(0);
+         this.handler = null;
+         this.canceledByHandler = false;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/sat/MiniSat2Solver.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/sat/MiniSat2Solver.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/sat/MiniSat2Solver.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/sat/MiniSat2Solver.java	2024-09-08 01:36:07.693763624 +1000
+@@ -44,6 +44,9 @@
+ 
+ package org.logicng.solvers.sat;
+ 
++import static org.logicng.handlers.Handler.start;
++import static org.logicng.handlers.SATHandler.finishSolving;
++
+ import org.logicng.collections.LNGBooleanVector;
+ import org.logicng.collections.LNGIntVector;
+ import org.logicng.collections.LNGVector;
+@@ -194,9 +197,7 @@
+     @Override
+     public Tristate solve(final SATHandler handler) {
+         this.handler = handler;
+-        if (this.handler != null) {
+-            this.handler.started();
+-        }
++        start(handler);
+         this.model.clear();
+         this.conflict.clear();
+         if (!this.ok) {
+@@ -227,9 +228,7 @@
+         } else if (status == Tristate.FALSE && this.conflict.empty()) {
+             this.ok = false;
+         }
+-        if (this.handler != null) {
+-            this.handler.finishedSolving();
+-        }
++        finishSolving(handler);
+         cancelUntil(0);
+         this.handler = null;
+         this.canceledByHandler = false;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/sat/MiniSatStyleSolver.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/sat/MiniSatStyleSolver.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/sat/MiniSatStyleSolver.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/sat/MiniSatStyleSolver.java	2024-09-08 01:36:07.693763624 +1000
+@@ -45,6 +45,7 @@
+ package org.logicng.solvers.sat;
+ 
+ import static org.logicng.datastructures.Tristate.UNDEF;
++import static org.logicng.handlers.Handler.aborted;
+ 
+ import org.logicng.backbones.Backbone;
+ import org.logicng.backbones.BackboneType;
+@@ -73,7 +74,7 @@
+ 
+ /**
+  * The super class for all MiniSAT-style solvers.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 1.0
+  */
+ public abstract class MiniSatStyleSolver {
+@@ -821,12 +822,29 @@
+      * @return the backbone projected to the relevant variables or {@code null} if the formula on the solver with the restrictions are not satisfiable
+      */
+     public Backbone computeBackbone(final Collection<Variable> variables, final BackboneType type) {
+-        final boolean sat = solve(null) == Tristate.TRUE;
++        return computeBackbone(variables, type, null);
++    }
++
++    /**
++     * Computes the backbone of the given variables with respect to the formulas added to the solver.
++     * @param variables variables to test
++     * @param type      backbone type
++     * @param handler   the handler
++     * @return the backbone projected to the relevant variables or {@code null} if the formula on the solver with the restrictions are not satisfiable
++     */
++    public Backbone computeBackbone(final Collection<Variable> variables, final BackboneType type, final SATHandler handler) {
++        final boolean sat = solve(handler) == Tristate.TRUE;
++        if (aborted(handler)) {
++            return null;
++        }
+         if (sat) {
+             this.computingBackbone = true;
+             final List<Integer> relevantVarIndices = getRelevantVarIndices(variables);
+             initBackboneDS(relevantVarIndices);
+-            computeBackbone(relevantVarIndices, type);
++            computeBackbone(relevantVarIndices, type, handler);
++            if (aborted(handler)) {
++                return null;
++            }
+             final Backbone backbone = buildBackbone(variables, type);
+             this.computingBackbone = false;
+             return backbone;
+@@ -870,12 +888,17 @@
+      * Computes the backbone for the given variables.
+      * @param variables variables to test
+      * @param type      the type of the backbone
++     * @param handler   the handler
+      */
+-    protected void computeBackbone(final List<Integer> variables, final BackboneType type) {
++    protected void computeBackbone(final List<Integer> variables, final BackboneType type, final SATHandler handler) {
+         final Stack<Integer> candidates = createInitialCandidates(variables, type);
+         while (candidates.size() > 0) {
+             final int lit = candidates.pop();
+-            if (solveWithLit(lit)) {
++            final boolean sat = solveWithLit(lit, handler);
++            if (aborted(handler)) {
++                return;
++            }
++            if (sat) {
+                 refineUpperBound();
+             } else {
+                 addBackboneLiteral(lit);
+@@ -926,12 +949,13 @@
+ 
+     /**
+      * Tests the given literal with the formula on the solver for satisfiability.
+-     * @param lit literal to test
++     * @param lit     literal to test
++     * @param handler the handler
+      * @return {@code true} if satisfiable, otherwise {@code false}
+      */
+-    protected boolean solveWithLit(final int lit) {
++    protected boolean solveWithLit(final int lit, final SATHandler handler) {
+         this.backboneAssumptions.push(not(lit));
+-        final boolean sat = solve(null, this.backboneAssumptions) == Tristate.TRUE;
++        final boolean sat = solve(handler, this.backboneAssumptions) == Tristate.TRUE;
+         this.backboneAssumptions.pop();
+         return sat;
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/transformations/cnf/CNFFactorization.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/transformations/cnf/CNFFactorization.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/transformations/cnf/CNFFactorization.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/transformations/cnf/CNFFactorization.java	2024-09-08 01:36:07.693763624 +1000
+@@ -31,6 +31,7 @@
+ import static org.logicng.formulas.FType.AND;
+ import static org.logicng.formulas.FType.LITERAL;
+ import static org.logicng.formulas.cache.TransformationCacheEntry.FACTORIZED_CNF;
++import static org.logicng.handlers.Handler.start;
+ 
+ import org.logicng.formulas.Formula;
+ import org.logicng.formulas.FormulaFactory;
+@@ -69,9 +70,7 @@
+ 
+     @Override
+     public Formula apply(final Formula formula, final boolean cache) {
+-        if (this.handler != null) {
+-            this.handler.started();
+-        }
++        start(this.handler);
+         this.proceed = true;
+         return applyRec(formula, cache);
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/transformations/dnf/DNFFactorization.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/transformations/dnf/DNFFactorization.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/transformations/dnf/DNFFactorization.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/transformations/dnf/DNFFactorization.java	2024-09-08 01:36:07.693763624 +1000
+@@ -30,6 +30,7 @@
+ 
+ import static org.logicng.formulas.FType.LITERAL;
+ import static org.logicng.formulas.cache.TransformationCacheEntry.FACTORIZED_DNF;
++import static org.logicng.handlers.Handler.start;
+ 
+ import org.logicng.formulas.FType;
+ import org.logicng.formulas.Formula;
+@@ -68,15 +69,13 @@
+     }
+ 
+     @Override
+-    public Formula apply(Formula formula, boolean cache) {
+-        if (this.handler != null) {
+-            this.handler.started();
+-        }
++    public Formula apply(final Formula formula, final boolean cache) {
++        start(this.handler);
+         this.proceed = true;
+         return applyRec(formula, cache);
+     }
+ 
+-    private Formula applyRec(final Formula formula, boolean cache) {
++    private Formula applyRec(final Formula formula, final boolean cache) {
+         if (!this.proceed) {
+             return null;
+         }
+@@ -159,7 +158,7 @@
+             }
+             final Formula clause = f.and(f1, f2);
+             if (this.handler != null) {
+-                proceed = this.handler.createdClause(clause);
++                this.proceed = this.handler.createdClause(clause);
+             }
+             return clause;
+         }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/transformations/simplification/AdvancedSimplifier.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/transformations/simplification/AdvancedSimplifier.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/transformations/simplification/AdvancedSimplifier.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/transformations/simplification/AdvancedSimplifier.java	2024-09-08 01:36:07.693763624 +1000
+@@ -28,14 +28,20 @@
+ 
+ package org.logicng.transformations.simplification;
+ 
++import static org.logicng.handlers.Handler.aborted;
++import static org.logicng.handlers.Handler.start;
++import static org.logicng.handlers.OptimizationHandler.satHandler;
++
+ import org.logicng.backbones.Backbone;
+ import org.logicng.backbones.BackboneGeneration;
++import org.logicng.backbones.BackboneType;
+ import org.logicng.datastructures.Assignment;
+ import org.logicng.explanations.smus.SmusComputation;
+ import org.logicng.formulas.Formula;
+ import org.logicng.formulas.FormulaFactory;
+ import org.logicng.formulas.FormulaTransformation;
+ import org.logicng.formulas.Literal;
++import org.logicng.handlers.OptimizationHandler;
+ import org.logicng.primecomputation.PrimeCompiler;
+ import org.logicng.primecomputation.PrimeResult;
+ import org.logicng.util.FormulaHelper;
+@@ -61,33 +67,58 @@
+  *     <li>Factoring out: Applying the Distributive Law heuristically for a smaller formula</li>
+  *     <li>Minimizing negations: Applying De Morgan's Law heuristically for a smaller formula</li>
+  * </ul>
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 2.0.0
+  */
+ public final class AdvancedSimplifier implements FormulaTransformation {
+ 
+     private final RatingFunction<?> ratingFunction;
++    private final OptimizationHandler handler;
+ 
+     /**
+      * Constructs a new simplifier with the given rating functions.
+      * @param ratingFunction the rating function
+      */
+     public AdvancedSimplifier(final RatingFunction<?> ratingFunction) {
++        this(ratingFunction, null);
++    }
++
++    /**
++     * Constructs a new simplifier with the given handler and rating functions.
++     * <p>
++     * The simplifier can be called with an {@link OptimizationHandler}. The given handler instance will be used for every subsequent
++     * {@link org.logicng.solvers.functions.OptimizationFunction} call and the handler's SAT handler is used for every subsequent SAT call.
++     * @param ratingFunction the rating function
++     * @param handler        the handler, can be {@code null}
++     */
++    public AdvancedSimplifier(final RatingFunction<?> ratingFunction, final OptimizationHandler handler) {
++        this.handler = handler;
+         this.ratingFunction = ratingFunction;
+     }
+ 
+     @Override
+     public Formula apply(final Formula formula, final boolean cache) {
++        start(this.handler);
+         final FormulaFactory f = formula.factory();
+-        final Backbone backbone = BackboneGeneration.compute(formula, formula.variables());
++        final Backbone backbone = BackboneGeneration.compute(Collections.singletonList(formula), formula.variables(), BackboneType.POSITIVE_AND_NEGATIVE, satHandler(handler));
++        if (aborted(handler)) {
++            return null;
++        }
+         if (!backbone.isSat()) {
+             return f.falsum();
+         }
+         final SortedSet<Literal> backboneLiterals = backbone.getCompleteBackbone();
+         final Formula restrictedFormula = formula.restrict(new Assignment(backboneLiterals));
+-        final List<SortedSet<Literal>> primeImplicants = PrimeCompiler.getWithMinimization()
+-                .compute(restrictedFormula, PrimeResult.CoverageType.IMPLICANTS_COMPLETE).getPrimeImplicants();
+-        final List<Formula> minimizedPIs = SmusComputation.computeSmusForFormulas(negateAllLiterals(primeImplicants, f), Collections.singletonList(restrictedFormula), f);
++        final PrimeResult primeResult = PrimeCompiler.getWithMinimization().compute(restrictedFormula, PrimeResult.CoverageType.IMPLICANTS_COMPLETE, handler);
++        if (aborted(this.handler)) {
++            return null;
++        }
++        final List<SortedSet<Literal>> primeImplicants = primeResult.getPrimeImplicants();
++        final List<Formula> minimizedPIs = SmusComputation.computeSmusForFormulas(negateAllLiterals(primeImplicants, f),
++                Collections.singletonList(restrictedFormula), f, this.handler);
++        if (aborted(this.handler)) {
++            return null;
++        }
+         assert minimizedPIs != null : "The conjunction of a satisfiable formula and its negated prime implications is always a contradiction";
+         final Formula minDnf = f.or(negateAllLiteralsInFormulas(minimizedPIs, f).stream().map(f::and).collect(Collectors.toList()));
+         final Formula fullFactor = minDnf.transform(new FactorOutSimplifier(this.ratingFunction));
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/logicng/backbones/BackboneGenerationTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/backbones/BackboneGenerationTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/logicng/backbones/BackboneGenerationTest.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/backbones/BackboneGenerationTest.java	2024-09-08 01:36:07.693763624 +1000
+@@ -37,13 +37,17 @@
+ import org.logicng.formulas.FormulaFactory;
+ import org.logicng.formulas.Literal;
+ import org.logicng.formulas.Variable;
++import org.logicng.handlers.BoundedSatHandler;
++import org.logicng.handlers.SATHandler;
+ import org.logicng.io.parsers.ParserException;
++import org.logicng.io.readers.DimacsReader;
+ import org.logicng.io.readers.FormulaReader;
+ import org.logicng.solvers.MiniSat;
+ import org.logicng.solvers.SATSolver;
+ import org.logicng.solvers.SolverState;
+ import org.logicng.solvers.functions.BackboneFunction;
+ import org.logicng.solvers.sat.MiniSatConfig;
++import org.logicng.util.FormulaHelper;
+ 
+ import java.io.IOException;
+ import java.util.ArrayList;
+@@ -56,7 +60,7 @@
+ 
+ /**
+  * Unit tests for {@link BackboneGeneration}.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 1.5.0
+  */
+ public class BackboneGenerationTest {
+@@ -311,4 +315,18 @@
+             assertThat(solver.execute(BackboneFunction.builder().variables(formula.variables()).build())).isEqualTo(backbone);
+         }
+     }
++
++    @Test
++    public void testCancellationPoints() throws IOException {
++        final FormulaFactory f = new FormulaFactory();
++        final List<Formula> formulas = DimacsReader.readCNF("src/test/resources/sat/term1_gr_rcs_w4.shuffled.cnf", f);
++        for (int numStarts = 0; numStarts < 10; numStarts++) {
++            final SATHandler handler = new BoundedSatHandler(numStarts);
++
++            final Backbone result = BackboneGeneration.compute(formulas, FormulaHelper.variables(formulas), BackboneType.POSITIVE_AND_NEGATIVE, handler);
++
++            assertThat(handler.aborted()).isTrue();
++            assertThat(result).isNull();
++        }
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/logicng/explanations/mus/MUSGenerationTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/explanations/mus/MUSGenerationTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/logicng/explanations/mus/MUSGenerationTest.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/explanations/mus/MUSGenerationTest.java	2024-09-08 01:36:07.693763624 +1000
+@@ -37,6 +37,9 @@
+ import org.logicng.formulas.Formula;
+ import org.logicng.formulas.FormulaFactory;
+ import org.logicng.formulas.Literal;
++import org.logicng.handlers.BoundedSatHandler;
++import org.logicng.handlers.SATHandler;
++import org.logicng.io.readers.DimacsReader;
+ import org.logicng.propositions.StandardProposition;
+ import org.logicng.solvers.MiniSat;
+ import org.logicng.testutils.PigeonHoleGenerator;
+@@ -45,12 +48,14 @@
+ import java.io.FileReader;
+ import java.io.IOException;
+ import java.util.ArrayList;
++import java.util.Arrays;
+ import java.util.Collections;
+ import java.util.List;
++import java.util.stream.Collectors;
+ 
+ /**
+  * Unit tests for the class {@link MUSGeneration}.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 1.1
+  */
+ public class MUSGenerationTest {
+@@ -142,6 +147,43 @@
+     }
+ 
+     @Test
++    public void testDeletionBasedCancellationPoints() throws IOException {
++        final MUSGeneration mus = new MUSGeneration();
++        final List<StandardProposition> propositions = DimacsReader.readCNF("src/test/resources/sat/too_large_gr_rcs_w5.shuffled.cnf", f).stream()
++                .map(StandardProposition::new)
++                .collect(Collectors.toList());
++        for (int numStarts = 0; numStarts < 20; numStarts++) {
++            final SATHandler handler = new BoundedSatHandler(numStarts);
++            final MUSConfig config = MUSConfig.builder().handler(handler).algorithm(MUSConfig.Algorithm.PLAIN_INSERTION).build();
++
++            final UNSATCore<StandardProposition> result = mus.computeMUS(propositions, f, config);
++
++            assertThat(handler.aborted()).isTrue();
++            assertThat(result).isNull();
++        }
++    }
++
++    @Test
++    public void testCancellationPoints() throws IOException {
++        final MUSGeneration mus = new MUSGeneration();
++        final List<StandardProposition> propositions = DimacsReader.readCNF("src/test/resources/sat/unsat/bf0432-007.cnf", f).stream()
++                .map(StandardProposition::new)
++                .collect(Collectors.toList());
++        final List<MUSConfig.Algorithm> algorithms = Arrays.asList(MUSConfig.Algorithm.DELETION, MUSConfig.Algorithm.PLAIN_INSERTION);
++        for (final MUSConfig.Algorithm algorithm : algorithms) {
++            for (int numStarts = 0; numStarts < 10; numStarts++) {
++                final SATHandler handler = new BoundedSatHandler(numStarts);
++                final MUSConfig config = MUSConfig.builder().handler(handler).algorithm(algorithm).build();
++
++                final UNSATCore<StandardProposition> result = mus.computeMUS(propositions, f, config);
++
++                assertThat(handler.aborted()).isTrue();
++                assertThat(result).isNull();
++            }
++        }
++    }
++
++    @Test
+     public void testToString() {
+         final MUSGeneration mus = new MUSGeneration();
+         assertThat(mus.toString()).isEqualTo("MUSGeneration");
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/logicng/explanations/smus/SmusComputationTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/explanations/smus/SmusComputationTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/logicng/explanations/smus/SmusComputationTest.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/explanations/smus/SmusComputationTest.java	2024-09-08 01:36:07.693763624 +1000
+@@ -33,15 +33,21 @@
+ import org.junit.jupiter.api.Test;
+ import org.logicng.TestWithExampleFormulas;
+ import org.logicng.formulas.Formula;
++import org.logicng.handlers.BoundedOptimizationHandler;
++import org.logicng.handlers.OptimizationHandler;
++import org.logicng.handlers.TimeoutHandler;
++import org.logicng.handlers.TimeoutOptimizationHandler;
+ import org.logicng.io.parsers.ParserException;
++import org.logicng.io.readers.DimacsReader;
+ 
++import java.io.IOException;
+ import java.util.Arrays;
+ import java.util.Collections;
+ import java.util.List;
+ 
+ /**
+  * Unit Tests for the class {@link SmusComputation}.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 2.0.0
+  */
+ public class SmusComputationTest extends TestWithExampleFormulas {
+@@ -78,11 +84,32 @@
+         assertThat(result).containsExactlyInAnyOrder(this.f.parse("~n"), this.f.parse("~l"));
+     }
+ 
+-@Test public void testSatisfiable() throws ParserException {
+-  final List<Formula> input=Arrays.asList(this.f.parse("~s"),this.f.parse("s|~p"),this.f.parse("~p|m"),this.f.parse("~m|n"),this.f.parse("~n"),this.f.parse("~m|l"));
+-  final List<Formula> result=SmusComputation.computeSmusForFormulas(input,Collections.singletonList(this.f.parse("n|l")),this.f);
+-  assertThat(result).isNull();
+-}
++    @Test
++    public void testSatisfiable() throws ParserException {
++        final List<Formula> input = Arrays.asList(
++                this.f.parse("~s"),
++                this.f.parse("s|~p"),
++                this.f.parse("~p|m"),
++                this.f.parse("~m|n"),
++                this.f.parse("~n"),
++                this.f.parse("~m|l")
++        );
++        final List<Formula> result = SmusComputation.computeSmusForFormulas(input, Collections.singletonList(this.f.parse("n|l")), this.f);
++        assertThat(result).isNull();
++    }
++
++    @Test
++    public void testUnsatisfiableAdditionalConstraints() throws ParserException {
++        final List<Formula> input = Arrays.asList(
++                this.f.parse("~s"),
++                this.f.parse("s|~p"),
++                this.f.parse("~p|m"),
++                this.f.parse("~m|n"),
++                this.f.parse("~n|s")
++        );
++        final List<Formula> result = SmusComputation.computeSmusForFormulas(input, Arrays.asList(this.f.parse("~a&b"), this.f.parse("a|~b")), this.f);
++        assertThat(result).isEmpty();
++    }
+ 
+     @Test
+     public void testTrivialUnsatFormula() throws ParserException {
+@@ -194,4 +221,95 @@
+         final List<Formula> result = SmusComputation.computeSmusForFormulas(input, Collections.emptyList(), this.f);
+         assertThat(result).containsExactlyInAnyOrder(this.f.parse("x&~y"), this.f.parse("x=>y"));
+     }
++
++    @Test
++    public void testTimeoutHandlerSmall() throws ParserException {
++        final List<TimeoutOptimizationHandler> handlers = Arrays.asList(
++                new TimeoutOptimizationHandler(5_000L, TimeoutHandler.TimerType.SINGLE_TIMEOUT),
++                new TimeoutOptimizationHandler(5_000L, TimeoutHandler.TimerType.RESTARTING_TIMEOUT),
++                new TimeoutOptimizationHandler(System.currentTimeMillis() + 5_000L, TimeoutHandler.TimerType.FIXED_END)
++        );
++        final List<Formula> formulas = Arrays.asList(
++                this.f.parse("a"),
++                this.f.parse("~a")
++        );
++        for (final TimeoutOptimizationHandler handler : handlers) {
++            testHandler(handler, formulas, false);
++        }
++    }
++
++    @Test
++    public void testTimeoutHandlerLarge() throws ParserException {
++        final List<TimeoutOptimizationHandler> handlers = Arrays.asList(
++                new TimeoutOptimizationHandler(1L, TimeoutHandler.TimerType.SINGLE_TIMEOUT),
++                new TimeoutOptimizationHandler(1L, TimeoutHandler.TimerType.RESTARTING_TIMEOUT),
++                new TimeoutOptimizationHandler(System.currentTimeMillis() + 1L, TimeoutHandler.TimerType.FIXED_END)
++        );
++        final List<Formula> formulas = Arrays.asList(
++                this.f.parse("a"),
++                this.f.parse("~a|b"),
++                this.f.parse("~b|c"),
++                this.f.parse("~c|~a"),
++                this.f.parse("a1"),
++                this.f.parse("~a1|b1"),
++                this.f.parse("~b1|c1"),
++                this.f.parse("~c1|~a1"),
++                this.f.parse("a2"),
++                this.f.parse("~a2|b2"),
++                this.f.parse("~b2|c2"),
++                this.f.parse("~c2|~a2"),
++                this.f.parse("a3"),
++                this.f.parse("~a3|b3"),
++                this.f.parse("~b3|c3"),
++                this.f.parse("~c3|~a3"),
++                this.f.parse("a1|a2|a3|a4|b1|x|y"),
++                this.f.parse("x&~y"),
++                this.f.parse("x=>y")
++        );
++        for (final TimeoutOptimizationHandler handler : handlers) {
++            testHandler(handler, formulas, true);
++        }
++    }
++
++    @Test
++    public void testCancellationPoints() throws IOException {
++        final List<Formula> formulas = DimacsReader.readCNF("src/test/resources/sat/unsat/bf0432-007.cnf", this.f);
++        for (int numOptimizationStarts = 1; numOptimizationStarts < 5; numOptimizationStarts++) {
++            for (int numSatHandlerStarts = 1; numSatHandlerStarts < 10; numSatHandlerStarts++) {
++                final OptimizationHandler handler = new BoundedOptimizationHandler(numSatHandlerStarts, numOptimizationStarts);
++                testHandler(handler, formulas, true);
++            }
++        }
++    }
++
++    @Test
++    public void testMinimumHittingSetCancelled() throws ParserException {
++        final OptimizationHandler handler = new BoundedOptimizationHandler(-1, 0);
++        final List<Formula> formulas = Arrays.asList(
++                this.f.parse("a"),
++                this.f.parse("~a")
++        );
++        testHandler(handler, formulas, true);
++    }
++
++    @Test
++    public void testHSolverCancelled() throws ParserException {
++        final OptimizationHandler handler = new BoundedOptimizationHandler(-1, 3);
++        final List<Formula> formulas = Arrays.asList(
++                this.f.parse("a"),
++                this.f.parse("~a"),
++                this.f.parse("c")
++        );
++        testHandler(handler, formulas, true);
++    }
++
++    private void testHandler(final OptimizationHandler handler, final List<Formula> formulas, final boolean expAborted) {
++        final List<Formula> result = SmusComputation.computeSmusForFormulas(formulas, Collections.emptyList(), this.f, handler);
++        assertThat(handler.aborted()).isEqualTo(expAborted);
++        if (expAborted) {
++            assertThat(result).isNull();
++        } else {
++            assertThat(result).isNotNull();
++        }
++    }
+ }
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/handlers: BoundedOptimizationHandler.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/handlers: BoundedSatHandler.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/handlers: TimeoutBDDHandlerTest.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/handlers: TimeoutMaxSATHandlerTest.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/handlers: TimeoutModelEnumerationHandlerTest.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/handlers: TimeoutOptimizationHandlerTest.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/handlers: TimeoutSATHandlerTest.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/handlers: TimerTypeTest.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/logicng/primecomputation/PrimeCompilerTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/primecomputation/PrimeCompilerTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/logicng/primecomputation/PrimeCompilerTest.java	2024-09-08 01:36:07.781764240 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/primecomputation/PrimeCompilerTest.java	2024-09-08 01:36:07.697763652 +1000
+@@ -37,22 +37,28 @@
+ import org.logicng.formulas.Formula;
+ import org.logicng.formulas.FormulaFactory;
+ import org.logicng.formulas.Literal;
++import org.logicng.handlers.BoundedOptimizationHandler;
++import org.logicng.handlers.OptimizationHandler;
++import org.logicng.handlers.TimeoutHandler;
++import org.logicng.handlers.TimeoutOptimizationHandler;
+ import org.logicng.io.parsers.ParserException;
+ import org.logicng.predicates.satisfiability.TautologyPredicate;
+ import org.logicng.util.FormulaCornerCases;
+ import org.logicng.util.FormulaRandomizer;
+ import org.logicng.util.FormulaRandomizerConfig;
++import org.logicng.util.Pair;
+ 
+ import java.io.IOException;
+ import java.nio.file.Files;
+ import java.nio.file.Paths;
+ import java.util.ArrayList;
++import java.util.Arrays;
+ import java.util.List;
+ import java.util.SortedSet;
+ 
+ /**
+  * Unit Tests for the class {@link PrimeCompiler}.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 2.0.0
+  */
+ public class PrimeCompilerTest extends TestWithExampleFormulas {
+@@ -121,6 +127,65 @@
+                 });
+     }
+ 
++    @Test
++    public void testTimeoutHandlerSmall() throws ParserException {
++        final List<Pair<PrimeCompiler, PrimeResult.CoverageType>> compilers = Arrays.asList(
++                new Pair<>(PrimeCompiler.getWithMaximization(), PrimeResult.CoverageType.IMPLICANTS_COMPLETE),
++                new Pair<>(PrimeCompiler.getWithMaximization(), PrimeResult.CoverageType.IMPLICATES_COMPLETE),
++                new Pair<>(PrimeCompiler.getWithMinimization(), PrimeResult.CoverageType.IMPLICANTS_COMPLETE),
++                new Pair<>(PrimeCompiler.getWithMinimization(), PrimeResult.CoverageType.IMPLICATES_COMPLETE));
++        for (final Pair<PrimeCompiler, PrimeResult.CoverageType> compiler : compilers) {
++            final List<TimeoutOptimizationHandler> handlers = Arrays.asList(
++                    new TimeoutOptimizationHandler(5_000L, TimeoutHandler.TimerType.SINGLE_TIMEOUT),
++                    new TimeoutOptimizationHandler(5_000L, TimeoutHandler.TimerType.RESTARTING_TIMEOUT),
++                    new TimeoutOptimizationHandler(System.currentTimeMillis() + 5_000L, TimeoutHandler.TimerType.FIXED_END)
++            );
++            final Formula formula = f.parse("a & b | ~c & a");
++            for (final TimeoutOptimizationHandler handler : handlers) {
++                testHandler(handler, formula, compiler.first(), compiler.second(), false);
++            }
++        }
++    }
++
++    @Test
++    public void testTimeoutHandlerLarge() {
++        final List<Pair<PrimeCompiler, PrimeResult.CoverageType>> compilers = Arrays.asList(
++                new Pair<>(PrimeCompiler.getWithMaximization(), PrimeResult.CoverageType.IMPLICANTS_COMPLETE),
++                new Pair<>(PrimeCompiler.getWithMaximization(), PrimeResult.CoverageType.IMPLICATES_COMPLETE),
++                new Pair<>(PrimeCompiler.getWithMinimization(), PrimeResult.CoverageType.IMPLICANTS_COMPLETE),
++                new Pair<>(PrimeCompiler.getWithMinimization(), PrimeResult.CoverageType.IMPLICATES_COMPLETE));
++        for (final Pair<PrimeCompiler, PrimeResult.CoverageType> compiler : compilers) {
++            final List<TimeoutOptimizationHandler> handlers = Arrays.asList(
++                    new TimeoutOptimizationHandler(1L, TimeoutHandler.TimerType.SINGLE_TIMEOUT),
++                    new TimeoutOptimizationHandler(1L, TimeoutHandler.TimerType.RESTARTING_TIMEOUT),
++                    new TimeoutOptimizationHandler(System.currentTimeMillis() + 1L, TimeoutHandler.TimerType.FIXED_END)
++            );
++            final FormulaRandomizer random = new FormulaRandomizer(this.f, FormulaRandomizerConfig.builder().numVars(15).seed(42).build());
++            final Formula formula = random.formula(5);
++            for (final TimeoutOptimizationHandler handler : handlers) {
++                testHandler(handler, formula, compiler.first(), compiler.second(), true);
++            }
++        }
++    }
++
++    @Test
++    public void testCancellationPoints() throws IOException, ParserException {
++        final Formula formula = f.parse(Files.readAllLines(Paths.get("src/test/resources/formulas/simplify_formulas.txt")).get(0));
++        final List<Pair<PrimeCompiler, PrimeResult.CoverageType>> compilers = Arrays.asList(
++                new Pair<>(PrimeCompiler.getWithMaximization(), PrimeResult.CoverageType.IMPLICANTS_COMPLETE),
++                new Pair<>(PrimeCompiler.getWithMaximization(), PrimeResult.CoverageType.IMPLICATES_COMPLETE),
++                new Pair<>(PrimeCompiler.getWithMinimization(), PrimeResult.CoverageType.IMPLICANTS_COMPLETE),
++                new Pair<>(PrimeCompiler.getWithMinimization(), PrimeResult.CoverageType.IMPLICATES_COMPLETE));
++        for (final Pair<PrimeCompiler, PrimeResult.CoverageType> compiler : compilers) {
++            for (int numOptimizationStarts = 1; numOptimizationStarts < 5; numOptimizationStarts++) {
++                for (int numSatHandlerStarts = 1; numSatHandlerStarts < 10; numSatHandlerStarts++) {
++                    final OptimizationHandler handler = new BoundedOptimizationHandler(numSatHandlerStarts, numOptimizationStarts);
++                    testHandler(handler, formula, compiler.first(), compiler.second(), true);
++                }
++            }
++        }
++    }
++
+     private void computeAndVerify(final Formula formula) {
+         final PrimeResult resultImplicantsMax = PrimeCompiler.getWithMaximization().compute(formula, PrimeResult.CoverageType.IMPLICANTS_COMPLETE);
+         verify(resultImplicantsMax, formula);
+@@ -167,4 +232,15 @@
+                 .as("Conjunction of implicates should be equivalent to the original formula.")
+                 .isTrue();
+     }
++
++    private void testHandler(final OptimizationHandler handler, final Formula formula, final PrimeCompiler compiler, final PrimeResult.CoverageType coverageType,
++                             final boolean expAborted) {
++        final PrimeResult result = compiler.compute(formula, coverageType, handler);
++        assertThat(handler.aborted()).isEqualTo(expAborted);
++        if (expAborted) {
++            assertThat(result).isNull();
++        } else {
++            assertThat(result).isNotNull();
++        }
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/logicng/primecomputation/PrimeImplicantReductionTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/primecomputation/PrimeImplicantReductionTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/logicng/primecomputation/PrimeImplicantReductionTest.java	2024-09-08 01:36:07.781764240 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/primecomputation/PrimeImplicantReductionTest.java	2024-09-08 01:36:07.697763652 +1000
+@@ -37,6 +37,8 @@
+ import org.logicng.formulas.Formula;
+ import org.logicng.formulas.FormulaFactory;
+ import org.logicng.formulas.Literal;
++import org.logicng.handlers.BoundedSatHandler;
++import org.logicng.handlers.SATHandler;
+ import org.logicng.io.parsers.ParserException;
+ import org.logicng.io.readers.FormulaReader;
+ import org.logicng.solvers.MiniSat;
+@@ -54,7 +56,7 @@
+ 
+ /**
+  * Unit Tests for the class {@link NaivePrimeReduction}.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 2.0.0
+  */
+ public class PrimeImplicantReductionTest extends TestWithExampleFormulas {
+@@ -83,33 +85,6 @@
+                 .containsExactlyInAnyOrder(this.C);
+     }
+ 
+-    private void testFormula(final Formula formula) {
+-        final FormulaFactory f = formula.factory();
+-        final MiniSat solver = MiniSat.miniSat(f);
+-        solver.add(formula);
+-        final boolean isSAT = solver.sat() == Tristate.TRUE;
+-        if (!isSAT) {
+-            return;
+-        }
+-        final SortedSet<Literal> model = solver.model().literals();
+-        final NaivePrimeReduction naive = new NaivePrimeReduction(formula);
+-        final SortedSet<Literal> primeImplicant = naive.reduceImplicant(model);
+-        assertThat(model).containsAll(primeImplicant);
+-        testPrimeImplicantProperty(formula, primeImplicant);
+-    }
+-
+-    public static void testPrimeImplicantProperty(final Formula formula, final SortedSet<Literal> primeImplicant) {
+-        final FormulaFactory f = formula.factory();
+-        final MiniSat solver = MiniSat.miniSat(f);
+-        solver.add(formula.negate());
+-        assertThat(solver.sat(primeImplicant)).isEqualTo(Tristate.FALSE);
+-        for (final Literal lit : primeImplicant) {
+-            final SortedSet<Literal> reducedPrimeImplicant = new TreeSet<>(primeImplicant);
+-            reducedPrimeImplicant.remove(lit);
+-            assertThat(solver.sat(reducedPrimeImplicant)).isEqualTo(Tristate.TRUE);
+-        }
+-    }
+-
+     @Test
+     public void testFormula1() throws IOException, ParserException {
+         final Formula formula = FormulaReader.readPseudoBooleanFormula("src/test/resources/formulas/formula1.txt", this.f);
+@@ -153,4 +128,49 @@
+             testFormula(formula);
+         }
+     }
++
++    @Test
++    public void testCancellationPoints() throws ParserException, IOException {
++        final Formula formula = FormulaReader.readPseudoBooleanFormula("src/test/resources/formulas/large_formula.txt", this.f);
++        for (int numStarts = 0; numStarts < 20; numStarts++) {
++            final SATHandler handler = new BoundedSatHandler(numStarts);
++            testFormula(formula, handler, true);
++        }
++    }
++
++    private void testFormula(final Formula formula) {
++        testFormula(formula, null, false);
++    }
++
++    private void testFormula(final Formula formula, final SATHandler handler, final boolean expAborted) {
++        final FormulaFactory f = formula.factory();
++        final MiniSat solver = MiniSat.miniSat(f);
++        solver.add(formula);
++        final boolean isSAT = solver.sat() == Tristate.TRUE;
++        if (!isSAT) {
++            return;
++        }
++        final SortedSet<Literal> model = solver.model().literals();
++        final NaivePrimeReduction naive = new NaivePrimeReduction(formula);
++        final SortedSet<Literal> primeImplicant = naive.reduceImplicant(model, handler);
++        if (expAborted) {
++            assertThat(handler.aborted()).isTrue();
++            assertThat(primeImplicant).isNull();
++        } else {
++            assertThat(model).containsAll(primeImplicant);
++            testPrimeImplicantProperty(formula, primeImplicant);
++        }
++    }
++
++    public static void testPrimeImplicantProperty(final Formula formula, final SortedSet<Literal> primeImplicant) {
++        final FormulaFactory f = formula.factory();
++        final MiniSat solver = MiniSat.miniSat(f);
++        solver.add(formula.negate());
++        assertThat(solver.sat(primeImplicant)).isEqualTo(Tristate.FALSE);
++        for (final Literal lit : primeImplicant) {
++            final SortedSet<Literal> reducedPrimeImplicant = new TreeSet<>(primeImplicant);
++            reducedPrimeImplicant.remove(lit);
++            assertThat(solver.sat(reducedPrimeImplicant)).isEqualTo(Tristate.TRUE);
++        }
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/logicng/primecomputation/PrimeImplicateReductionTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/primecomputation/PrimeImplicateReductionTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/logicng/primecomputation/PrimeImplicateReductionTest.java	2024-09-08 01:36:07.781764240 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/primecomputation/PrimeImplicateReductionTest.java	2024-09-08 01:36:07.697763652 +1000
+@@ -37,6 +37,8 @@
+ import org.logicng.formulas.Formula;
+ import org.logicng.formulas.FormulaFactory;
+ import org.logicng.formulas.Literal;
++import org.logicng.handlers.BoundedSatHandler;
++import org.logicng.handlers.SATHandler;
+ import org.logicng.io.parsers.ParserException;
+ import org.logicng.io.readers.FormulaReader;
+ import org.logicng.solvers.MiniSat;
+@@ -55,7 +57,7 @@
+ 
+ /**
+  * Unit Tests for the class {@link NaivePrimeReduction}.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 2.0.0
+  */
+ public class PrimeImplicateReductionTest extends TestWithExampleFormulas {
+@@ -75,34 +77,6 @@
+                 .containsAnyOf(this.B, this.C).hasSize(1);
+     }
+ 
+-    private void testFormula(final Formula formula) {
+-        final FormulaFactory f = formula.factory();
+-        final MiniSat solver = MiniSat.miniSat(f);
+-        solver.add(formula.negate());
+-        final boolean isSAT = solver.sat() == Tristate.TRUE;
+-        if (!isSAT) {
+-            return;
+-        }
+-        final SortedSet<Literal> falsifyingAssignment = FormulaHelper.negateLiterals(solver.model().literals(), TreeSet::new);
+-        final NaivePrimeReduction naive = new NaivePrimeReduction(formula);
+-        final SortedSet<Literal> primeImplicate = naive.reduceImplicate(falsifyingAssignment);
+-        assertThat(falsifyingAssignment).containsAll(primeImplicate);
+-        testPrimeImplicateProperty(formula, primeImplicate);
+-    }
+-
+-    public static void testPrimeImplicateProperty(final Formula formula, final SortedSet<Literal> primeImplicate) {
+-        final FormulaFactory f = formula.factory();
+-        final MiniSat solver = MiniSat.miniSat(f);
+-        solver.add(formula);
+-        final SortedSet<Literal> negatedLiterals = FormulaHelper.negateLiterals(primeImplicate, TreeSet::new);
+-        assertThat(solver.sat(negatedLiterals)).isEqualTo(Tristate.FALSE);
+-        for (final Literal lit : negatedLiterals) {
+-            final SortedSet<Literal> reducedNegatedLiterals = new TreeSet<>(negatedLiterals);
+-            reducedNegatedLiterals.remove(lit);
+-            assertThat(solver.sat(reducedNegatedLiterals)).isEqualTo(Tristate.TRUE);
+-        }
+-    }
+-
+     @Test
+     public void testFormula1() throws IOException, ParserException {
+         final Formula formula = FormulaReader.readPseudoBooleanFormula("src/test/resources/formulas/formula1.txt", this.f);
+@@ -146,4 +120,50 @@
+             testFormula(formula);
+         }
+     }
++
++    @Test
++    public void testCancellationPoints() throws ParserException, IOException {
++        final Formula formula = FormulaReader.readPseudoBooleanFormula("src/test/resources/formulas/large_formula.txt", this.f);
++        for (int numStarts = 0; numStarts < 20; numStarts++) {
++            final SATHandler handler = new BoundedSatHandler(numStarts);
++            testFormula(formula, handler, true);
++        }
++    }
++
++    private void testFormula(final Formula formula) {
++        testFormula(formula, null, false);
++    }
++
++    private void testFormula(final Formula formula, final SATHandler handler, final boolean expAborted) {
++        final FormulaFactory f = formula.factory();
++        final MiniSat solver = MiniSat.miniSat(f);
++        solver.add(formula.negate());
++        final boolean isSAT = solver.sat() == Tristate.TRUE;
++        if (!isSAT) {
++            return;
++        }
++        final SortedSet<Literal> falsifyingAssignment = FormulaHelper.negateLiterals(solver.model().literals(), TreeSet::new);
++        final NaivePrimeReduction naive = new NaivePrimeReduction(formula);
++        final SortedSet<Literal> primeImplicate = naive.reduceImplicate(falsifyingAssignment, handler);
++        if (expAborted) {
++            assertThat(handler.aborted()).isTrue();
++            assertThat(primeImplicate).isNull();
++        } else {
++            assertThat(falsifyingAssignment).containsAll(primeImplicate);
++            testPrimeImplicateProperty(formula, primeImplicate);
++        }
++    }
++
++    public static void testPrimeImplicateProperty(final Formula formula, final SortedSet<Literal> primeImplicate) {
++        final FormulaFactory f = formula.factory();
++        final MiniSat solver = MiniSat.miniSat(f);
++        solver.add(formula);
++        final SortedSet<Literal> negatedLiterals = FormulaHelper.negateLiterals(primeImplicate, TreeSet::new);
++        assertThat(solver.sat(negatedLiterals)).isEqualTo(Tristate.FALSE);
++        for (final Literal lit : negatedLiterals) {
++            final SortedSet<Literal> reducedNegatedLiterals = new TreeSet<>(negatedLiterals);
++            reducedNegatedLiterals.remove(lit);
++            assertThat(solver.sat(reducedNegatedLiterals)).isEqualTo(Tristate.TRUE);
++        }
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/logicng/solvers/functions/OptimizationFunctionTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/solvers/functions/OptimizationFunctionTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/logicng/solvers/functions/OptimizationFunctionTest.java	2024-09-08 01:36:07.781764240 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/solvers/functions/OptimizationFunctionTest.java	2024-09-08 01:36:07.697763652 +1000
+@@ -45,8 +45,13 @@
+ import org.logicng.formulas.FormulaFactoryConfig;
+ import org.logicng.formulas.Literal;
+ import org.logicng.formulas.Variable;
++import org.logicng.handlers.BoundedOptimizationHandler;
++import org.logicng.handlers.OptimizationHandler;
++import org.logicng.handlers.SATHandler;
++import org.logicng.handlers.TimeoutOptimizationHandler;
+ import org.logicng.io.parsers.ParserException;
+ import org.logicng.io.parsers.PseudoBooleanParser;
++import org.logicng.io.readers.DimacsReader;
+ import org.logicng.io.readers.FormulaReader;
+ import org.logicng.predicates.satisfiability.SATPredicate;
+ import org.logicng.solvers.MaxSATSolver;
+@@ -71,6 +76,7 @@
+ import java.util.Set;
+ import java.util.SortedSet;
+ import java.util.TreeSet;
++import java.util.function.Supplier;
+ 
+ /**
+  * Unit tests for {@link OptimizationFunction}.
+@@ -98,9 +104,9 @@
+     @MethodSource("solvers")
+     public void testUnsatFormula(final SATSolver solver) throws ParserException {
+         final Formula formula = solver.factory().parse("a & b & (a => ~b)");
+-        final Assignment minimumModel = optimize(Collections.singleton(formula), formula.variables(), Collections.emptyList(), false, solver);
++        final Assignment minimumModel = optimize(Collections.singleton(formula), formula.variables(), Collections.emptyList(), false, solver, null);
+         assertThat(minimumModel).isNull();
+-        final Assignment maximumModel = optimize(Collections.singleton(formula), formula.variables(), Collections.emptyList(), true, solver);
++        final Assignment maximumModel = optimize(Collections.singleton(formula), formula.variables(), Collections.emptyList(), true, solver, null);
+         assertThat(maximumModel).isNull();
+     }
+ 
+@@ -108,9 +114,9 @@
+     @MethodSource("solvers")
+     public void testSingleModel(final SATSolver solver) throws ParserException {
+         final Formula formula = solver.factory().parse("~a & ~b & ~c");
+-        final Assignment minimumModel = optimize(Collections.singleton(formula), formula.variables(), Collections.emptyList(), false, solver);
++        final Assignment minimumModel = optimize(Collections.singleton(formula), formula.variables(), Collections.emptyList(), false, solver, null);
+         testMinimumModel(formula, minimumModel, formula.variables());
+-        final Assignment maximumModel = optimize(Collections.singleton(formula), formula.variables(), Collections.emptyList(), true, solver);
++        final Assignment maximumModel = optimize(Collections.singleton(formula), formula.variables(), Collections.emptyList(), true, solver, null);
+         testMaximumModel(formula, maximumModel, formula.variables());
+     }
+ 
+@@ -119,9 +125,9 @@
+     public void testExoModel(final SATSolver solver) {
+         final FormulaFactory f = solver.factory();
+         final CardinalityConstraint exo = (CardinalityConstraint) f.exo(f.variable("a"), f.variable("b"), f.variable("c"));
+-        final Assignment minimumModel = optimize(Collections.singleton(exo), exo.variables(), Collections.emptyList(), false, solver);
++        final Assignment minimumModel = optimize(Collections.singleton(exo), exo.variables(), Collections.emptyList(), false, solver, null);
+         testMinimumModel(exo, minimumModel, exo.variables());
+-        final Assignment maximumModel = optimize(Collections.singleton(exo), exo.variables(), Collections.emptyList(), true, solver);
++        final Assignment maximumModel = optimize(Collections.singleton(exo), exo.variables(), Collections.emptyList(), true, solver, null);
+         testMaximumModel(exo, maximumModel, exo.variables());
+     }
+ 
+@@ -132,10 +138,10 @@
+         for (final Formula formula : cornerCases.cornerCases()) {
+             final Set<Variable> targetLiterals = cornerCases.getVariables();
+ 
+-            final Assignment minimumModel = optimize(Collections.singleton(formula), targetLiterals, Collections.emptySet(), false, solver);
++            final Assignment minimumModel = optimize(Collections.singleton(formula), targetLiterals, Collections.emptySet(), false, solver, null);
+             testMinimumModel(formula, minimumModel, targetLiterals);
+ 
+-            final Assignment maximumModel = optimize(Collections.singleton(formula), targetLiterals, Collections.emptySet(), true, solver);
++            final Assignment maximumModel = optimize(Collections.singleton(formula), targetLiterals, Collections.emptySet(), true, solver, null);
+             testMaximumModel(formula, maximumModel, targetLiterals);
+         }
+     }
+@@ -154,10 +160,10 @@
+             final Set<Literal> targetLiterals = randomTargetLiterals(random, randomSubset(random, variables, Math.min(variables.size(), 5)), f);
+             final Set<Variable> additionalVariables = randomSubset(random, variables, Math.min(variables.size(), 3));
+ 
+-            final Assignment minimumModel = optimize(Collections.singleton(formula), targetLiterals, additionalVariables, false, solver);
++            final Assignment minimumModel = optimize(Collections.singleton(formula), targetLiterals, additionalVariables, false, solver, null);
+             testMinimumModel(formula, minimumModel, targetLiterals);
+ 
+-            final Assignment maximumModel = optimize(Collections.singleton(formula), targetLiterals, additionalVariables, true, solver);
++            final Assignment maximumModel = optimize(Collections.singleton(formula), targetLiterals, additionalVariables, true, solver, null);
+             testMaximumModel(formula, maximumModel, targetLiterals);
+         }
+     }
+@@ -248,19 +254,19 @@
+         final Formula formula = f.parse("(a|b) & (~a => c) & (x|y)");
+ 
+         final List<Literal> literalsANBX = Arrays.asList(a, nb, x);
+-        final Assignment minimumModel = optimize(Collections.singleton(formula), literalsANBX, Collections.emptyList(), false, solver);
++        final Assignment minimumModel = optimize(Collections.singleton(formula), literalsANBX, Collections.emptyList(), false, solver, null);
+         assertThat(minimumModel.literals()).containsExactlyInAnyOrder(na, b, nx);
+-        final Assignment minimumModelWithY = optimize(Collections.singleton(formula), literalsANBX, Collections.singleton(y), false, solver);
++        final Assignment minimumModelWithY = optimize(Collections.singleton(formula), literalsANBX, Collections.singleton(y), false, solver, null);
+         assertThat(minimumModelWithY.literals()).containsExactlyInAnyOrder(na, b, nx, y);
+-        final Assignment minimumModelWithCY = optimize(Collections.singleton(formula), literalsANBX, Arrays.asList(c, y), false, solver);
++        final Assignment minimumModelWithCY = optimize(Collections.singleton(formula), literalsANBX, Arrays.asList(c, y), false, solver, null);
+         assertThat(minimumModelWithCY.literals()).containsExactlyInAnyOrder(na, b, c, nx, y);
+ 
+         final List<Literal> literalsNBNX = Arrays.asList(na, nx);
+-        final Assignment maximumModel = optimize(Collections.singleton(formula), literalsNBNX, Collections.emptyList(), true, solver);
++        final Assignment maximumModel = optimize(Collections.singleton(formula), literalsNBNX, Collections.emptyList(), true, solver, null);
+         assertThat(maximumModel.literals()).containsExactlyInAnyOrder(na, nx);
+-        final Assignment maximumModelWithC = optimize(Collections.singleton(formula), literalsNBNX, Collections.singleton(c), true, solver);
++        final Assignment maximumModelWithC = optimize(Collections.singleton(formula), literalsNBNX, Collections.singleton(c), true, solver, null);
+         assertThat(maximumModelWithC.literals()).containsExactlyInAnyOrder(na, c, nx);
+-        final Assignment maximumModelWithACY = optimize(Collections.singleton(formula), literalsNBNX, Arrays.asList(a, c, y), true, solver);
++        final Assignment maximumModelWithACY = optimize(Collections.singleton(formula), literalsNBNX, Arrays.asList(a, c, y), true, solver, null);
+         assertThat(maximumModelWithACY.literals()).containsExactlyInAnyOrder(na, c, nx, y);
+     }
+ 
+@@ -269,7 +275,7 @@
+     public void testLargeFormulaMinimize(final SATSolver solver) throws IOException, ParserException {
+         final FormulaFactory f = new FormulaFactory(FormulaFactoryConfig.builder().formulaMergeStrategy(FormulaFactoryConfig.FormulaMergeStrategy.IMPORT).build());
+         final Formula formula = FormulaReader.readPseudoBooleanFormula("src/test/resources/formulas/large_formula.txt", f);
+-        final Assignment minimumModel = optimize(Collections.singleton(formula), formula.variables(), Collections.emptyList(), false, solver);
++        final Assignment minimumModel = optimize(Collections.singleton(formula), formula.variables(), Collections.emptyList(), false, solver, null);
+         testMinimumModel(formula, minimumModel, formula.variables());
+     }
+ 
+@@ -278,7 +284,7 @@
+     public void testLargeFormulaMaximize(final SATSolver solver) throws IOException, ParserException {
+         final FormulaFactory f = new FormulaFactory(FormulaFactoryConfig.builder().formulaMergeStrategy(FormulaFactoryConfig.FormulaMergeStrategy.IMPORT).build());
+         final Formula formula = FormulaReader.readPseudoBooleanFormula("src/test/resources/formulas/large_formula.txt", f);
+-        final Assignment maximumModel = optimize(Collections.singleton(formula), formula.variables(), Collections.emptyList(), true, solver);
++        final Assignment maximumModel = optimize(Collections.singleton(formula), formula.variables(), Collections.emptyList(), true, solver, null);
+         testMaximumModel(formula, maximumModel, formula.variables());
+     }
+ 
+@@ -288,7 +294,7 @@
+     public void testLargerFormulaMinimize(final SATSolver solver) throws IOException, ParserException {
+         final FormulaFactory f = new FormulaFactory(FormulaFactoryConfig.builder().formulaMergeStrategy(FormulaFactoryConfig.FormulaMergeStrategy.IMPORT).build());
+         final Formula formula = FormulaReader.readPseudoBooleanFormula("src/test/resources/formulas/small_formulas.txt", f);
+-        final Assignment minimumModel = optimize(Collections.singleton(formula), formula.variables(), Collections.emptyList(), false, solver);
++        final Assignment minimumModel = optimize(Collections.singleton(formula), formula.variables(), Collections.emptyList(), false, solver, null);
+         testMinimumModel(formula, minimumModel, formula.variables());
+     }
+ 
+@@ -298,7 +304,7 @@
+     public void testLargerFormulaMaximize(final SATSolver solver) throws IOException, ParserException {
+         final FormulaFactory f = new FormulaFactory(FormulaFactoryConfig.builder().formulaMergeStrategy(FormulaFactoryConfig.FormulaMergeStrategy.IMPORT).build());
+         final Formula formula = FormulaReader.readPseudoBooleanFormula("src/test/resources/formulas/small_formulas.txt", f);
+-        final Assignment maximumModel = optimize(Collections.singleton(formula), formula.variables(), Collections.emptyList(), true, solver);
++        final Assignment maximumModel = optimize(Collections.singleton(formula), formula.variables(), Collections.emptyList(), true, solver, null);
+         testMaximumModel(formula, maximumModel, formula.variables());
+     }
+ 
+@@ -320,9 +326,62 @@
+         assertThat(solveMaxSat(formulas, variables, MaxSATSolver.linearUS())).isEqualTo(expected);
+         assertThat(solveMaxSat(formulas, variables, MaxSATSolver.msu3())).isEqualTo(expected);
+         assertThat(solveMaxSat(formulas, variables, MaxSATSolver.wbo())).isEqualTo(expected);
+-        assertThat(satisfiedLiterals(optimize(formulas, variables, Collections.emptyList(), false, MiniSat.miniSat(f)), variables).size()).isEqualTo(expected);
+-        assertThat(satisfiedLiterals(optimize(formulas, variables, Collections.emptyList(), false, MiniSat.miniCard(f)), variables).size()).isEqualTo(expected);
+-        assertThat(satisfiedLiterals(optimize(formulas, variables, Collections.emptyList(), false, MiniSat.glucose(f)), variables).size()).isEqualTo(expected);
++        assertThat(satisfiedLiterals(optimize(formulas, variables, Collections.emptyList(), false, MiniSat.miniSat(f), null), variables).size()).isEqualTo(expected);
++        assertThat(satisfiedLiterals(optimize(formulas, variables, Collections.emptyList(), false, MiniSat.miniCard(f), null), variables).size()).isEqualTo(expected);
++        assertThat(satisfiedLiterals(optimize(formulas, variables, Collections.emptyList(), false, MiniSat.glucose(f), null), variables).size()).isEqualTo(expected);
++    }
++
++    @ParameterizedTest
++    @MethodSource("solvers")
++    public void testTimeoutOptimizationHandler(final SATSolver solver) throws IOException, ParserException {
++        final FormulaFactory f = new FormulaFactory(FormulaFactoryConfig.builder().formulaMergeStrategy(FormulaFactoryConfig.FormulaMergeStrategy.IMPORT).build());
++        final Formula formula = FormulaReader.readPseudoBooleanFormula("src/test/resources/formulas/large_formula.txt", f);
++        final TimeoutOptimizationHandler handlerMax = new TimeoutOptimizationHandler(1000L);
++        final Assignment maximumModel = optimize(Collections.singleton(formula), formula.variables(), Collections.emptyList(), true, solver, handlerMax);
++        assertThat(maximumModel).isNull();
++        assertThat(handlerMax.aborted()).isTrue();
++        assertThat(handlerMax.getIntermediateResult()).isNotNull();
++
++        final TimeoutOptimizationHandler handlerTooShort = new TimeoutOptimizationHandler(1L);
++        final Assignment model = optimize(Collections.singleton(formula), formula.variables(), Collections.emptyList(), false, solver, handlerTooShort);
++        assertThat(model).isNull();
++        assertThat(handlerTooShort.aborted()).isTrue();
++        assertThat(handlerTooShort.getIntermediateResult()).isNull(); // SATHandler aborted before a model could be computed
++
++        final CustomOptimizationHandler customHandler = new CustomOptimizationHandler();
++        final Assignment modelCustom = optimize(Collections.singleton(formula), formula.variables(), Collections.emptyList(), true, solver, customHandler);
++        assertThat(modelCustom).isNull();
++        assertThat(customHandler.aborted()).isTrue();
++        assertThat(customHandler.currentResult).isNotNull();
++    }
++
++    @LongRunningTag
++    @ParameterizedTest
++    @MethodSource("solvers")
++    public void testCancellationPoints(final SATSolver solver) throws IOException {
++        final FormulaFactory f = new FormulaFactory();
++        final SortedSet<Variable> selVars = new TreeSet<>();
++        final List<Formula> clauses = DimacsReader.readCNF("src/test/resources/sat/c499_gr_rcs_w6.shuffled.cnf", f);
++        final List<Formula> formulas = new ArrayList<>();
++        for (final Formula clause : clauses) {
++            final Variable selVar = f.variable("@SEL_" + selVars.size());
++            selVars.add(selVar);
++            formulas.add(f.equivalence(selVar, clause));
++        }
++        for (int numSatHandlerStarts = 1; numSatHandlerStarts < 5; numSatHandlerStarts++) {
++            solver.reset();
++            solver.add(formulas);
++            final OptimizationHandler handler = new BoundedOptimizationHandler(numSatHandlerStarts, -1);
++            final OptimizationFunction optimizationFunction = OptimizationFunction.builder()
++                    .handler(handler)
++                    .literals(selVars)
++                    .maximize().build();
++
++            final Assignment result = solver.execute(optimizationFunction);
++
++            assertThat(handler.aborted()).isTrue();
++            assertThat(result).isNull();
++        }
+     }
+ 
+     private int solveMaxSat(final List<Formula> formulas, final SortedSet<Variable> variables, final MaxSATSolver solver) {
+@@ -338,15 +397,16 @@
+     }
+ 
+     private static Assignment optimize(final Collection<Formula> formulas, final Collection<? extends Literal> literals,
+-                                       final Collection<Variable> additionalVariables, final boolean maximize, final SATSolver solver) {
++                                       final Collection<Variable> additionalVariables, final boolean maximize, final SATSolver solver,
++                                       final OptimizationHandler handler) {
+         solver.reset();
+         formulas.forEach(solver::add);
+         if (maximize) {
+             return solver.execute(OptimizationFunction.builder().maximize().literals(literals)
+-                    .additionalVariables(additionalVariables).build());
++                    .additionalVariables(additionalVariables).handler(handler).build());
+         } else {
+             return solver.execute(OptimizationFunction.builder().minimize().literals(literals)
+-                    .additionalVariables(additionalVariables).build());
++                    .additionalVariables(additionalVariables).handler(handler).build());
+         }
+     }
+ 
+@@ -381,4 +441,26 @@
+             assertThat(optimumModel).isNull();
+         }
+     }
++
++    private static class CustomOptimizationHandler implements OptimizationHandler {
++        public Assignment currentResult;
++        private boolean aborted;
++
++        @Override
++        public SATHandler satHandler() {
++            return null;
++        }
++
++        @Override
++        public boolean aborted() {
++            return this.aborted;
++        }
++
++        @Override
++        public boolean foundBetterBound(final Supplier<Assignment> currentResultProvider) {
++            this.currentResult = currentResultProvider.get();
++            this.aborted = this.currentResult.positiveVariables().size() >= 161;
++            return !this.aborted;
++        }
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/logicng/solvers/maxsat/PartialMaxSATTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/solvers/maxsat/PartialMaxSATTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/logicng/solvers/maxsat/PartialMaxSATTest.java	2024-09-08 01:36:07.781764240 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/solvers/maxsat/PartialMaxSATTest.java	2024-09-08 01:36:07.697763652 +1000
+@@ -274,7 +274,7 @@
+     public void testTimeoutHandlerUB() throws IOException {
+         final MaxSATSolver solver = MaxSATSolver.linearSU(MaxSATConfig.builder().verbosity(SOME).output(this.logStream).build());
+         readCNF(solver, "src/test/resources/partialmaxsat/c1355_F1229gat@1.wcnf");
+-        final TimeoutMaxSATHandler handler = new TimeoutMaxSATHandler(5000);
++        final TimeoutMaxSATHandler handler = new TimeoutMaxSATHandler(5000L);
+         final MaxSAT.MaxSATResult result = solver.solve(handler);
+         assertThat(handler.aborted()).isFalse();
+         assertThat(result).isEqualTo(MaxSAT.MaxSATResult.OPTIMUM);
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/logicng/solvers/sat/SATTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/solvers/sat/SATTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/logicng/solvers/sat/SATTest.java	2024-09-08 01:36:07.781764240 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/solvers/sat/SATTest.java	2024-09-08 01:36:07.697763652 +1000
+@@ -324,12 +324,6 @@
+                         this.aborted = assignment.negativeLiterals().isEmpty();
+                         return !this.aborted;
+                     }
+-
+-                    @Override
+-                    public boolean satSolverFinished() {
+-                        // nothing to do here
+-                        return true;
+-                    }
+                 };
+                 final List<Assignment> models = s.execute(ModelEnumerationFunction.builder().handler(handler).build());
+                 assertThat(models.isEmpty()).isFalse();
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/logicng/transformations/simplification: AdvancedSimplifierTest.java
+Only in ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/logicng/transformations/simplification: SimplifierTest.java

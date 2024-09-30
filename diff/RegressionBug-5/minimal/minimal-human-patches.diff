@@ -1,0 +1,14 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/hudson/tasks/junit/CaseResult.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/hudson/tasks/junit/CaseResult.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/hudson/tasks/junit/CaseResult.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/hudson/tasks/junit/CaseResult.java
+@@ -320,9 +320,9 @@
+      */
+     @Exported(visibility=999)
+     public @Override String getName() {
+-    	if (testName.isEmpty()) {
++       if (StringUtils.isEmpty(testName)) {
+            return "(?)";
+        }
+         return testName;
+     }
+ 

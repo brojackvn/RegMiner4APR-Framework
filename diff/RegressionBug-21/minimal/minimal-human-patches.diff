@@ -1,0 +1,12 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/druid/sql/parser/SQLExprParser.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/druid/sql/parser/SQLExprParser.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/druid/sql/parser/SQLExprParser.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/druid/sql/parser/SQLExprParser.java
+@@ -1975,7 +1975,7 @@
+ 
+                     for (;;) {
+                         lexer.nextToken();
+-                        SQLExpr more = relational();
++                        SQLExpr more = and();
+                         group.add(more);
+                         if (lexer.token == Token.OR) {
+                             if (lexer.isKeepComments() && lexer.hasComment()) {

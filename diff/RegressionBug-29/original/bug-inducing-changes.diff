@@ -1,0 +1,17 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/AbstractWriter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/AbstractWriter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/AbstractWriter.java	2024-09-08 01:36:14.053808166 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/AbstractWriter.java	2024-09-08 01:36:14.037808054 +1000
+@@ -941,11 +941,8 @@
+ 	protected String getStringValue(Object element) {
+ 		usingNullOrEmptyValue = false;
+ 		if (element == null) {
+-			element = nullValue;
+ 			usingNullOrEmptyValue = true;
+-			if (element == null) {
+-				return null;
+-			}
++			return null;
+ 		}
+ 		String string = String.valueOf(element);
+ 		if (string.isEmpty()) {
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/univocity/parsers/issues/github: Github_158.java

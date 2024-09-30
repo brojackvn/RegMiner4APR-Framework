@@ -1,0 +1,24 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/github/javafaker/Number.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/github/javafaker/Number.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/github/javafaker/Number.java	2024-09-08 01:36:08.513769367 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/github/javafaker/Number.java	2024-09-08 01:36:08.477769114 +1000
+@@ -39,7 +39,7 @@
+      * @param max exclusive (unless min == max)
+      */
+     public long numberBetween(long min, long max) {
+-        return decimalBetween(min,max).longValue();
++        return decimalBetween(min,max).setScale(0, BigDecimal.ROUND_HALF_DOWN).longValue();
+     }
+     
+     /**
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/resources/fr-CH.yml ./RegMiner4APR-Regression-Bugs/BIC/src/main/resources/fr-CH.yml
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/resources/fr-CH.yml	2024-09-08 01:36:08.521769423 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/resources/fr-CH.yml	2024-09-08 01:36:08.489769199 +1000
+@@ -60,7 +60,7 @@
+         - "#{first_name} #{last_name} #{last_name}"
+         
+     phone_number:
+-      formats: ['', '02########', '03########', '04########', '05########', '09########', '+41 1########', '+41 2########', '+41 3########', '+41 4########', '+41 5########', '+41 9########', '01 ## ## ## ##', '02 ## ## ## ##', '03 ## ## ## ##', '04 ## ## ## ##', '05 ## ## ## ##', '09 ## ## ## ##', '+41 1 ## ## ## ##', '+41 2 ## ## ## ##', '+41 3 ## ## ## ##', '+41 4 ## ## ## ##', '+41 5 ## ## ## ##', '+41 9 ## ## ## ##']
++      formats: ['02########', '03########', '04########', '05########', '09########', '+41 1########', '+41 2########', '+41 3########', '+41 4########', '+41 5########', '+41 9########', '01 ## ## ## ##', '02 ## ## ## ##', '03 ## ## ## ##', '04 ## ## ## ##', '05 ## ## ## ##', '09 ## ## ## ##', '+41 1 ## ## ## ##', '+41 2 ## ## ## ##', '+41 3 ## ## ## ##', '+41 4 ## ## ## ##', '+41 5 ## ## ## ##', '+41 9 ## ## ## ##']
+ 
+     cell_phone:
+       formats: ['#####.######', '+41.####.######']
