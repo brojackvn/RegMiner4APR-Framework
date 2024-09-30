@@ -40,5 +40,5 @@ RUN apt-get install -y xvfb
 WORKDIR /
 RUN git clone https://github.com/brojackvn/RegMiner4APR-Regression-Bugs-Database.git RegMiner4APR-Regression-Bugs-Database
 WORKDIR /RegMiner4APR-Regression-Bugs-Database
-RUN source activate
+RUN /bin/bash -c "source activate"
 
