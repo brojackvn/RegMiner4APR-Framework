@@ -54,7 +54,6 @@ def parse_args():
                                  help='regression bug ID to checkout')
     parser_checkout.add_argument('-w',
                                  '--working_dir',
-                                 required=True,
                                  help='working directory to check out the bug')
 
     # ==================== Compile command ======================

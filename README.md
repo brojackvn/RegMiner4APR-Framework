@@ -75,30 +75,30 @@ Here is an example of a typical workflow using RegMiner4APR:
 
 3. **Checkout the code for regression bug 1**:
     ```bash
-    regminer4apr checkout --regressionbug_id 1 --working_dir /tmp/regression
+    regminer4apr checkout --regressionbug_id 1 --working_dir /tmp
     ```
 
 4. **Compile the codebase**:
     ```bash
-    regminer4apr compile --working_dir /tmp/regression
+    regminer4apr compile --working_dir /tmp/RegressionBug-1/BUGGY
     ```
     or
     ```bash
-    cd /tmp/regression
+    cd /tmp/RegressionBug-1/BUGGY
     regminer4apr compile
     ```
 
 5. **Run the tests**:
     ```bash
-    regminer4apr test --working_dir /tmp/regression/RegressionBug-1/BUGGY --test_case com.adobe.epubcheck.api.Epub30CheckExpandedTest#testIssue922 
+    regminer4apr test --working_dir /tmp/RegressionBug-1/BUGGY --test_case com.adobe.epubcheck.api.Epub30CheckExpandedTest#testIssue922 
     ```
     ```bash
-    regminer4apr test --working_dir /tmp/regression/RegressionBug-1/BUGGY
+    regminer4apr test --working_dir /tmp/RegressionBug-1/BUGGY
     ```
 
     or 
     ```bash
-    cd /tmp/regression/tmp/regression/RegressionBug-1/BUGGY
+    cd /tmp/RegressionBug-1/BUGGY
     regminer4apr test
     regminer4apr test --test_case com.adobe.epubcheck.api.Epub30CheckExpandedTest#testIssue922
     ```
