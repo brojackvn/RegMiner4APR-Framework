@@ -13,7 +13,7 @@ To view the environment variables, run:
 regminer4apr env
 ```
 
-### 1. Retrieve Regression Bug Information
+### 2. Retrieve Regression Bug Information
 
 To fetch information for a specific regression bug, use the following command:
 
@@ -24,7 +24,7 @@ regminer4apr info --regressionbug_id|-rb <bug_id>
 **Options:**
 - `--regressionbug`, `-rb`: Specify the unique ID of the regression bug.
 
-### 2. Checkout the Codebase for a Regression Bug
+### 3. Checkout the Codebase for a Regression Bug
 
 To check out the code for a given regression bug, use the following command:
 
@@ -36,7 +36,7 @@ regminer4apr checkout --regressionbug_id|-rb <bug_id> --working_dir|-w <path>
 - `--regressionbug`, `-rb`: The unique ID of the regression bug.
 - `--working_dir`, `-w`: (Optional) Specify the working directory where the code will be checked out. Defaults to current directory if not provided.
 
-### 3. Compile the Codebase
+### 4. Compile the Codebase
 
 After checking out the codebase, you can compile it using the following command:
 
@@ -47,7 +47,7 @@ regminer4apr compile [--working_dir|-w <path>]
 **Options:**
 - `--working_dir`, `-w`: (Optional) Specify the working directory. Defaults to current directory if not provided.
 
-### 4. Run Tests
+### 5. Run Tests
 
 To run all the test cases in the checked-out codebase, use the following command:
 
