@@ -18,7 +18,7 @@ regminer4apr env
 To fetch information for a specific regression bug, use the following command:
 
 ```bash
-regminer4apr info ----regressionbug_id|-rb <bug_id>
+regminer4apr info --regressionbug_id|-rb <bug_id>
 ```
 
 **Options:**
@@ -29,7 +29,7 @@ regminer4apr info ----regressionbug_id|-rb <bug_id>
 To check out the code for a given regression bug, use the following command:
 
 ```bash
-regminer4apr checkout ----regressionbug_id|-rb <bug_id> --working_dir|-w <path>
+regminer4apr checkout --regressionbug_id|-rb <bug_id> --working_dir|-w <path>
 ```
 
 **Options:**
@@ -70,12 +70,12 @@ Here is an example of a typical workflow using RegMiner4APR:
 
 2. **Retrieve information about a regression bug (e.g., bug ID: 1)**:
     ```bash
-    regminer4apr info ----regressionbug_id 1
+    regminer4apr info --regressionbug_id 1
     ```
 
 3. **Checkout the code for regression bug 1**:
     ```bash
-    regminer4apr checkout ----regressionbug_id 1 --working_dir /tmp/regression
+    regminer4apr checkout --regressionbug_id 1 --working_dir /tmp/regression
     ```
 
 4. **Compile the codebase**:
