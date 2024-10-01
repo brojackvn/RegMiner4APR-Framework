@@ -38,7 +38,7 @@ RUN apt-get install -y xvfb
 # Setup RegMiner4APR
 #############################################################################
 WORKDIR /
-RUN git clone https://github.com/brojackvn/RegMiner4APR-Regression-Bugs-Database.git RegMiner4APR-Regression-Bugs-Database
+COPY . /RegMiner4APR-Regression-Bugs-Database
 WORKDIR /RegMiner4APR-Regression-Bugs-Database
-RUN /bin/bash -c "source activate"
-
+RUN chmod +x /RegMiner4APR-Regression-Bugs-Database/bin/regminer4apr
+ENV PATH=$PATH:/RegMiner4APR-Regression-Bugs-Database/bin
