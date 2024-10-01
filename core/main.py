@@ -10,7 +10,7 @@ from core.commands.regminer4aprInfo import info_command
 def main():
     parser, subparsers, args = parse_args()
     
-    if args.command == 'help':
+    if args.command is None or args.command == 'help':
         print_all_help(parser, subparsers)
     elif args.command == 'env':
         env_command()
