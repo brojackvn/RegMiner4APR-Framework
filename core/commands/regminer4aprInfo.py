@@ -42,5 +42,6 @@ def info_command(regressionbug_id):
         for item in items:
             print(f"    -> Type   : {item['type']}")
             print(f"    -> Message: {item['message']}")
+    return 0
 
     

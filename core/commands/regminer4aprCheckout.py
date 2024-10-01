@@ -12,7 +12,7 @@ def checkout_command(regressionbug_id, working_dir):
     # Check if the working directory exists
     if not os.path.exists(working_dir):
         print(f"Error: The working directory {working_dir} does not exist!")
-        return
+        return 1
     
     working_dir = os.path.abspath(working_dir)
 
@@ -56,6 +56,7 @@ def checkout_command(regressionbug_id, working_dir):
     if process.returncode != 0:
         print(f"\nError: Checking out RegressionBug-{regressionbug_id} at working directory: {target_directory}!")
         shutil.rmtree(target_directory)
+        return 1
     else:
         print(f"\nSuccessfully checked out RegressionBug-{regressionbug_id} at working directory: {target_directory}.")
-    
+        return 0
