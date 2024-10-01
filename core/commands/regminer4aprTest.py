@@ -6,30 +6,6 @@ import time
 from core.utils.test_report import get_test_identifiers_and_exception
 from core.utils.jdk import check_jdk_version
 
-def run_command(command, working_dir, message = None):
-    def spinner():
-        # Define a spinner sequence
-        spin_chars = ['|', '/', '-', '\\']
-        idx = 0
-        while process.poll() is None:  # While the process is running
-            print(f"\r{message} ..... {spin_chars[idx]}", end='', flush=True)
-            idx = (idx + 1) % len(spin_chars)  # Rotate through spinner characters
-            time.sleep(0.1)  # Adjust the speed of the spinner
-    # Use subprocess.Popen to execute the command and suppress output
-    process = subprocess.Popen(
-        command,
-        cwd=working_dir,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    # Start a separate thread for the spinner
-    spinner_thread = threading.Thread(target=spinner)
-    spinner_thread.start()
-    # Wait for the compiling process to complete
-    process.wait()  # Wait for the process to finish
-    # Wait for the spinner thread to finish
-    spinner_thread.join()
-
 def test_command(working_dir, test_case = None):
     if check_jdk_version() == 1:
         return 1
@@ -57,9 +33,9 @@ def test_command(working_dir, test_case = None):
 
     # Clean the project
     if build_system == "maven":
-        subprocess.run(["mvn", "clean"], cwd=working_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.call(["mvn", "clean"], cwd=working_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     elif build_system == "gradle":
-        subprocess.run(["./gradlew", "clean"], cwd=working_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.call(["./gradlew", "clean"], cwd=working_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     
     # Run test cases
     if test_case is not None:
@@ -67,19 +43,23 @@ def test_command(working_dir, test_case = None):
             print(f"Error: Test case {test_case} is not existed!")
             return 1
         else:
-            run_single_test(working_dir, test_case, build_system, additional_command, True)
-                # Read the test report
+            print("=" * 80)
+            print(f"Running single test case: {test_case} at working directory: {working_dir}")
+            print("=" * 80)
+            run_single_test(working_dir, test_case, build_system, additional_command)
+            # Read the test report
             _, failing_test_identifiers, count_pos, count_neg = get_test_identifiers_and_exception(os.path.join(working_dir, "target", "surefire-reports"))
             if count_neg == 0:
-                print(f"\ntest case {test_case} passed at working directory: {working_dir}")
+                print(f"test case {test_case} PASSED at working directory: {working_dir}")
                 return 0
             else:
-                print(f"\ntest case {test_case} failed at working directory: {working_dir}")
+                print(f"test case {test_case} FAILED at working directory: {working_dir}")
                 for test_id, test_details in failing_test_identifiers.items():
-                    print("-----------------------------------------")
-                    print(f"Test: {test_id}")
-                    print(f"Type: {test_details['type']}")
-                    print(f"Message: {test_details['message']}")
+                    for test_detail in test_details:
+                        print("-"*80)
+                        print(f"Test: {test_id}")
+                        print(f"Type: {test_detail['type']}")
+                        print(f"Message: {test_detail['message']}")
                 return 1
     else:
         if build_system == "maven":
@@ -93,25 +73,29 @@ def test_command(working_dir, test_case = None):
             command = ["./gradlew", "test"]
         
         for test_case in failing_tests:
-            run_single_test(working_dir, test_case, build_system, additional_command, False)
-        run_command(command, working_dir, f"Running all test cases at working directory: {os.path.basename(working_dir)}")
+            run_single_test(working_dir, test_case, build_system, additional_command)
+        print("=" * 80)
+        print(f"Running all test cases at working directory: {working_dir}")
+        print("=" * 80)
+        subprocess.call(command, cwd=working_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     # Read the test report
     _, failing_test_identifiers, count_pos, count_neg = get_test_identifiers_and_exception(os.path.join(working_dir, "target", "surefire-reports"))
+    print(f"Summary: {count_pos} test cases PASSED and {count_neg} test cases FAILED at the working directory {working_dir}")
     if count_neg == 0:
-        print(f"\nAll test cases passed at working directory: {working_dir}")
+        print("-"*40)
+        print(f"All test cases PASSED at working directory: {working_dir}")
         return 0
     else:
-        print(f"\nSummary: {count_pos} test cases passed and {count_neg} test cases failed in the working directory {working_dir}")
         for test_id, test_details in failing_test_identifiers.items():
             for test_detail in test_details:
-                print("-----------------------------------------")
+                print("-"*80)
                 print(f"Test: {test_id}")
                 print(f"Type: {test_detail['type']}")
                 print(f"Message: {test_detail['message']}")
         return 1
 
-def run_single_test(working_dir, test_case, build_system, additional_command, display_output = False):
+def run_single_test(working_dir, test_case, build_system, additional_command):
     # Determine the compile command based on the build system
     if build_system == "maven":
         if additional_command is None:
@@ -126,8 +110,5 @@ def run_single_test(working_dir, test_case, build_system, additional_command, di
     elif build_system == "gradle":
         if test_case is not None:
             single_test_command = ["./gradlew", "test", "-Dtest=" + test_case]
-    if display_output:
-        single_test_command.insert(single_test_command.index("test"), "clean")
-        run_command(single_test_command, working_dir, f"Running single test case: {test_case} at working directory: {os.path.basename(working_dir)}")
-    else:
-        subprocess.run(single_test_command, cwd=working_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    
+    subprocess.call(single_test_command, cwd=working_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)

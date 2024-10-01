@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 import threading
 import time
@@ -28,35 +29,14 @@ def checkout_command(regressionbug_id, working_dir):
     # Define the repository URL (you may need to modify this)
     repository_url = f"https://github.com/brojackvn/RegMiner4APR-Regression-Bugs.git"  # Replace with your actual repository URL
 
-    # Clone the repository to the target directory
-    def spinner():
-        # Define a spinner sequence
-        spin_chars = ['|', '/', '-', '\\']
-        idx = 0
-        while process.poll() is None:  # While the process is running
-            print(f"\rChecking out RegressionBug-{regressionbug_id} at working directory: {os.path.basename(working_dir)} ..... {spin_chars[idx]}", end='', flush=True)
-            idx = (idx + 1) % len(spin_chars)  # Rotate through spinner characters
-            time.sleep(0.1)  # Adjust the speed of the spinner
-
-    process = subprocess.Popen(
+    if subprocess.call(
         ["git", "clone", "--branch", f"RegressionBug-{regressionbug_id}", repository_url, target_directory],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True
-    )
-
-    # Start a separate thread for updating progress
-    progress_thread = threading.Thread(target=spinner)
-    progress_thread.start()
-    # Wait for the cloning process to complete
-    process.wait()  # Wait for the process to finish
-    # Wait for the progress thread to finish
-    progress_thread.join()
-
-    if process.returncode != 0:
-        print(f"\nError: Checking out RegressionBug-{regressionbug_id} at working directory: {target_directory}!")
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    ) != 0:
+        print(f"Error: Checking out RegressionBug-{regressionbug_id} at working directory: {target_directory}!")
         shutil.rmtree(target_directory)
         return 1
     else:
-        print(f"\nSuccessfully checked out RegressionBug-{regressionbug_id} at working directory: {target_directory}.")
+        print(f"Successfully checked out RegressionBug-{regressionbug_id} at working directory: {target_directory}.")
         return 0

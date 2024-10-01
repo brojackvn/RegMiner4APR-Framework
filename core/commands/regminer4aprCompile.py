@@ -1,36 +1,10 @@
 import os
+import sys
 import json
 import subprocess
 import threading
 import time 
 from core.utils.jdk import check_jdk_version
-
-def run_command(command, working_dir, message):
-    def spinner():
-        # Define a spinner sequence
-        spin_chars = ['|', '/', '-', '\\']
-        idx = 0
-        while process.poll() is None:  # While the process is running
-            print(f"\r{message} ..... {spin_chars[idx]}", end='', flush=True)
-            idx = (idx + 1) % len(spin_chars)  # Rotate through spinner characters
-            time.sleep(0.1)  # Adjust the speed of the spinner
-
-    # Use subprocess.Popen to execute the command and suppress output
-    process = subprocess.Popen(
-        command,
-        cwd=working_dir,
-        stdout=subprocess.DEVNULL,  # Suppress stdout
-        stderr=subprocess.DEVNULL,   # Suppress stderr
-    )
-
-    # Start a separate thread for the spinner
-    spinner_thread = threading.Thread(target=spinner)
-    spinner_thread.start()
-    # Wait for the compiling process to complete
-    process.wait()  # Wait for the process to finish
-    # Wait for the spinner thread to finish
-    spinner_thread.join()
-    return process.returncode
 
 def compile_command(working_dir):
     if check_jdk_version() == 1:
@@ -71,18 +45,23 @@ def compile_command(working_dir):
         command = ["./gradlew", "clean", "compileJava"]
         compile_testcases_command = ["./gradlew", "compileTestJava"]
         
-    if run_command(command, working_dir, f"Compiling at working directory: {os.path.basename(working_dir)}") != 0:
-        print(f"\nError: Compiling at working directory: {working_dir}!")
+    # Compile the source code
+    print("=" * 80)
+    print(f"Compiling at working directory: {os.path.abspath(working_dir)}")
+    if subprocess.call(command, cwd=working_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
+        print(f"Error: Compiling at working directory: {working_dir}!")
         return 1
     else:
-        print(f"\nSuccessfully compiled at working directory: {working_dir}")
+        print(f"Successfully compiled at working directory: {working_dir}")
         
+        print("=" * 80)
+        print(f"Compiling test classes at working directory: {os.path.abspath(working_dir)}")
         # Compile the test classes
-        if run_command(compile_testcases_command, working_dir, f"Compiling test classes at working directory: {os.path.basename(working_dir)}") != 0:
-            print(f"\nError: Compiling test classes at working directory: {working_dir}!")
+        if subprocess.call(compile_testcases_command, cwd=working_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
+            print(f"Error: Compiling test classes at working directory: {working_dir}!")
             return 1
         else:
-            print(f"\nSuccessfully compiled test classes at working directory: {working_dir}")
+            print(f"Successfully compiled test classes at working directory: {working_dir}")
             return 0
 
 

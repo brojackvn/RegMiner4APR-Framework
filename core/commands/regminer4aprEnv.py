@@ -37,5 +37,4 @@ def env_command():
     print_multiline_entry("Maven version", *subprocess.getoutput("mvn -version").splitlines())
     print_multiline_entry("Gradle version", *subprocess.getoutput("gradle -version").splitlines())
     print("-" * 80)
-    
     return 0

@@ -21,7 +21,6 @@ def get_bug_by_id(regressionbug_id):
 
 def info_command(regressionbug_id):
     regressionbug4apr, meta_data = get_bug_by_id(regressionbug_id)
-
     print("=" * 80)
     print(f"Summary of RegressionBug-{regressionbug_id}:")
     print("-" * 80)
