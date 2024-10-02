@@ -100,6 +100,6 @@ Here is an example of a typical workflow using RegMiner4APR:
     or 
     ```bash
     cd /tmp/RegressionBug-1/BUGGY
-    regminer4apr test
     regminer4apr test --test_case com.adobe.epubcheck.api.Epub30CheckExpandedTest#testIssue922
+    regminer4apr test
     ```
