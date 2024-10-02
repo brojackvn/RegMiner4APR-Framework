@@ -58,6 +58,7 @@ regminer4apr test [--working_dir|-w <path>] [--test_case|-t <single_test_case>]
 
 **Options:**
 - `--working_dir`, `-w`: (Optional) Specify the working directory where tests should be executed. Defaults to current directory if not provided.
+- `--test_case`, '-t': (Optional) Specify a single test case to run.
 
 ## Example Workflow
 
