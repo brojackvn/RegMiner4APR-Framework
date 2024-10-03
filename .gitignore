@@ -166,3 +166,4 @@ cython_debug/
 core/utils/automate-add-meta-data.py
 scripts/
 examples/
+lib/jacoco-0.8.12

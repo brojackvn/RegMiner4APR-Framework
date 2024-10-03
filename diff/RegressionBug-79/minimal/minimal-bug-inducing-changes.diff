@@ -1,6 +1,6 @@
 diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java
---- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java	2024-09-25 15:33:06.547879298 +1000
-+++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java	2024-09-25 15:33:18.607998607 +1000
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java
 @@ -432,7 +432,12 @@
  
  	private static boolean allFieldsIndexOrNameBased(boolean searchName, Class<?> beanClass) {
@@ -40,26 +40,12 @@ diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/pa
 +				indexes.add(index);
  			}
  		}
--
  		return indexes.toArray(new Integer[indexes.size()]);
  	}
  
-diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/FieldMapping.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/FieldMapping.java
---- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/FieldMapping.java	2024-09-25 15:33:06.547879298 +1000
-+++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/FieldMapping.java	2024-09-25 15:33:18.607998607 +1000
-@@ -86,6 +86,9 @@
- 
- 			if (index >= 0) {
- 				fieldName = null;
-+				if(transformer != null){
-+					index = transformer.transformIndex(field, index);
-+				}
- 				return;
- 			}
- 
 diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/TransformedHeader.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/TransformedHeader.java
---- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/TransformedHeader.java	2024-09-25 15:33:06.547879298 +1000
-+++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/TransformedHeader.java	2024-09-25 15:33:18.607998607 +1000
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/TransformedHeader.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/TransformedHeader.java
 @@ -4,6 +4,8 @@
  
  import java.lang.reflect.*;
@@ -69,15 +55,6 @@ diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/pa
  /**
   * A pair associating a Field of an annotated class to an optional {@likn HeaderTransformer} obtained from
   * {@link Nested#headerTransformer()} when nested classes are used to process beans.
-@@ -32,7 +34,7 @@
- 		}
- 		String name = null;
- 
--		Parsed annotation = AnnotationHelper.findAnnotation(field, Parsed.class);
-+		Parsed annotation = findAnnotation(field, Parsed.class);
- 		if (annotation != null) {
- 			if (annotation.field().isEmpty()) {
- 				name = field.getName();
 @@ -49,11 +51,30 @@
 	 *
 	 * @return the current header index.
@@ -106,33 +83,3 @@ diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/pa
  		if (field == null) {
  			return null;
  		}
-diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthFields.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthFields.java
---- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthFields.java	2024-09-25 15:33:06.547879298 +1000
-+++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthFields.java	2024-09-25 15:33:18.607998607 +1000
-@@ -115,7 +115,7 @@
- 
- 			FixedWidth fw = AnnotationHelper.findAnnotation(field.getField(), FixedWidth.class);
- 			if (fw == null) {
--				fieldNamesWithoutConfig.add(field.attributeName());
-+				fieldNamesWithoutConfig.add(field.getAttributeName());
- 				continue;
- 			}
- 
-@@ -125,7 +125,7 @@
- 
- 			if (length != -1) {
- 				if (from != -1 || to != -1) {
--					throw new IllegalArgumentException("Can't initialize fixed-width field from attribute '" + field.attributeName() + "' of class '" + beanClass.getName() + "'. " +
-+					throw new IllegalArgumentException("Can't initialize fixed-width field from attribute '" + field.getAttributeName() + "' of class '" + beanClass.getName() + "'. " +
- 							"Can't have field length (" + length + ") defined along with position from (" + from + ") and to (" + to + ")");
- 
- 				}
-@@ -134,7 +134,7 @@
- 			} else if (from != -1 && to != -1) {
- 				addField(fieldName, from, to, fw.alignment(), fw.padding());
- 			} else {
--				throw new IllegalArgumentException("Can't initialize fixed-width field from attribute '" + field.attributeName() + "' of class '" + beanClass.getName() + "'. " +
-+				throw new IllegalArgumentException("Can't initialize fixed-width field from attribute '" + field.getAttributeName() + "' of class '" + beanClass.getName() + "'. " +
- 						"Field length/position undefined defined");
- 			}
- 

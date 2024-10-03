@@ -1,6 +1,6 @@
 diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java
---- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java	2024-09-25 15:33:28.080092305 +1000
-+++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java	2024-09-25 15:33:38.588196240 +1000
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java
 @@ -527,7 +527,7 @@
  			int index = header.getHeaderIndex();
  
@@ -15,14 +15,13 @@ diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/pars
  		if (annotation != null) {
  			TransformedHeader header = new TransformedHeader(element, transformer);
 -			if (header.getHeaderIndex() >= 0 && indexes.contains(header.getHeaderIndex())) {
-
 +			if (filter == MethodFilter.ONLY_GETTERS && header.getHeaderIndex() >= 0 && indexes.contains(header.getHeaderIndex())) {
  				throw new IllegalArgumentException("Duplicate field index '" + header.getHeaderIndex() + "' found in " + describeElement(element));
  			}
  			tmp.add(header);
 diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/fields/FieldSet.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/fields/FieldSet.java
---- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/fields/FieldSet.java	2024-09-25 15:33:28.080092305 +1000
-+++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/fields/FieldSet.java	2024-09-25 15:33:38.584196200 +1000
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/fields/FieldSet.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/fields/FieldSet.java
 @@ -100,9 +100,6 @@
  	 * @param field information that uniquely identifies a field
  	 */

@@ -40,7 +40,7 @@ diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dbl
 +        }
 +        return OTHER;
 +    }
-+
+
 +    protected static int rollbackWorkCheck(String stmt, int offset) {
 +        if (stmt.length() > offset + 3) {
 +            char c1 = stmt.charAt(++offset);
