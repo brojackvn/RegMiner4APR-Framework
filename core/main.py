@@ -17,7 +17,8 @@ def main():
     elif args.command == 'info':
         info_command(args.regressionbug_id)
     elif args.command == 'checkout':
-        checkout_command(args.regressionbug_id, args.working_dir)
+        working_dir = args.working_dir if args.working_dir else os.getcwd()
+        checkout_command(args.regressionbug_id, working_dir)
     elif args.command == 'compile':
         working_dir = args.working_dir if args.working_dir else os.getcwd()
         sys.exit(compile_command(working_dir))
