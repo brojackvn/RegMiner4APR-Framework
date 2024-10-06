@@ -44,16 +44,18 @@ def test_command(working_dir, test_case = None):
             return 1
         else:
             print("=" * 80)
-            print(f"Running single test case: {test_case} at working directory: {working_dir}")
+            print(f"Running single test case {test_case} at working directory: {working_dir}")
             print("=" * 80)
             run_single_test(working_dir, test_case, build_system, additional_command)
             # Read the test report
             _, failing_test_identifiers, count_pos, count_neg = get_test_identifiers_and_exception(os.path.join(working_dir, "target", "surefire-reports"))
+            print(f"Summary of test results:")
+            print(f"- Failed test cases: {count_neg}/1")
+            print(f"- Passed test cases: {count_pos}/1")
             if count_neg == 0:
-                print(f"test case {test_case} PASSED at working directory: {working_dir}")
+                print("-"*80)
                 return 0
             else:
-                print(f"test case {test_case} FAILED at working directory: {working_dir}")
                 for test_id, test_details in failing_test_identifiers.items():
                     for test_detail in test_details:
                         print("-"*80)
@@ -79,21 +81,22 @@ def test_command(working_dir, test_case = None):
         print("=" * 80)
         subprocess.call(command, cwd=working_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
-    # Read the test report
-    _, failing_test_identifiers, count_pos, count_neg = get_test_identifiers_and_exception(os.path.join(working_dir, "target", "surefire-reports"))
-    print(f"Summary: {count_pos} test cases PASSED and {count_neg} test cases FAILED at the working directory {working_dir}")
-    if count_neg == 0:
-        print("-"*40)
-        print(f"All test cases PASSED at working directory: {working_dir}")
-        return 0
-    else:
-        for test_id, test_details in failing_test_identifiers.items():
-            for test_detail in test_details:
-                print("-"*80)
-                print(f"Test: {test_id}")
-                print(f"Type: {test_detail['type']}")
-                print(f"Message: {test_detail['message']}")
-        return 1
+        # Read the test report
+        _, failing_test_identifiers, count_pos, count_neg = get_test_identifiers_and_exception(os.path.join(working_dir, "target", "surefire-reports"))
+        print(f"Summary of test results:")
+        print(f"- Failed test cases: {count_neg}/{count_neg+count_pos}")
+        print(f"- Passed test cases: {count_pos}/{count_neg+count_pos}")
+        if count_neg == 0:
+            print("-"*80)
+            return 0
+        else:
+            for test_id, test_details in failing_test_identifiers.items():
+                for test_detail in test_details:
+                    print("-"*80)
+                    print(f"Test: {test_id}")
+                    print(f"Type: {test_detail['type']}")
+                    print(f"Message: {test_detail['message']}")
+            return 1
 
 def run_single_test(working_dir, test_case, build_system, additional_command):
     # Determine the compile command based on the build system
