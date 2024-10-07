@@ -48,20 +48,22 @@ def compile_command(working_dir):
     # Compile the source code
     print("=" * 80)
     print(f"Compiling at working directory: {os.path.abspath(working_dir)}")
+    print("-" * 40)
     if subprocess.call(command, cwd=working_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
-        print(f"Error: Compiling at working directory: {working_dir}!")
+        print(f"Error: Compiling at working directory!")
         return 1
     else:
-        print(f"Successfully compiled at working directory: {working_dir}")
+        print(f"Successfully compiled!")
         
         print("=" * 80)
         print(f"Compiling test classes at working directory: {os.path.abspath(working_dir)}")
+        print("-" * 40)
         # Compile the test classes
         if subprocess.call(compile_testcases_command, cwd=working_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
-            print(f"Error: Compiling test classes at working directory: {working_dir}!")
+            print(f"Error: Compiling test classes!")
             return 1
         else:
-            print(f"Successfully compiled test classes at working directory: {working_dir}")
+            print(f"Successfully compiled test classes!")
             return 0
 
 
