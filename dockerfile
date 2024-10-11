@@ -34,6 +34,7 @@ RUN apt-get install -y gradle
 # Install xvfb
 RUN apt-get install -y xvfb
 
+ENV JAVA_OPTS="-Xmx4g -Xms512m"
 #############################################################################
 # Setup RegMiner4APR
 #############################################################################

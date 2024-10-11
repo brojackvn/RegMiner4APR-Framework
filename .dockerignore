@@ -90,8 +90,8 @@ venv/
 
 # unnecessary files
 *.DS_Store
-core/utils/automate-add-meta-data.py
 scripts/
 examples/
 RegMiner4APR-Regression-Bugs/
 lib/
+others/
