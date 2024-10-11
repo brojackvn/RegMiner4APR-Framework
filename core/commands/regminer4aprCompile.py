@@ -78,6 +78,3 @@ def compile_command(working_dir):
             else:
                 print(f"Successfully extracted the dependencies!")
                 return 0
-
-
-    
