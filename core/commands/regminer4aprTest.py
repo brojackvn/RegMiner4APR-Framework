@@ -52,7 +52,10 @@ def test_command(working_dir, test_case = None):
                 return 1
             
             # Read the test report
-            _, failing_test_identifiers, count_pos, count_neg = get_test_identifiers_and_exception(os.path.join(working_dir, "target", "surefire-reports"))
+            if build_system == "maven":
+                _, failing_test_identifiers, count_pos, count_neg = get_test_identifiers_and_exception(os.path.join(working_dir, "target", "surefire-reports"))
+            else:
+                _, failing_test_identifiers, count_pos, count_neg = get_test_identifiers_and_exception(os.path.join(working_dir, "build", "test-results", "test"))
             print(f"Summary of test results:")
             print(f"- Failed test cases: {count_neg}/1")
             print(f"- Passed test cases: {count_pos}/1")
