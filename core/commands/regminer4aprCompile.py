@@ -68,11 +68,12 @@ def compile_command(working_dir):
             print("-" * 40)
             
             if build_system == "maven":
-                command = ["mvn", "dependency:copy-dependencies", f"-DoutputDirectory=./target/dependencies"]
+                command = ["mvn", "dependency:copy-dependencies", "-DoutputDirectory=./target/dependencies"]
             else:
                 command = ["./gradlew", "copyDependencies"]
             
-            if subprocess.call(command, cwd=os.path.abspath(working_dir), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
+            result = subprocess.run(command, cwd=os.path.abspath(working_dir), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if result.returncode != 0:
                 print(f"Error: Extracting the dependencies!")
                 return 1
             else:
