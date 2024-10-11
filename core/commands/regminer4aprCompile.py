@@ -68,7 +68,7 @@ def compile_command(working_dir):
             print("-" * 40)
             
             if build_system == "maven":
-                command = ["mvn", "dependency:copy-dependencies", f"-DoutputDirectory={os.path.abspath(working_dir)}/target/dependencies"]
+                command = ["mvn", "dependency:copy-dependencies", f"-DoutputDirectory=./target/dependencies"]
             else:
                 command = ["./gradlew", "copyDependencies"]
             
