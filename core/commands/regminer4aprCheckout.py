@@ -38,5 +38,5 @@ def checkout_command(regressionbug_id, working_dir):
         shutil.rmtree(target_directory)
         return 1
     else:
-        print(f"Successfully checked out RegressionBug-{regressionbug_id} at working directory: {target_directory}.")
+        print(f"Successfully checked out RegressionBug-{regressionbug_id} at working directory: {target_directory}")
         return 0

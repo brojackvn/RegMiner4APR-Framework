@@ -46,7 +46,11 @@ def test_command(working_dir, test_case = None):
             print("=" * 80)
             print(f"Running single test case {test_case} at working directory: {working_dir}")
             print("=" * 80)
-            run_single_test(working_dir, test_case, build_system, additional_command)
+            status = run_single_test(working_dir, test_case, build_system, additional_command)
+            if status == -1:
+                print(f"Error: Timeout while running test case {test_case}")
+                return 1
+            
             # Read the test report
             _, failing_test_identifiers, count_pos, count_neg = get_test_identifiers_and_exception(os.path.join(working_dir, "target", "surefire-reports"))
             print(f"Summary of test results:")
@@ -65,24 +69,33 @@ def test_command(working_dir, test_case = None):
                 return 1
     else:
         if build_system == "maven":
-            if additional_command is None:
-                command = ["mvn", "test"]
-            elif additional_command == "checkstyle":
-                command = ["mvn", "test", "-Dcheckstyle.skip"]
-            elif additional_command == "xvfb":
-                command = ["xvfb-run", "mvn", "test"]
+            if additional_command == "xvfb":
+                command = ["xvfb-run", "mvn", "test", "-Drat.skip", "-Dcheckstyle.skip"]
+            else:
+                command = ["mvn", "test", "-Drat.skip", "-Dcheckstyle.skip"]
         elif build_system == "gradle":
             command = ["./gradlew", "test"]
         
         for test_case in failing_tests:
-            run_single_test(working_dir, test_case, build_system, additional_command)
+            status = run_single_test(working_dir, test_case, build_system, additional_command)
+            if status == -1:
+                print(f"Error: Timeout while running test case {test_case}")
+                return 1
+
         print("=" * 80)
         print(f"Running all test cases at working directory: {working_dir}")
         print("=" * 80)
-        subprocess.call(command, cwd=working_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    
+        try:
+            subprocess.call(command, cwd=working_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except subprocess.TimeoutExpired:
+            print(f"Error: Timeout while running all test cases")
+            return 1
+        
         # Read the test report
-        _, failing_test_identifiers, count_pos, count_neg = get_test_identifiers_and_exception(os.path.join(working_dir, "target", "surefire-reports"))
+        if build_system == "maven":
+            _, failing_test_identifiers, count_pos, count_neg = get_test_identifiers_and_exception(os.path.join(working_dir, "target", "surefire-reports"))
+        else:
+            _, failing_test_identifiers, count_pos, count_neg = get_test_identifiers_and_exception(os.path.join(working_dir, "build", "test-results", "test"))
         print(f"Summary of test results:")
         print(f"- Failed test cases: {count_neg}/{count_neg+count_pos}")
         print(f"- Passed test cases: {count_pos}/{count_neg+count_pos}")
@@ -101,17 +114,15 @@ def test_command(working_dir, test_case = None):
 def run_single_test(working_dir, test_case, build_system, additional_command):
     # Determine the compile command based on the build system
     if build_system == "maven":
-        if additional_command is None:
-            if test_case is not None:
-                single_test_command = ["mvn", "test", "-Dtest=" + test_case]
-        elif additional_command == "checkstyle":
-            if test_case is not None:
-                single_test_command = ["mvn", "test", "-Dtest=" + test_case, "-Dcheckstyle.skip"]
-        elif additional_command == "xvfb":
-            if test_case is not None:
-                single_test_command = ["xvfb-run", "mvn", "test", "-Dtest=" + test_case]
+        if additional_command == "xvfb":
+            single_test_command = ["xvfb-run", "mvn", "test", "-Dtest=" + test_case, "-Drat.skip", "-Dcheckstyle.skip"]
+        else:
+            single_test_command = ["mvn", "test", "-Dtest=" + test_case, "-Drat.skip", "-Dcheckstyle.skip"]
     elif build_system == "gradle":
-        if test_case is not None:
-            single_test_command = ["./gradlew", "test", "-Dtest=" + test_case]
+        single_test_command = ["./gradlew", "test", "-Dtest=" + test_case]
     
-    subprocess.call(single_test_command, cwd=working_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try :
+        status = subprocess.call(single_test_command, cwd=working_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return 0 if status == 0 else 1
+    except subprocess.TimeoutExpired:
+        return -1

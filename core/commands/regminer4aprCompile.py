@@ -32,15 +32,12 @@ def compile_command(working_dir):
 
     # Determine the compile command based on the build system
     if build_system == "maven":
-        if additional_command is None:
-            command = ["mvn", "clean", "compile"]
-            compile_testcases_command = ["mvn", "test-compile"]
-        elif additional_command == "checkstyle":
-            command = ["mvn", "clean", "compile", "-Dcheckstyle.skip"]
-            compile_testcases_command = ["mvn", "test-compile", "-Dcheckstyle.skip"]
-        elif additional_command == "xvfb":
-            command = ["xvfb-run", "mvn", "clean", "compile"]
-            compile_testcases_command = ["xvfb-run", "mvn", "test-compile"]
+        if additional_command == "xvfb":
+            command = ["xvfb-run", "mvn", "clean", "compile", "-Drat.skip", "-Dcheckstyle.skip"]
+            compile_testcases_command = ["xvfb-run", "mvn", "test-compile", "-Drat.skip", "-Dcheckstyle.skip"]
+        else:
+            command = ["mvn", "clean", "compile", "-Drat.skip", "-Dcheckstyle.skip"]
+            compile_testcases_command = ["mvn", "test-compile", "-Drat.skip", "-Dcheckstyle.skip"]
     elif build_system == "gradle":
         command = ["./gradlew", "clean", "compileJava"]
         compile_testcases_command = ["./gradlew", "compileTestJava"]
@@ -49,7 +46,7 @@ def compile_command(working_dir):
     print("=" * 80)
     print(f"Compiling at working directory: {os.path.abspath(working_dir)}")
     print("-" * 40)
-    if subprocess.call(command, cwd=working_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
+    if subprocess.call(command, cwd=os.path.abspath(working_dir), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
         print(f"Error: Compiling at working directory!")
         return 1
     else:
@@ -59,12 +56,28 @@ def compile_command(working_dir):
         print(f"Compiling test classes at working directory: {os.path.abspath(working_dir)}")
         print("-" * 40)
         # Compile the test classes
-        if subprocess.call(compile_testcases_command, cwd=working_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
+        if subprocess.call(compile_testcases_command, cwd=os.path.abspath(working_dir), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
             print(f"Error: Compiling test classes!")
             return 1
         else:
             print(f"Successfully compiled test classes!")
-            return 0
+            
+            # Copy the dependencies
+            print("=" * 80)
+            print(f"Extracting all the dependencies of project: {os.path.abspath(working_dir)}")
+            print("-" * 40)
+            
+            if build_system == "maven":
+                command = ["mvn", "dependency:copy-dependencies", f"-DoutputDirectory={os.path.abspath(working_dir)}/target/dependencies"]
+            else:
+                command = ["./gradlew", "copyDependencies"]
+            
+            if subprocess.call(command, cwd=os.path.abspath(working_dir), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
+                print(f"Error: Extracting the dependencies!")
+                return 1
+            else:
+                print(f"Successfully extracted the dependencies!")
+                return 0
 
 
     
