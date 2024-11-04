@@ -22,7 +22,7 @@ To support the use of RegMiner4APR, we provide the following artifacts:
 
 ## Installation
 
-### 1. Docker
+### OPTION 1: Docker
 
 1. Prerequisites
     
@@ -50,7 +50,7 @@ To support the use of RegMiner4APR, we provide the following artifacts:
     ```bash
     docker run --rm -it regminer4apr-benchmark regminer4apr info -rb 1
     ```
-### 2. Local Machine
+### OPTION 2: Local Machine
 
 1. Requirements
 

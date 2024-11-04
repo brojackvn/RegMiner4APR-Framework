@@ -9,7 +9,7 @@ This validation tool is buildt on top of the **RegMiner** tool, requiring additi
 
 ## Usage
 
-### 1. Docker
+### OPTION 1: Docker
 
 #### Steps to Run the Validation Tool on Docker
 
@@ -64,7 +64,7 @@ This validation tool is buildt on top of the **RegMiner** tool, requiring additi
     - `-id`: ID for this validation instance. This identifier creates a directory (e.g., `/tmp/Example-Validation-RegressionBug`) that contains four commit versions if the bug is validated as a regression bug: *working*, *bug-inducing*, *buggy*, and *bug-fixing commits*.
 
 
-### 2. Local Machine (Linux is required)
+### OPTION 2: Local Machine (Linux is required)
 
 #### Steps to Run the Validation Tool Locally
 
