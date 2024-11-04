@@ -25,6 +25,7 @@ This validation tool is buildt on top of the **RegMiner** tool, requiring additi
 3. **Build Docker image**
     ```bash
     cd regression-validation
+    wget https://figshare.com/ndownloader/files/50177778 -O ./jdk-7u80-linux-x64.tar.gz
     docker build -t regression-validation .
     ```
 
@@ -112,8 +113,8 @@ This validation tool is buildt on top of the **RegMiner** tool, requiring additi
 
     **Parameters:**
     - Two modes:
-            - `regressionbug`: Validates a set of bug-inducing commits, bug-fixing commits, and test cases.
-            - `regressionbug4apr`: Similar to `regressionbug`, but ensures that the buggy commit fails the regression bug-witnessing test cases, while the bug-fixing commit successfully passes all test cases.
+        - `regressionbug`: Validates a set of bug-inducing commits, bug-fixing commits, and test cases.
+        - `regressionbug4apr`: Similar to `regressionbug`, but ensures that the buggy commit fails the regression bug-witnessing test cases, while the bug-fixing commit successfully passes all test cases.
     - `-rp`: Repository path, such as `alibaba/fastjson`.
     - `-w`: Working directory, e.g., `/tmp`.
     - `-t`: Test case identifier.
