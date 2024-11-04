@@ -1,3 +1,78 @@
+# RegMiner4APR - Regression Bugs for Automated Program Repair
+
+**RegMiner4APR** is a framework that provides easy access to a reproducible benchmark of real-world regression bugs, including essential commands for conducting program repair experiments with minimal configuration.
+
+## Table of Contents
+
+* [RegMiner4APR](#regminer4apr)
+* [Installation](#installation)
+* [Command Line Usage](#command-line-usage)
+* [Example Workflow](#example-workflow)
+* [Regression Bug Validation](#regression-bug-validation)
+
+## RegMiner4APR
+
+To support the use of RegMiner4APR, we provide the following artifacts:
+
+1. [RegMiner4APR - Framework](): The primary toolkit for accessing and experimenting with the benchmark.
+2. [RegMiner4APR - Database]() : A structured, reproducible database of real-world regression bugs.
+3. [RegMiner4APR - Homepage]() : The central hub containing detailed information for each bug in our benchmark.
+
+[Data availability](): The full dataset, including all versions and metadata, is hosted on **Figshare** for easy access and reproducibility.
+
+## Installation
+
+### 1. Docker
+
+1. Prerequisites
+    
+    Ensure **Docker** is installed and running on your system.
+
+2. Clone the repository
+    ```bash
+    git clone https://github.com/brojackvn/RegMiner4APR-Framework.git
+    ```
+
+3. Build the Docker image
+    ```bash
+    cd RegMiner4APR-Framework
+    docker build -t regminer4apr-benchmark .
+    ```
+4. Run the Docker container
+    ```bash
+    docker run -it regminer4apr-benchmark /bin/bash
+    ```
+
+4. Examples of executing a command within the Docker container
+    ```bash
+    docker run --rm -it regminer4apr-benchmark regminer4apr env
+    ```
+    ```bash
+    docker run --rm -it regminer4apr-benchmark regminer4apr info -rb 1
+    ```
+### 2. Local Machine
+
+1. Requirements
+
+    * **Python 3.12**
+    * **Java 8**
+    * **Maven 3.9.8**
+    * **Gradle 4.4.1**
+    * **xvfb 1.20.13** (for virtual display)
+
+1. Clone the Repository
+    ```bash
+    git clone https://github.com/brojackvn/RegMiner4APR-Framework.git
+    ```
+2. Initialize the RegMiner4APR environment
+    ```bash
+    cd RegMiner4APR-Framework
+    source activate
+    ```
+3. Verify the installation
+    ```bash
+    regminer4apr env
+    ```
 ## Command Line Usage
 For help with available commands, use:
 
@@ -58,7 +133,7 @@ regminer4apr test [--working_dir|-w <path>] [--test_case|-t <single_test_case>]
 
 **Options:**
 - `--working_dir`, `-w`: (Optional) Specify the working directory where tests should be executed. Defaults to current directory if not provided.
-- `--test_case`, '-t': (Optional) Specify a single test case to run.
+- `--test_case`, `-t`: (Optional) Specify a single test case to run.
 
 ## Example Workflow
 
@@ -103,3 +178,7 @@ Here is an example of a typical workflow using RegMiner4APR:
     regminer4apr test --test_case com.adobe.epubcheck.api.Epub30CheckExpandedTest#testIssue922
     regminer4apr test
     ```
+
+## Regression Bug Validation
+    
+Use this section to reproduce and validate the potential regression bugs extracted by **RegMiner**. For detailed instructions, refer to the [Usage Guide](./regression-validation/VALIDATION-USAGE.md).
