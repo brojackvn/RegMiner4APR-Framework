@@ -1,15 +1,16 @@
+# 🛠️ Validation Usage 
 This validation tool is buildt on top of the **RegMiner** tool, requiring additional criteria (as presented in our paper) to validate potential regression bugs extracted by **RegMiner**.
 
-## Prerequisites
+## 📋 Prerequisites
 
 * **Java 11** is required to run the validation tool. However, **Java 7, 8, 11, and 17** are needed to support the validation of each bug, as each bug may require a different Java version.
 * **Maven 3.9.8**
 * **Gradle 4.4.1**
 * **xvfb 1.20.13** (for virtual display)
 
-## Usage
+## ⚙️ Usage
 
-### OPTION 1: Docker
+### 🐳 OPTION 1: Docker
 
 #### Steps to Run the Validation Tool on Docker
 
@@ -65,7 +66,7 @@ This validation tool is buildt on top of the **RegMiner** tool, requiring additi
     - `-id`: ID for this validation instance. This identifier creates a directory (e.g., `/tmp/Example-Validation-RegressionBug`) that contains four commit versions if the bug is validated as a regression bug: *working*, *bug-inducing*, *buggy*, and *bug-fixing commits*.
 
 
-### OPTION 2: Local Machine (Linux is required)
+### 💻 OPTION 2: Local Machine (Linux is required)
 
 #### Steps to Run the Validation Tool Locally
 
