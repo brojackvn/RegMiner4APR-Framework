@@ -4,11 +4,11 @@
 
 ## 📑 Table of Contents
 
-* [📦 RegMiner4APR](#regminer4apr)
-* [⚙️ Installation](#installation)
-* [🖥️ Command Line Usage](#command-line-usage)
-* [🚀 Example Workflow](#example-workflow)
-* [🔍 Regression Bug Validation](#regression-bug-validation)
+* [📦 RegMiner4APR](#📦-regminer4apr)
+* [⚙️ Installation](#️⚙️-installation)
+* [🖥️ Command Line Usage](#️🖥️-command-line-usage)
+* [🚀 Example Workflow](#🚀-example-workflow)
+* [🔍 Regression Bug Validation](#🔍-regression-bug-validation)
 
 ## 📦 RegMiner4APR
 To support the use of RegMiner4APR, we provide the following artifacts:
