@@ -4,13 +4,13 @@
 
 ## 📑 Table of Contents
 
-* [📦 RegMiner4APR](#📦-regminer4apr)
-* [⚙️ Installation](#️⚙️-installation)
-* [🖥️ Command Line Usage](#️🖥️-command-line-usage)
-* [🚀 Example Workflow](#🚀-example-workflow)
-* [🔍 Regression Bug Validation](#🔍-regression-bug-validation)
+* [📦 RegMiner4APR](#regminer4apr)
+* [⚙️ Installation](#️installation)
+* [🖥️ Command Line Usage](#️command-line-usage)
+* [🚀 Example Workflow](#example-workflow)
+* [🔍 Regression Bug Validation](#regression-bug-validation)
 
-## 📦 RegMiner4APR
+## RegMiner4APR
 To support the use of RegMiner4APR, we provide the following artifacts:
 
 1. [🛠️ RegMiner4APR - Framework](https://github.com/brojackvn/RegMiner4APR-Framework): The primary toolkit for accessing and experimenting with the benchmark.
@@ -19,7 +19,7 @@ To support the use of RegMiner4APR, we provide the following artifacts:
 
 [🗄️ Data availability](): The full dataset, including all versions and metadata, is hosted on **Figshare** for easy access and reproducibility.
 
-## ⚙️ Installation
+## Installation
 
 ### 🐳 OPTION 1: Docker
 
@@ -49,7 +49,7 @@ To support the use of RegMiner4APR, we provide the following artifacts:
     ```bash
     docker run --rm -it regminer4apr-benchmark regminer4apr info -rb 1
     ```
-### 💻 OPTION 2: Local Machine
+### OPTION 2: Local Machine
 
 1. Prerequisites
 
@@ -72,7 +72,7 @@ To support the use of RegMiner4APR, we provide the following artifacts:
     ```bash
     regminer4apr env
     ```
-## 🖥️ Command Line Usage
+## Command Line Usage
 For help with available commands, use:
 
 ```bash
@@ -134,7 +134,7 @@ regminer4apr test [--working_dir|-w <path>] [--test_case|-t <single_test_case>]
 - `--working_dir`, `-w`: (Optional) Specify the working directory where tests should be executed. Defaults to current directory if not provided.
 - `--test_case`, `-t`: (Optional) Specify a single test case to run.
 
-## 🚀 Example Workflow
+## Example Workflow
 
 Here is an example of a typical workflow using RegMiner4APR:
 
@@ -178,6 +178,6 @@ Here is an example of a typical workflow using RegMiner4APR:
     regminer4apr test
     ```
 
-## 🔍 Regression Bug Validation
+## Regression Bug Validation
     
 Use this section to reproduce and validate the potential regression bugs extracted by **RegMiner**. For detailed instructions, refer to the [Usage Guide](./regression-validation/VALIDATION-USAGE.md).
