@@ -17,7 +17,7 @@ To support the use of RegMiner4APR, we provide the following artifacts:
 2. [📂 RegMiner4APR - Database](https://github.com/brojackvn/RegMiner4APR-Benchmark): A structured, reproducible database of real-world regression bugs.
 3. [🌐 RegMiner4APR - Homepage]() : The central hub containing detailed information for each bug in our benchmark.
 
-[🗄️ Data availability](): The full dataset, including all versions and metadata, is hosted on **Figshare** for easy access and reproducibility.
+[🗄️ Data availability](https://figshare.com/s/e682027596fd3224ea31): The replication package is hosted on **Figshare** for easy access and reproducibility.
 
 ## Installation
 
