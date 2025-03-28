@@ -1,0 +1,219 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/pom.xml ./RegMiner4APR-Regression-Bugs/BIC/pom.xml
+--- ./RegMiner4APR-Regression-Bugs/WORKING/pom.xml	2024-09-08 01:36:22.981870694 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/pom.xml	2024-09-08 01:36:22.861869854 +1000
+@@ -4,7 +4,7 @@
+ 	<modelVersion>4.0.0</modelVersion>
+ 	<groupId>com.alibaba</groupId>
+ 	<artifactId>fastjson</artifactId>
+-	<version>1.2.37-preview_01</version>
++	<version>1.2.37-preview_11</version>
+ 
+ 	<packaging>jar</packaging>
+ 	<name>fastjson</name>
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/JSONObject.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/JSONObject.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/JSONObject.java	2024-09-08 01:36:22.981870694 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/JSONObject.java	2024-09-08 01:36:22.861869854 +1000
+@@ -97,7 +97,13 @@
+     }
+ 
+     public Object get(Object key) {
+-        return map.get(key);
++        Object val = map.get(key);
++
++        if (val == null && key instanceof Number) {
++            val = map.get(key.toString());
++        }
++
++        return val;
+     }
+ 
+     public JSONObject getJSONObject(String key) {
+@@ -464,4 +470,8 @@
+ 
+         throw new UnsupportedOperationException(method.toGenericString());
+     }
++
++    public Map<String, Object> getInnerMap() {
++        return this.map;
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/DefaultJSONParser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/DefaultJSONParser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/DefaultJSONParser.java	2024-09-08 01:36:22.985870723 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/DefaultJSONParser.java	2024-09-08 01:36:22.861869854 +1000
+@@ -27,16 +27,7 @@
+ import java.math.BigInteger;
+ import java.text.DateFormat;
+ import java.text.SimpleDateFormat;
+-import java.util.ArrayList;
+-import java.util.Collection;
+-import java.util.Collections;
+-import java.util.Date;
+-import java.util.HashMap;
+-import java.util.HashSet;
+-import java.util.List;
+-import java.util.Map;
+-import java.util.Set;
+-import java.util.TreeSet;
++import java.util.*;
+ 
+ import com.alibaba.fastjson.*;
+ import com.alibaba.fastjson.parser.deserializer.*;
+@@ -203,6 +194,8 @@
+ 
+        ParseContext context = this.context;
+         try {
++            Map map = object instanceof JSONObject ? ((JSONObject) object).getInnerMap() : object;
++
+             boolean setContextFlag = false;
+             for (;;) {
+                 lexer.skipWhitespace();
+@@ -304,7 +297,7 @@
+                     Class<?> clazz = config.checkAutoType(typeName, null);
+ 
+                     if (clazz == null) {
+-                        object.put(JSON.DEFAULT_TYPE_KEY, typeName);
++                        map.put(JSON.DEFAULT_TYPE_KEY, typeName);
+                         continue;
+                     }
+ 
+@@ -420,7 +413,9 @@
+                 }
+ 
+                 if (object.getClass() == JSONObject.class) {
+-                    key = (key == null) ? "null" : key.toString();
++                    if (key == null) {
++                        key = "null";
++                    }
+                 }
+ 
+                 Object value;
+@@ -437,7 +432,7 @@
+                         iso8601Lexer.close();
+                     }
+ 
+-                    object.put(key, value);
++                    map.put(key, value);
+                 } else if (ch >= '0' && ch <= '9' || ch == '-') {
+                     lexer.scanNumber();
+                     if (lexer.token() == JSONToken.LITERAL_INT) {
+@@ -446,7 +441,7 @@
+                         value = lexer.decimalValue(lexer.isEnabled(Feature.UseBigDecimal));
+                     }
+ 
+-                    object.put(key, value);
++                    map.put(key, value);
+                 } else if (ch == '[') { // 减少嵌套，兼容android
+                     lexer.nextToken();
+ 
+@@ -467,7 +462,7 @@
+                     } else {
+                         value = list;
+                     }
+-                    object.put(key, value);
++                    map.put(key, value);
+ 
+                     if (lexer.token() == JSONToken.RBRACE) {
+                         lexer.nextToken();
+@@ -510,11 +505,7 @@
+ 
+                     checkMapResolve(object, key.toString());
+ 
+-                    if (object.getClass() == JSONObject.class) {
+-                        object.put(key.toString(), obj);
+-                    } else {
+-                        object.put(key, obj);
+-                    }
++                    map.put(key, obj);
+ 
+                     if (parentIsArray) {
+                         //setContext(context, obj, key);
+@@ -540,10 +531,7 @@
+                     lexer.nextToken();
+                     value = parse();
+ 
+-                    if (object.getClass() == JSONObject.class) {
+-                        key = key.toString();
+-                    }
+-                    object.put(key, value);
++                    map.put(key, value);
+ 
+                     if (lexer.token() == JSONToken.RBRACE) {
+                         lexer.nextToken();
+@@ -1319,6 +1307,16 @@
+             case LBRACE:
+                 JSONObject object = new JSONObject(lexer.isEnabled(Feature.OrderedField));
+                 return parseObject(object, fieldName);
++//            case LBRACE: {
++//                Map<String, Object> map = lexer.isEnabled(Feature.OrderedField)
++//                        ? new LinkedHashMap<String, Object>()
++//                        : new HashMap<String, Object>();
++//                Object obj = parseObject(map, fieldName);
++//                if (obj != map) {
++//                    return obj;
++//                }
++//                return new JSONObject(map);
++//            }
+             case LITERAL_INT:
+                 Number intValue = lexer.integerValue();
+                 lexer.nextToken();
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/serializer/FieldSerializer.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/serializer/FieldSerializer.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/serializer/FieldSerializer.java	2024-09-08 01:36:22.985870723 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/serializer/FieldSerializer.java	2024-09-08 01:36:22.865869883 +1000
+@@ -268,6 +268,13 @@
+             }
+         }
+ 
++        if ((features & SerializerFeature.WriteClassName.mask) != 0
++                && valueClass != fieldInfo.fieldClass
++                && JavaBeanSerializer.class.isInstance(valueSerializer)) {
++            ((JavaBeanSerializer) valueSerializer).write(serializer, propertyValue, fieldInfo.name, fieldInfo.fieldType, fieldFeatures, false);
++            return;
++        }
++
+         valueSerializer.write(serializer, propertyValue, fieldInfo.name, fieldInfo.fieldType, fieldFeatures);
+     }
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/serializer/JavaBeanSerializer.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/serializer/JavaBeanSerializer.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/serializer/JavaBeanSerializer.java	2024-09-08 01:36:22.985870723 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/serializer/JavaBeanSerializer.java	2024-09-08 01:36:22.865869883 +1000
+@@ -157,6 +157,7 @@
+             boolean commaFlag = false;
+ 
+             if ((this.beanInfo.features & SerializerFeature.WriteClassName.mask) != 0
++                ||(features & SerializerFeature.WriteClassName.mask) != 0
+                 || serializer.isWriteClassName(fieldType, object)) {
+                 Class<?> objClass = object.getClass();
+                 if (objClass != fieldType) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/serializer/MapSerializer.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/serializer/MapSerializer.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/serializer/MapSerializer.java	2024-09-08 01:36:22.985870723 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/serializer/MapSerializer.java	2024-09-08 01:36:22.865869883 +1000
+@@ -194,8 +194,11 @@
+                     if (entryKey == null || entryKey instanceof String) {
+                         value = this.processValue(serializer, null, object, (String) entryKey, value);
+                     } else {
+-                        String strKey = JSON.toJSONString(entryKey);
+-                        value = this.processValue(serializer, null, object, strKey, value);
++                        boolean objectOrArray = entryKey instanceof Map || entryKey instanceof Collection;
++                        if (!objectOrArray) {
++                            String strKey = JSON.toJSONString(entryKey);
++                            value = this.processValue(serializer, null, object, strKey, value);
++                        }
+                     }
+                 }
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/serializer/SerializeConfig.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/serializer/SerializeConfig.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/serializer/SerializeConfig.java	2024-09-08 01:36:22.985870723 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/serializer/SerializeConfig.java	2024-09-08 01:36:22.865869883 +1000
+@@ -205,7 +205,8 @@
+                 for (SerializerFeature feature : annotation.serialzeFeatures()) {
+                     if (SerializerFeature.WriteNonStringValueAsString == feature //
+                             || SerializerFeature.WriteEnumUsingToString == feature //
+-                            || SerializerFeature.NotWriteDefaultValue == feature) {
++                            || SerializerFeature.NotWriteDefaultValue == feature
++                            || SerializerFeature.WriteClassName == feature) {
+                         asm = false;
+                         break;
+                     }
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/bvt/feature: WriteNullStringAsEmptyTest2.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/bvt/writeClassName: WriteClassNameTest5.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/bvt: XX01.java

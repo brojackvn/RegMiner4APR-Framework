@@ -1,0 +1,29 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/xebialabs/overthere/util/WindowsCommandLineArgsSanitizer.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/xebialabs/overthere/util/WindowsCommandLineArgsSanitizer.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/xebialabs/overthere/util/WindowsCommandLineArgsSanitizer.java	2024-09-08 01:36:19.373845425 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/xebialabs/overthere/util/WindowsCommandLineArgsSanitizer.java	2024-09-08 01:36:19.361845341 +1000
+@@ -24,7 +24,8 @@
+ 
+ public class WindowsCommandLineArgsSanitizer {
+ 
+-    private static final char[] SPECIAL_CHARS = " |<>&^\r\n".toCharArray();
++    private static final char[] SPECIAL_CHARS = " |<>&^,;()\r\n".toCharArray();
++    private static final char[] SLASH_ESCAPED_CHARS = "\\[].*?".toCharArray();
+ 
+     private static final String WHITE_SPACE = " ";
+ 
+@@ -39,9 +40,15 @@
+         StringBuilder builder = new StringBuilder();
+         for (int j = 0; j < str.length(); j++) {
+             char c = str.charAt(j);
++            if (c == '%') {
++                builder.append('%');
++            }
+             if (contains(c, SPECIAL_CHARS)) {
+                 builder.append('^');
+             }
++            if (contains(c, SLASH_ESCAPED_CHARS)) {
++                builder.append('\\');
++            }
+             builder.append(c);
+         }
+         return builder.toString();

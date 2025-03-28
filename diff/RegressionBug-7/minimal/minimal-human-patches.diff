@@ -1,0 +1,29 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/googlecode/aviator/parser/ExpressionParser.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/googlecode/aviator/parser/ExpressionParser.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/googlecode/aviator/parser/ExpressionParser.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/googlecode/aviator/parser/ExpressionParser.java
+@@ -457,8 +457,12 @@
+       factor();
+     }
+
+     while (expectChar('[') || expectChar('(')) {
++      if (isConstant(this.prevToken)) {
++        break;
++      }
+
+       if (expectChar('[')) {
+         // (...)[index]
+         arrayAccess();
+@@ -893,4 +897,29 @@
+     }
+   }
+ 
++  public static boolean isConstant(final Token<?> token) {
++    switch (token.getType()) {
++      case Number:
++      case Pattern:
++      case String:
++        return true;
++      default:
++        return false;
++    }
++  }

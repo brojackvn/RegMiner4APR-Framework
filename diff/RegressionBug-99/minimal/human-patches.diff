@@ -1,0 +1,22 @@
+diff -r -U 3 RegressionBug-99/BUGGY/src/main/java/org/apache/commons/io/FileUtils.java RegressionBug-99/BFC/src/main/java/org/apache/commons/io/FileUtils.java
+--- RegressionBug-99/BUGGY/src/main/java/org/apache/commons/io/FileUtils.java
++++ RegressionBug-99/BFC/src/main/java/org/apache/commons/io/FileUtils.java
+@@ -846,17 +851,11 @@
+         }
+ 
+         final Path srcPath = srcFile.toPath();
+-        final boolean isSymLink = Files.isSymbolicLink(srcPath);
+-        if (isSymLink && !Arrays.asList(copyOptions).contains(LinkOption.NOFOLLOW_LINKS)) {
+-            final List<CopyOption> list = new ArrayList<>(Arrays.asList(copyOptions));
+-            list.add(LinkOption.NOFOLLOW_LINKS);
+-            copyOptions = list.toArray(PathUtils.EMPTY_COPY_OPTIONS);
+-        }
+ 
+         Files.copy(srcPath, destFile.toPath(), copyOptions);
+ 
+         // On Windows, the last modified time is copied by default.
+-        if (preserveFileDate && !isSymLink && !setTimes(srcFile, destFile)) {
++        if (preserveFileDate && !Files.isSymbolicLink(srcPath) && !setTimes(srcFile, destFile)) {
+             throw new IOException("Cannot set the file time.");
+         }
+     }

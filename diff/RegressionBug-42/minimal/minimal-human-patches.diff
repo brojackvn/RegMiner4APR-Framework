@@ -1,0 +1,12 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/internal/StringUtil.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/internal/StringUtil.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/internal/StringUtil.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/internal/StringUtil.java
+@@ -132,8 +132,8 @@
+     }
+ 
+     public static boolean isInvisibleChar(int c) {
+-        return Character.getType(c) == 16 && (c == 8203 || c == 8204 || c == 8205 || c == 173);
++        return c == 8203 || c == 173;
+     }
+ 
+     /**

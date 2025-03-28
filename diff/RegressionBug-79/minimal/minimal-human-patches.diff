@@ -1,0 +1,34 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java
+@@ -527,7 +527,7 @@
+ 			int index = header.getHeaderIndex();
+ 
+ 			if (index != -1) {
+-				if (indexes.contains(index)) {
++				if (filter == MethodFilter.ONLY_GETTERS && indexes.contains(index)) { //allows the same column to be mapped to multiple fields when parsing, but not when writing.
+ 					throw new IllegalArgumentException("Duplicate field index '" + index + "' found in attribute '" + header.getTargetName() + "' of class " + beanClass.getName());
+ 				}
+ 				indexes.add(index);
+@@ -637,7 +637,9 @@
+ 		Parsed annotation = findAnnotation(element, Parsed.class);
+ 		if (annotation != null) {
+ 			TransformedHeader header = new TransformedHeader(element, transformer);
+-			if (header.getHeaderIndex() >= 0 && indexes.contains(header.getHeaderIndex())) {
++			if (filter == MethodFilter.ONLY_GETTERS && header.getHeaderIndex() >= 0 && indexes.contains(header.getHeaderIndex())) {
+ 				throw new IllegalArgumentException("Duplicate field index '" + header.getHeaderIndex() + "' found in " + describeElement(element));
+ 			}
+ 			tmp.add(header);
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/fields/FieldSet.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/fields/FieldSet.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/fields/FieldSet.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/fields/FieldSet.java
+@@ -100,9 +100,6 @@
+ 	 * @param field information that uniquely identifies a field
+ 	 */
+ 	private void addElement(T field) {
+-		if (this.fields.contains(field)) {
+-			throw new IllegalArgumentException("Field '" + field + "' is already selected");
+-		}
+ 		fields.add(field);
+ 	}
+ 

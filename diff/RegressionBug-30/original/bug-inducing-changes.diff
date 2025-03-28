@@ -1,0 +1,23 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/ParserOutput.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/ParserOutput.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/ParserOutput.java	2024-09-08 01:36:14.185809090 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/ParserOutput.java	2024-09-08 01:36:14.165808950 +1000
+@@ -178,6 +178,9 @@
+ 
+ 			currentRecord++;
+ 			if (columnsReordered) {
++				if(selectedIndexes.length == 0){
++					return ArgumentUtils.EMPTY_STRING_ARRAY;
++				}
+ 				String[] reorderedValues = new String[selectedIndexes.length];
+ 				for (int i = 0; i < selectedIndexes.length; i++) {
+ 					int index = selectedIndexes[i];
+@@ -207,6 +210,9 @@
+ 			currentRecord++;
+ 
+ 			if (columnsReordered) {
++				if(selectedIndexes.length == 0){
++					return ArgumentUtils.EMPTY_STRING_ARRAY;
++				}
+ 				String[] out = new String[selectedIndexes.length];
+ 				Arrays.fill(out, nullValue);
+ 				return out;

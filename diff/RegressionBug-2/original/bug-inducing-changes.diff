@@ -1,0 +1,54 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/net/lingala/zip4j/io/inputstream/ZipInputStream.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/net/lingala/zip4j/io/inputstream/ZipInputStream.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/net/lingala/zip4j/io/inputstream/ZipInputStream.java	2024-09-08 01:36:07.245760486 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/net/lingala/zip4j/io/inputstream/ZipInputStream.java	2024-09-08 01:36:07.225760346 +1000
+@@ -93,7 +93,17 @@
+ 
+     if (fileHeader != null) {
+       localFileHeader.setCrc(fileHeader.getCrc());
+-      localFileHeader.setCompressedSize(fileHeader.getCompressedSize());
++
++      // In case of jar files, directories' compressed size in file header is 2 and local file header is 0.
++      // The actual value of compressed size in file header should be 0.
++      // This is a workaround to ignore the comprressed size from file header if directory and is deflate and
++      // compressed sizes does not match
++      if (!(fileHeader.isDirectory()
++          && fileHeader.getCompressionMethod().equals(CompressionMethod.DEFLATE)
++          && fileHeader.getCompressedSize() != localFileHeader.getCompressedSize())) {
++        localFileHeader.setCompressedSize(fileHeader.getCompressedSize());
++      }
++
+       localFileHeader.setUncompressedSize(fileHeader.getUncompressedSize());
+       canSkipExtendedLocalFileHeader = true;
+     } else {
+@@ -300,9 +310,14 @@
+   }
+ 
+   private void readUntilEndOfEntry() throws IOException {
++    if (localFileHeader.getCompressedSize() == 0) {
++      return;
++    }
++
+     if (endOfEntryBuffer == null) {
+       endOfEntryBuffer = new byte[512];
+     }
++
+     while (read(endOfEntryBuffer) != -1);
+   }
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/net/lingala/zip4j/ExtractZipFileIT.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/net/lingala/zip4j/ExtractZipFileIT.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/net/lingala/zip4j/ExtractZipFileIT.java	2024-09-08 01:36:07.245760486 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/net/lingala/zip4j/ExtractZipFileIT.java	2024-09-08 01:36:07.225760346 +1000
+@@ -475,6 +475,12 @@
+     ZipFileVerifier.verifyFileContent(TestUtils.getTestFileFromResources("öüäöäö/asöäööl"), outputFile);
+   }
+ 
++  @Test
++  public void testExtractJarFile() throws IOException {
++    ZipFile zipFile = new ZipFile(TestUtils.getTestArchiveFromResources("zip4j-for-testing.jar"));
++    zipFile.extractAll(outputFolder.getPath());
++  }
++
+   private void addFileToZip(ZipFile zipFile, String fileName, EncryptionMethod encryptionMethod, String password) throws ZipException {
+     ZipParameters zipParameters = new ZipParameters();
+     zipParameters.setEncryptFiles(encryptionMethod != null);
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/resources/test-archives: zip4j-for-testing.jar

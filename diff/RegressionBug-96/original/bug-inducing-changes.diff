@@ -1,0 +1,50 @@
+diff -r -U 3 /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/WORKING/src/main/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorOutputStream.java /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BIC/src/main/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorOutputStream.java
+--- /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/WORKING/src/main/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorOutputStream.java	2025-03-24 16:54:48.125574617 +1100
++++ /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BIC/src/main/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorOutputStream.java	2025-03-24 16:54:34.997492968 +1100
+@@ -484,8 +484,10 @@
+     @Override
+     public void close() throws IOException {
+         if (!closed) {
+-            try (OutputStream outShadow = this.out) {
++            try {
+                 finish();
++            } finally {
++                this.out.close();
+             }
+         }
+     }
+diff -r -U 3 /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/WORKING/src/test/java/org/apache/commons/compress/archivers/SevenZTest.java /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BIC/src/test/java/org/apache/commons/compress/archivers/SevenZTest.java
+--- /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/WORKING/src/test/java/org/apache/commons/compress/archivers/SevenZTest.java	2025-03-24 16:55:00.053648808 +1100
++++ /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BIC/src/test/java/org/apache/commons/compress/archivers/SevenZTest.java	2025-03-24 16:54:47.653571681 +1100
+@@ -174,11 +174,6 @@
+     }
+ 
+     @Test
+-    public void testSevenZArchiveCreationUsingBZIP2() throws Exception {
+-        testSevenZArchiveCreation(SevenZMethod.BZIP2);
+-    }
+-
+-    @Test
+     public void testSevenZArchiveCreationUsingCopy() throws Exception {
+         testSevenZArchiveCreation(SevenZMethod.COPY);
+     }
+diff -r -U 3 /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/WORKING/src/test/java/org/apache/commons/compress/archivers/TarTest.java /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BIC/src/test/java/org/apache/commons/compress/archivers/TarTest.java
+--- /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/WORKING/src/test/java/org/apache/commons/compress/archivers/TarTest.java	2025-03-24 16:54:59.569645797 +1100
++++ /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BIC/src/test/java/org/apache/commons/compress/archivers/TarTest.java	2025-03-24 16:54:47.153568572 +1100
+@@ -103,6 +103,7 @@
+         }
+     }
+ 
++
+     @Test
+     public void testDirectoryRead() throws IOException {
+         final File input = getFile("directory.tar");
+@@ -295,7 +296,7 @@
+             }
+         }
+     }
+-    
++
+     @Test
+     public void testTarFileExplicitDirectoryEntry() throws Exception {
+         final File archive = createTempFile("test.", ".tar");

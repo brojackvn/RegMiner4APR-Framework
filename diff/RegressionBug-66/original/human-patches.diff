@@ -1,0 +1,12 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/parser/CharacterReader.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/parser/CharacterReader.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/parser/CharacterReader.java	2024-09-08 01:36:20.261851644 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/parser/CharacterReader.java	2024-09-08 01:36:20.245851532 +1000
+@@ -424,6 +424,8 @@
+         // limit (no cache):
+         if (count > maxStringCacheLen)
+             return new String(charBuf, start, count);
++        if (count < 1)
++            return "";
+ 
+         // calculate hash:
+         int hash = 0;

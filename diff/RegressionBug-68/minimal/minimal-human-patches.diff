@@ -1,0 +1,69 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/JSON.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/JSON.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/JSON.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/JSON.java
+@@ -1107,6 +1107,10 @@
+      * @since 1.2.9
+      */
+     public <T> T toJavaObject(Class<T> clazz) {
++        if (clazz == JSONArray.class || clazz == JSON.class || clazz == Collection.class || clazz == List.class) {
++            return (T) this;
++        }
+
+         return TypeUtils.cast(this, clazz, ParserConfig.getGlobalInstance());
+     }
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/JSONObject.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/JSONObject.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/JSONObject.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/JSONObject.java
+@@ -588,7 +588,7 @@
+     }
+ 
+     public <T> T toJavaObject(Class<T> clazz) {
+-        if (clazz == Map.class) {
++        if (clazz == Map.class || clazz == JSONObject.class || clazz == JSON.class) {
+             return (T) this;
+         }
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/parser/deserializer/JavaBeanDeserializer.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/parser/deserializer/JavaBeanDeserializer.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/parser/deserializer/JavaBeanDeserializer.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/parser/deserializer/JavaBeanDeserializer.java
+@@ -1335,7 +1335,8 @@
+                 Type paramType = fieldInfo.fieldType;
+ 
+                 if (field != null) {
+-                    if (paramType == boolean.class) {
++                    Class fieldType = field.getType();
++                    if (fieldType == boolean.class) {
+                         if (value == Boolean.FALSE) {
+                             field.setBoolean(object, false);
+                             continue;
+@@ -1345,17 +1346,17 @@
+                             field.setBoolean(object, true);
+                             continue;
+                         }
+-                    } else if (paramType == int.class) {
++                    } else if (fieldType == int.class) {
+                         if (value instanceof Number) {
+                             field.setInt(object, ((Number) value).intValue());
+                             continue;
+                         }
+-                    } else if (paramType == long.class) {
++                    } else if (fieldType == long.class) {
+                         if (value instanceof Number) {
+                             field.setLong(object, ((Number) value).longValue());
+                             continue;
+                         }
+-                    } else if (paramType == float.class) {
++                    } else if (fieldType == float.class) {
+                         if (value instanceof Number) {
+                             field.setFloat(object, ((Number) value).floatValue());
+                             continue;
+@@ -1371,7 +1372,7 @@
+                             field.setFloat(object, floatValue);
+                             continue;
+                         }
+-                    } else if (paramType == double.class) {
++                    } else if (fieldType == double.class) {
+                         if (value instanceof Number) {
+                             field.setDouble(object, ((Number) value).doubleValue());
+                             continue;

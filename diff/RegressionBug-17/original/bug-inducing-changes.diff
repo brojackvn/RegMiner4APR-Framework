@@ -1,0 +1,189 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/JSONPath.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/JSONPath.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/JSONPath.java	2024-09-22 12:59:38.231951055 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/JSONPath.java	2024-09-22 12:59:38.087949498 +1000
+@@ -605,10 +605,10 @@
+                                 return SizeSegement.instance;
+                             }
+ 
+-                            throw new UnsupportedOperationException();
++                            throw new JSONPathException("not support jsonpath : " + path);
+                         }
+ 
+-                        throw new UnsupportedOperationException();
++                        throw new JSONPathException("not support jsonpath : " + path);
+                     }
+ 
+                     return new PropertySegement(propertyName, deep);
+@@ -624,7 +624,7 @@
+                     return new PropertySegement(propertyName, false);
+                 }
+ 
+-                throw new UnsupportedOperationException();
++                throw new JSONPathException("not support jsonpath : " + path);
+             }
+ 
+             return null;
+@@ -2017,6 +2017,18 @@
+             return value;
+         }
+ 
++        if (currentObject instanceof Collection) {
++            Collection collection = (Collection) currentObject;
++            int i = 0;
++            for (Object item : collection) {
++                if (i == index) {
++                    return item;
++                }
++                i++;
++            }
++            return null;
++        }
++
+         throw new UnsupportedOperationException();
+     }
+ 
+@@ -2204,7 +2216,7 @@
+         JavaBeanSerializer beanSerializer = getJavaBeanSerializer(currentClass);
+         if (beanSerializer != null) {
+             try {
+-                return beanSerializer.getFieldValue(currentObject, propertyName, propertyNameHash);
++                return beanSerializer.getFieldValue(currentObject, propertyName, propertyNameHash, false);
+             } catch (Exception e) {
+                 throw new JSONPathException("jsonpath error, path " + path + ", segement " + propertyName, e);
+             }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/DefaultJSONParser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/DefaultJSONParser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/DefaultJSONParser.java	2024-09-22 12:59:38.231951055 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/DefaultJSONParser.java	2024-09-22 12:59:38.087949498 +1000
+@@ -1446,10 +1446,21 @@
+                 object = task.ownerContext.object;
+             }
+ 
+-            Object refValue = ref.startsWith("$")
+-                    ? getObject(ref)
+-                    : task.context.object;
+-            
++            Object refValue;
++
++            if (ref.startsWith("$")) {
++                refValue = getObject(ref);
++                if (refValue == null) {
++                    try {
++                        refValue = JSONPath.eval(value, ref);
++                    } catch (JSONPathException ex) {
++                        // skip
++                    }
++                }
++            } else {
++                refValue = task.context.object;
++            }
++
+             FieldDeserializer fieldDeser = task.fieldDeserializer;
+ 
+             if (fieldDeser != null) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/serializer/JavaBeanSerializer.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/serializer/JavaBeanSerializer.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/serializer/JavaBeanSerializer.java	2024-09-22 12:59:38.231951055 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/serializer/JavaBeanSerializer.java	2024-09-22 12:59:38.095949585 +1000
+@@ -22,6 +22,7 @@
+ import java.util.*;
+ 
+ import com.alibaba.fastjson.JSONException;
++import com.alibaba.fastjson.PropertyNamingStrategy;
+ import com.alibaba.fastjson.annotation.JSONField;
+ import com.alibaba.fastjson.util.FieldInfo;
+ import com.alibaba.fastjson.util.TypeUtils;
+@@ -36,8 +37,8 @@
+     
+     protected SerializeBeanInfo       beanInfo;
+ 
+-    private transient long[] hashArray;
+-    private transient short[] hashArrayMapping;
++    private transient volatile long[] hashArray;
++    private transient volatile short[] hashArrayMapping;
+     
+     public JavaBeanSerializer(Class<?> beanType){
+         this(beanType, (Map<String, String>) null);
+@@ -431,10 +432,13 @@
+         }
+     }
+ 
+-    public Object getFieldValue(Object object, String key, long keyHash) {
++    public Object getFieldValue(Object object, String key, long keyHash, boolean throwFieldNotFoundException) {
+         FieldSerializer fieldDeser = getFieldSerializer(keyHash);
+         if (fieldDeser == null) {
+-            throw new JSONException("field not found. " + key);
++            if (throwFieldNotFoundException) {
++                throw new JSONException("field not found. " + key);
++            }
++            return null;
+         }
+ 
+         try {
+@@ -474,13 +478,28 @@
+     }
+ 
+     public FieldSerializer getFieldSerializer(long hash) {
++        PropertyNamingStrategy[] namingStrategies = null;
+         if (this.hashArray == null) {
+-            long[] hashArray = new long[sortedGetters.length];
++            namingStrategies = PropertyNamingStrategy.values();
++
++            long[] hashArray = new long[sortedGetters.length * namingStrategies.length];
++            int index = 0;
+             for (int i = 0; i < sortedGetters.length; i++) {
+-                hashArray[i] = TypeUtils.fnv1a_64(sortedGetters[i].fieldInfo.name);
++                String name = sortedGetters[i].fieldInfo.name;
++                hashArray[index++] = TypeUtils.fnv1a_64(name);
++
++                for (int j = 0; j < namingStrategies.length; j++) {
++                    String name_t = namingStrategies[j].translate(name);
++                    if (name.equals(name_t)) {
++                        continue;
++                    }
++                    hashArray[index++] = TypeUtils.fnv1a_64(name_t);
++                }
+             }
+-            Arrays.sort(hashArray);
+-            this.hashArray = hashArray;
++            Arrays.sort(hashArray, 0, index);
++
++            this.hashArray = new long[index];
++            System.arraycopy(hashArray, 0, this.hashArray, 0, index);
+         }
+ 
+         int pos = Arrays.binarySearch(hashArray, hash);
+@@ -489,14 +508,33 @@
+         }
+ 
+         if (hashArrayMapping == null) {
++            if (namingStrategies == null) {
++                namingStrategies = PropertyNamingStrategy.values();
++            }
++
+             short[] mapping = new short[hashArray.length];
+             Arrays.fill(mapping, (short) -1);
+             for (int i = 0; i < sortedGetters.length; i++) {
++                String name = sortedGetters[i].fieldInfo.name;
++
+                 int p = Arrays.binarySearch(hashArray
+-                        , TypeUtils.fnv1a_64(sortedGetters[i].fieldInfo.name));
++                        , TypeUtils.fnv1a_64(name));
+                 if (p >= 0) {
+                     mapping[p] = (short) i;
+                 }
++
++                for (int j = 0; j < namingStrategies.length; j++) {
++                    String name_t = namingStrategies[j].translate(name);
++                    if (name.equals(name_t)) {
++                        continue;
++                    }
++
++                    int p_t = Arrays.binarySearch(hashArray
++                            , TypeUtils.fnv1a_64(name_t));
++                    if (p_t >= 0) {
++                        mapping[p_t] = (short) i;
++                    }
++                }
+             }
+             hashArrayMapping = mapping;
+         }
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/bvt/issue_1300: Issue1363.java

@@ -1,0 +1,291 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/cactoos/io/TeeInputStream.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/cactoos/io/TeeInputStream.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/cactoos/io/TeeInputStream.java	2024-09-08 01:36:13.365803347 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/cactoos/io/TeeInputStream.java	2024-09-08 01:36:13.297802871 +1000
+@@ -33,7 +33,7 @@
+  * <p>There is no thread-safety guarantee.
+  *
+  * @author Yegor Bugayenko (yegor256@gmail.com)
+- * @version $Id: cad3d3bb6d5c9e1f071ac2594568f2c969ae9ee6 $
++ * @version $Id: 19861a1b0fee0b0cb5a3ffac5e8ce26a0645cdaf $
+  * @since 0.1
+  */
+ public final class TeeInputStream extends InputStream {
+@@ -96,7 +96,7 @@
+     @Override
+     public void close() throws IOException {
+         this.input.close();
+-        this.output.close();
++        this.output.flush();
+     }
+ 
+     @Override
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/cactoos/io/GzipOutputTest.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/cactoos/io/GzipOutputTest.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/cactoos/io/GzipOutputTest.java	2024-09-08 01:36:13.381803459 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/cactoos/io/GzipOutputTest.java	2024-09-08 01:36:13.313802983 +1000
+@@ -38,7 +38,7 @@
+ /**
+  * Test case for {@link org.cactoos.io.GzipOutput}.
+  * @author Fabricio Cabral (fabriciofx@gmail.com)
+- * @version $Id: 5c8a5d74e10e61b38331f84a3659858932856694 $
++ * @version $Id: 54be0cd2eae4f2c7378cd212531a40e1162e58e2 $
+  * @since 0.29
+  * @checkstyle JavadocMethodCheck (500 lines)
+  */
+@@ -63,12 +63,17 @@
+             (byte) 0x00, (byte) 0x00, (byte) 0x00,
+         };
+         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+-        new LengthOf(
+-            new TeeInput(
+-                "Hello!",
+-                new GzipOutput(new OutputTo(baos))
+-            )
+-        ).value();
++        try (final OutputStream output = new GzipOutput(
++            new OutputTo(baos)
++        ).stream()
++        ) {
++            new LengthOf(
++                new TeeInput(
++                    "Hello!",
++                    new OutputTo(output)
++                )
++            ).value();
++        }
+         MatcherAssert.assertThat(
+             "Can't write to a gzip output",
+             baos.toByteArray(),
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/cactoos/io/LoggingOutputTest.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/cactoos/io/LoggingOutputTest.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/cactoos/io/LoggingOutputTest.java	2024-09-08 01:36:13.381803459 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/cactoos/io/LoggingOutputTest.java	2024-09-08 01:36:13.317803011 +1000
+@@ -39,7 +39,7 @@
+  * Test case for {@link LoggingOutput}.
+  *
+  * @author Fabricio Cabral (fabriciofx@gmail.com)
+- * @version $Id: b293c1d01c82ffb78beb12b2642041625c8f161c $
++ * @version $Id: e595afe9bc62361db31044ec7ac1f58e6d16f86e $
+  * @since 0.29
+  * @checkstyle JavadocMethodCheck (500 lines)
+  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
+@@ -120,16 +120,19 @@
+         final Logger logger = new FakeLogger();
+         final Path temp = this.folder.newFolder("ccts-1").toPath();
+         final Path path = temp.resolve("x/y/z/file.txt");
+-        new LengthOf(
+-            new TeeInput(
+-                new ResourceOf("org/cactoos/large-text.txt"),
+-                new LoggingOutput(
+-                    new OutputTo(path),
+-                    "text file",
+-                    logger
++        try (OutputStream output = new LoggingOutput(
++            new OutputTo(path),
++            "text file",
++            logger
++        ).stream()
++        ) {
++            new LengthOf(
++                new TeeInput(
++                    new ResourceOf("org/cactoos/large-text.txt"),
++                    new OutputTo(output)
+                 )
+-            )
+-        ).intValue();
++            ).intValue();
++        }
+         MatcherAssert.assertThat(
+             "Can't log write and close operations to text file",
+             logger.toString(),
+@@ -150,16 +153,19 @@
+         final Logger logger = new FakeLogger(Level.WARNING);
+         final Path temp = this.folder.newFolder("ccts-2").toPath();
+         final Path path = temp.resolve("a/b/c/file.txt");
+-        new LengthOf(
+-            new TeeInput(
+-                new ResourceOf("org/cactoos/large-text.txt"),
+-                new LoggingOutput(
+-                    new OutputTo(path),
+-                    "text file",
+-                    logger
++        try (final OutputStream output = new LoggingOutput(
++            new OutputTo(path),
++            "text file",
++            logger
++        ).stream()
++        ) {
++            new LengthOf(
++                new TeeInput(
++                    new ResourceOf("org/cactoos/large-text.txt"),
++                    new OutputTo(output)
+                 )
+-            )
+-        ).intValue();
++            ).intValue();
++        }
+         MatcherAssert.assertThat(
+             "Can't log all write and close operations to text file",
+             logger.toString(),
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/cactoos/io/WriterAsOutputStreamTest.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/cactoos/io/WriterAsOutputStreamTest.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/cactoos/io/WriterAsOutputStreamTest.java	2024-09-08 01:36:13.385803488 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/cactoos/io/WriterAsOutputStreamTest.java	2024-09-08 01:36:13.317803011 +1000
+@@ -43,7 +43,7 @@
+  * Test case for {@link WriterAsOutputStream}.
+  *
+  * @author Yegor Bugayenko (yegor256@gmail.com)
+- * @version $Id: 376868e6470782d1368b680e4ba138105a38ba9c $
++ * @version $Id: c5f547a78383008f643b2638a296362944eafc8a $
+  * @since 0.13
+  * @checkstyle JavadocMethodCheck (500 lines)
+  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
+@@ -93,54 +93,56 @@
+     public void writesLargeContentToFile() throws IOException {
+         final Path temp = this.folder.newFile("cactoos-1.txt-1")
+             .toPath();
+-        MatcherAssert.assertThat(
+-            "Can't copy Input to Output and return Input",
+-            new TextOf(
+-                new TeeInput(
+-                    new ResourceOf("org/cactoos/large-text.txt"),
+-                    new OutputTo(
+-                        new WriterAsOutputStream(
+-                            new OutputStreamWriter(
+-                                new FileOutputStream(temp.toFile()),
+-                                StandardCharsets.UTF_8
+-                            ),
+-                            StandardCharsets.UTF_8,
+-                            // @checkstyle MagicNumber (1 line)
+-                            345
++        try (final OutputStreamWriter writer = new OutputStreamWriter(
++            new FileOutputStream(temp.toFile()), StandardCharsets.UTF_8
++        )) {
++            MatcherAssert.assertThat(
++                "Can't copy Input to Output and return Input",
++                new TextOf(
++                    new TeeInput(
++                        new ResourceOf("org/cactoos/large-text.txt"),
++                        new OutputTo(
++                            new WriterAsOutputStream(
++                                writer,
++                                StandardCharsets.UTF_8,
++                                // @checkstyle MagicNumber (1 line)
++                                345
++                            )
+                         )
+                     )
++                ),
++                new TextHasString(
++                    new MatcherOf<>(
++                        str -> {
++                            return new TextOf(temp).asString().equals(str);
++                        }
++                    )
+                 )
+-            ),
+-            new TextHasString(
+-                new MatcherOf<>(
+-                    str -> {
+-                        return new TextOf(temp).asString().equals(str);
+-                    }
+-                )
+-            )
+-        );
++            );
++        }
+     }
+ 
+     @Test
+     public void writesToFileAndRemovesIt() throws Exception {
+         final Path temp = this.folder.newFile().toPath();
+         final String content = "Hello, товарищ! How are you?";
+-        new LengthOf(
+-            new TeeInput(
+-                new InputOf(content),
+-                new OutputTo(
+-                    new WriterAsOutputStream(
+-                        new OutputStreamWriter(
+-                            new FileOutputStream(temp.toFile()),
+-                            StandardCharsets.UTF_8
+-                        ),
+-                        StandardCharsets.UTF_8,
+-                        // @checkstyle MagicNumber (1 line)
+-                        345
++        try (final OutputStreamWriter writer = new OutputStreamWriter(
++            new FileOutputStream(temp.toFile()), StandardCharsets.UTF_8
++        )) {
++            new LengthOf(
++                new TeeInput(
++                    new InputOf(content),
++                    new OutputTo(
++                        new WriterAsOutputStream(
++                            writer,
++                            StandardCharsets.UTF_8,
++                            // @checkstyle MagicNumber (1 line)
++                            345
++                        )
+                     )
+                 )
+-            )
+-        ).value();
++            ).value();
++        }
+         Files.delete(temp);
+         MatcherAssert.assertThat(
+             () -> Files.exists(temp),
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/cactoos/io/WriterAsOutputTest.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/cactoos/io/WriterAsOutputTest.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/cactoos/io/WriterAsOutputTest.java	2024-09-08 01:36:13.385803488 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/cactoos/io/WriterAsOutputTest.java	2024-09-08 01:36:13.317803011 +1000
+@@ -40,7 +40,7 @@
+  * Test case for {@link WriterAsOutput}.
+  *
+  * @author Yegor Bugayenko (yegor256@gmail.com)
+- * @version $Id: 8470b02b53fa9bda3944f5cd7747b817fe3202fd $
++ * @version $Id: 6b0a52993c2cc071165ef6b8c678de62c1243538 $
+  * @since 0.13
+  * @checkstyle JavadocMethodCheck (500 lines)
+  * @checkstyle ClassDataAbstractionCouplingCheck (500 lines)
+@@ -56,27 +56,26 @@
+     public void writesLargeContentToFile() throws IOException {
+         final Path temp = this.folder.newFile("cactoos-1.txt-1")
+             .toPath();
+-        MatcherAssert.assertThat(
+-            "Can't copy Input to Output and return Input",
+-            new TextOf(
+-                new TeeInput(
+-                    new ResourceOf("org/cactoos/large-text.txt"),
+-                    new WriterAsOutput(
+-                        new OutputStreamWriter(
+-                            new FileOutputStream(temp.toFile()),
+-                            StandardCharsets.UTF_8
+-                        )
++        try (final OutputStreamWriter writer = new OutputStreamWriter(
++            new FileOutputStream(temp.toFile()), StandardCharsets.UTF_8
++        )) {
++            MatcherAssert.assertThat(
++                "Can't copy Input to Output and return Input",
++                new TextOf(
++                    new TeeInput(
++                        new ResourceOf("org/cactoos/large-text.txt"),
++                        new WriterAsOutput(writer)
++                    )
++                ),
++                new TextHasString(
++                    new MatcherOf<>(
++                        str -> {
++                            return new TextOf(temp).asString().equals(str);
++                        }
+                     )
+                 )
+-            ),
+-            new TextHasString(
+-                new MatcherOf<>(
+-                    str -> {
+-                        return new TextOf(temp).asString().equals(str);
+-                    }
+-                )
+-            )
+-        );
++            );
++        }
+     }
+ 
+ }

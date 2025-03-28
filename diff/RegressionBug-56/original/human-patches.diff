@@ -1,0 +1,13 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/xebialabs/overthere/util/WindowsCommandLineArgsSanitizer.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/xebialabs/overthere/util/WindowsCommandLineArgsSanitizer.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/xebialabs/overthere/util/WindowsCommandLineArgsSanitizer.java	2024-09-08 01:36:19.297844893 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/xebialabs/overthere/util/WindowsCommandLineArgsSanitizer.java	2024-09-08 01:36:19.285844809 +1000
+@@ -68,9 +68,6 @@
+     }
+ 
+     public static boolean containsAnySpecialChars(String str) {
+-        if (str.indexOf(PERCENT_CHAR) >= 0) {
+-            return true;
+-        }
+         for (char c : SPECIAL_CHARS) {
+             if (str.indexOf(c) >= 0) {
+                 return true;

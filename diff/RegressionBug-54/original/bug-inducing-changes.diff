@@ -1,0 +1,1441 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/AbstractWriter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/AbstractWriter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/AbstractWriter.java	2024-09-08 01:36:19.029843016 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/AbstractWriter.java	2024-09-08 01:36:19.005842848 +1000
+@@ -18,6 +18,7 @@
+ import com.univocity.parsers.common.fields.*;
+ import com.univocity.parsers.common.input.*;
+ import com.univocity.parsers.common.processor.*;
++import com.univocity.parsers.common.record.*;
+ import com.univocity.parsers.fixed.*;
+ 
+ import java.io.*;
+@@ -29,13 +30,12 @@
+  *
+  * It handles all settings defined by {@link CommonWriterSettings}, and delegates the writing algorithm implementation to its subclasses through the abstract method {@link AbstractWriter#processRow(Object[])}
+  *
+- * <p> The following (absolutely required) attributes are exposed to subclasses:
++ * The following (absolutely required) attributes are exposed to subclasses:
+  * <ul>
+  * <li><b>appender (<i>{@link WriterCharAppender}</i>):</b> the character writer that appends characters from a given input into an internal buffer</li>
+  * </ul>
+  *
+  * @param <S> The specific writer settings configuration class, which can potentially provide additional configuration options supported by the writer implementation.
+- *
+  * @author Univocity Software Pty Ltd - <a href="mailto:parsers@univocity.com">parsers@univocity.com</a>
+  * @see com.univocity.parsers.csv.CsvWriter
+  * @see com.univocity.parsers.csv.CsvWriterSettings
+@@ -95,7 +95,7 @@
+ 
+ 	/**
+ 	 * All writers must support, at the very least, the settings provided by {@link CommonWriterSettings}. The AbstractWriter requires its configuration to be properly initialized.
+-	 * <p><strong>Important: </strong> by not providing an instance of {@link java.io.Writer} to this constructor, only the operations that write to Strings are available.</p>
++	 * <strong>Important: </strong> by not providing an instance of {@link java.io.Writer} to this constructor, only the operations that write to Strings are available.
+ 	 *
+ 	 * @param settings the writer configuration
+ 	 */
+@@ -232,7 +232,8 @@
+ 			if (headers != null && headers.length > 0) {
+ 				indexesToWrite = selector.getFieldIndexes(headers);
+ 				if (columnReorderingEnabled) { //column reordering enabled?
+-					outputRow = new Object[indexesToWrite.length];
++					int size = ArgumentUtils.removeAll(indexesToWrite, -1).length;
++					outputRow = new Object[size];
+ 				} else {
+ 					outputRow = new Object[headers.length];
+ 				}
+@@ -257,13 +258,16 @@
+ 				}
+ 				indexesToWrite = selector.getFieldIndexes(new NormalizedString[rowLength]); //generates a dummy header array - only the indexes matter so we are good
+ 				if (columnReorderingEnabled) { //column reordering enabled?
+-					outputRow = new Object[indexesToWrite.length];
++					int size = ArgumentUtils.removeAll(indexesToWrite, -1).length;
++					outputRow = new Object[size];
+ 				} else {
+ 					outputRow = new Object[rowLength];
+ 				}
+ 			} else {
+ 				throw new IllegalStateException("Cannot select fields by name with no headers defined");
+ 			}
++
++			indexesToWrite = ArgumentUtils.removeAll(indexesToWrite, -1);
+ 		} else {
+ 			outputRow = null;
+ 			indexesToWrite = null;
+@@ -331,7 +335,7 @@
+ 		}
+ 		if (writingHeaders) {
+ 			headerTrimFlags = new boolean[headers.length];
+-			for(int i = 0; i < headers.length; i++){
++			for (int i = 0; i < headers.length; i++) {
+ 				headerTrimFlags[i] = !headers[i].isLiteral();
+ 			}
+ 		}
+@@ -341,21 +345,20 @@
+ 	/**
+ 	 * Format-specific implementation for writing a single record into the output.
+ 	 *
+-	 * <p> The AbstractWriter handles the initialization and processing of the output until it is ready to be written (generally, reorganizing it and passing it on to a {@link RowWriterProcessor}).
+-	 * <p> It then delegates the record to the writer-specific implementation defined by {@link #processRow(Object[])}. In general, an implementation of {@link AbstractWriter#processRow(Object[])} will perform the following steps:
++	 * The AbstractWriter handles the initialization and processing of the output until it is ready to be written (generally, reorganizing it and passing it on to a {@link RowWriterProcessor}).
++	 * It then delegates the record to the writer-specific implementation defined by {@link #processRow(Object[])}. In general, an implementation of {@link AbstractWriter#processRow(Object[])} will perform the following steps:
+ 	 * <ul>
+ 	 * <li>Iterate over each object in the given input and convert it to the expected String representation.</li>
+ 	 * <li>The conversion <b>must</b> happen using the provided {@link AbstractWriter#appender} object. The an individual value is processed, the {@link AbstractWriter#appendValueToRow()} method must be called.
+ 	 * This will clear the accumulated value in {@link AbstractWriter#appender} and add it to the output row.</li>
+ 	 * <li>Format specific separators and other characters must be introduced to the output row using {@link AbstractWriter#appendToRow(char)}</li>
+ 	 * </ul>
+-	 * <p> Once the {@link #processRow(Object[])} method returns, a row will be written to the output with the processed information, and a newline will be automatically written after the given contents, unless this is a
++	 * Once the {@link #processRow(Object[])} method returns, a row will be written to the output with the processed information, and a newline will be automatically written after the given contents, unless this is a
+ 	 * {@link com.univocity.parsers.fixed.FixedWidthWriter} whose {@link FixedWidthWriterSettings#getWriteLineSeparatorAfterRecord()} evaluates to {@code false}. The newline character sequence will conform to what is specified in {@link Format#getLineSeparator()}
+-	 * <p> This cycle repeats until the writing process is stopped by the user or an error happens.
+-	 * <p> In case of errors, the unchecked exception {@link TextWritingException} will be thrown and all resources in use will be closed automatically. The exception should contain the cause and more information about the output state when the error happened.
++	 * This cycle repeats until the writing process is stopped by the user or an error happens.
++	 * In case of errors, the unchecked exception {@link TextWritingException} will be thrown and all resources in use will be closed automatically. The exception should contain the cause and more information about the output state when the error happened.
+ 	 *
+ 	 * @param row the data to be written to the output in the expected format.
+-	 *
+ 	 * @see com.univocity.parsers.common.input.CharAppender
+ 	 * @see com.univocity.parsers.common.CommonWriterSettings
+ 	 */
+@@ -379,6 +382,7 @@
+ 
+ 	/**
+ 	 * Appends the given character sequence to the output row
++	 *
+ 	 * @param chars the sequence of characters to append to the output row
+ 	 */
+ 	protected final void appendToRow(char[] chars) {
+@@ -387,7 +391,7 @@
+ 
+ 	/**
+ 	 * Writes the headers defined in {@link CommonSettings#getHeaders()}
+-	 * <p> A {@link TextWritingException} will be thrown if no headers were defined or if records were already written to the output.
++	 * A {@link TextWritingException} will be thrown if no headers were defined or if records were already written to the output.
+ 	 */
+ 	public final void writeHeaders() {
+ 		writeHeaders(NormalizedString.toArray(this.headers));
+@@ -395,7 +399,7 @@
+ 
+ 	/**
+ 	 * Writes the given collection of headers to the output.
+-	 * <p> A {@link TextWritingException} will be thrown if no headers were defined or if records were already written to the output.
++	 * A {@link TextWritingException} will be thrown if no headers were defined or if records were already written to the output.
+ 	 *
+ 	 * @param headers the headers to write to the output.
+ 	 */
+@@ -409,7 +413,7 @@
+ 
+ 	/**
+ 	 * Writes the given collection of headers to the output.
+-	 * <p> A {@link TextWritingException} will be thrown if no headers were defined or if records were already written to the output.
++	 * A {@link TextWritingException} will be thrown if no headers were defined or if records were already written to the output.
+ 	 *
+ 	 * @param headers the headers to write to the output.
+ 	 */
+@@ -435,7 +439,7 @@
+ 
+ 	/**
+ 	 * Iterates over all records, processes each one with the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}, and writes them, then finally and closes the output
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param allRecords the records to be transformed by a {@link RowWriterProcessor} and then written to the output
+ 	 */
+@@ -449,7 +453,7 @@
+ 
+ 	/**
+ 	 * Iterates over all records, processes each one with the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}, and writes them, then finally and closes the output
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param allRecords the records to be transformed by a {@link RowWriterProcessor} and then written to the output
+ 	 */
+@@ -463,8 +467,8 @@
+ 
+ 	/**
+ 	 * Iterates over all records, processes each one with the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}, and writes them.
+-	 * <p> The output will remain open for further writing.
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * The output will remain open for further writing.
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param records the records to be transformed by a {@link RowWriterProcessor} and then written to the output
+ 	 */
+@@ -476,8 +480,8 @@
+ 
+ 	/**
+ 	 * Iterates over all records, processes each one with the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}, and writes them.
+-	 * <p> The output will remain open for further writing.
+-	 * * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * The output will remain open for further writing.
++	 * *  A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param records the records to transformed by a {@link RowWriterProcessor} and then written to the output
+ 	 */
+@@ -488,9 +492,22 @@
+ 	}
+ 
+ 	/**
++	 * Iterates over all records, processes each one with the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}, and writes them.
++	 * The output will remain open for further writing.
++	 * *  A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
++	 *
++	 * @param records the records to transformed by a {@link RowWriterProcessor} and then written to the output
++	 */
++	public final <T extends Record> void processRecords(T[] records) {
++		for (T record : records) {
++			processRecord(record);
++		}
++	}
++
++	/**
+ 	 * Processes the data given for an individual record with the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}, then writes it.
+-	 * <p> The output will remain open for further writing.
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * The output will remain open for further writing.
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param record the information of a single record to be transformed by a {@link RowWriterProcessor} and then written to the output
+ 	 */
+@@ -498,11 +515,15 @@
+ 		processRecord((Object) record);
+ 	}
+ 
++	public final <T extends Record> void processRecord(T record) {
++		processRecord((Object) (record == null ? null : record.getValues()));
++	}
++
+ 
+ 	/**
+ 	 * Processes the data given for an individual record with the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}, then writes it.
+-	 * <p> The output will remain open for further writing.
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * The output will remain open for further writing.
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param record the information of a single record to be transformed by a {@link RowWriterProcessor} and then written to the output
+ 	 */
+@@ -528,7 +549,7 @@
+ 				}
+ 				row = writerProcessor.write(record, dummyHeaderRow, indexesToWrite);
+ 			} else {
+-				row = writerProcessor.write(record,getRowProcessorHeaders(), indexesToWrite);
++				row = writerProcessor.write(record, getRowProcessorHeaders(), indexesToWrite);
+ 			}
+ 		} catch (DataProcessingException e) {
+ 			e.setErrorContentLength(errorContentLength);
+@@ -549,7 +570,7 @@
+ 
+ 	/**
+ 	 * Iterates over all records, writes them and closes the output.
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecordsAndClose(Iterable)} for that.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecordsAndClose(Iterable)} for that.
+ 	 *
+ 	 * @param <C>     Collection of objects containing values of a row
+ 	 * @param allRows the rows to be written to the output
+@@ -564,7 +585,7 @@
+ 
+ 	/**
+ 	 * Iterates over all records, writes them and closes the output.
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecordsAndClose(Object[])} for that.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecordsAndClose(Object[])} for that.
+ 	 *
+ 	 * @param allRows the rows to be written to the output
+ 	 */
+@@ -578,7 +599,7 @@
+ 
+ 	/**
+ 	 * Iterates over all records, writes them and closes the output.
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecordsAndClose(Iterable)} for that.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecordsAndClose(Iterable)} for that.
+ 	 *
+ 	 * @param allRows the rows to be written to the output
+ 	 */
+@@ -592,7 +613,22 @@
+ 
+ 	/**
+ 	 * Iterates over all records, writes them and closes the output.
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecordsAndClose(Object[])} for that.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecordsAndClose(Iterable)} for that.
++	 *
++	 * @param allRows the rows to be written to the output
++	 */
++	public final void writeRecordsAndClose(Collection<? extends Record> allRows) {
++		try {
++			writeRecords(allRows);
++		} finally {
++			close();
++		}
++	}
++
++
++	/**
++	 * Iterates over all records, writes them and closes the output.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecordsAndClose(Object[])} for that.
+ 	 *
+ 	 * @param allRows the rows to be written to the output
+ 	 */
+@@ -606,8 +642,8 @@
+ 
+ 	/**
+ 	 * Iterates over all records and writes them to the output.
+-	 * <p> The output will remain open for further writing.
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Object[])} for that.
++	 * The output will remain open for further writing.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Object[])} for that.
+ 	 *
+ 	 * @param rows the rows to be written to the output
+ 	 */
+@@ -619,8 +655,8 @@
+ 
+ 	/**
+ 	 * Iterates over all records and writes them to the output.
+-	 * <p> The output will remain open for further writing.
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Iterable)} for that.
++	 * The output will remain open for further writing.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Iterable)} for that.
+ 	 *
+ 	 * @param <C>  Collection of objects containing values of a row
+ 	 * @param rows the rows to be written to the output
+@@ -633,8 +669,8 @@
+ 
+ 	/**
+ 	 * Iterates over all records and writes them to the output.
+-	 * <p> The output will remain open for further writing.
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Iterable)} for that.
++	 * The output will remain open for further writing.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Iterable)} for that.
+ 	 *
+ 	 * @param rows the rows to be written to the output
+ 	 */
+@@ -646,8 +682,21 @@
+ 
+ 	/**
+ 	 * Iterates over all records and writes them to the output.
+-	 * <p> The output will remain open for further writing.
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Iterable)} for that.
++	 * The output will remain open for further writing.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Iterable)} for that.
++	 *
++	 * @param rows the rows to be written to the output
++	 */
++	public final void writeRecords(Collection<? extends Record> rows) {
++		for (Record row : rows) {
++			writeRecord(row);
++		}
++	}
++
++	/**
++	 * Iterates over all records and writes them to the output.
++	 * The output will remain open for further writing.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Iterable)} for that.
+ 	 *
+ 	 * @param <C>  Collection of objects containing values of a row
+ 	 * @param rows the rows to be written to the output
+@@ -660,8 +709,8 @@
+ 
+ 	/**
+ 	 * Iterates over all records and writes them to the output.
+-	 * <p> The output will remain open for further writing.
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Iterable)} for that.
++	 * The output will remain open for further writing.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Iterable)} for that.
+ 	 *
+ 	 * @param rows the rows to be written to the output
+ 	 */
+@@ -673,8 +722,8 @@
+ 
+ 	/**
+ 	 * Writes the data given for an individual record.
+-	 * <p> The output will remain open for further writing.
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecord(Object)} for that.
++	 * The output will remain open for further writing.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecord(Object)} for that.
+ 	 *
+ 	 * @param row the information of a single record to be written to the output
+ 	 */
+@@ -687,11 +736,11 @@
+ 
+ 	/**
+ 	 * Writes the data given for an individual record.
+-	 * <p> The output will remain open for further writing.
+-	 * <p> If the given data is null or empty, and {@link CommonSettings#getSkipEmptyLines()} is true, the input will be just ignored.
+-	 * <p> If {@link CommonSettings#getSkipEmptyLines()} is false, then an empty row will be written to the output (as specified by {@link AbstractWriter#writeEmptyRow()}).
+-	 * <p> In case of any errors, a {@link TextWritingException} will be thrown and the {@link java.io.Writer} given in the constructor will be closed.
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecord(Object)} for that.
++	 * The output will remain open for further writing.
++	 * If the given data is null or empty, and {@link CommonSettings#getSkipEmptyLines()} is true, the input will be just ignored.
++	 * If {@link CommonSettings#getSkipEmptyLines()} is false, then an empty row will be written to the output (as specified by {@link AbstractWriter#writeEmptyRow()}).
++	 * In case of any errors, a {@link TextWritingException} will be thrown and the {@link java.io.Writer} given in the constructor will be closed.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecord(Object)} for that.
+ 	 *
+ 	 * @param row the information of a single record to be written to the output
+ 	 */
+@@ -699,14 +748,42 @@
+ 		writeRow((Object[]) row);
+ 	}
+ 
++	/**
++	 * Writes the data given for an individual record.
++	 * The output will remain open for further writing.
++	 * If the given data is null or empty, and {@link CommonSettings#getSkipEmptyLines()} is true, the input will be just ignored.
++	 * If {@link CommonSettings#getSkipEmptyLines()} is false, then an empty row will be written to the output (as specified by {@link AbstractWriter#writeEmptyRow()}).
++	 * In case of any errors, a {@link TextWritingException} will be thrown and the {@link java.io.Writer} given in the constructor will be closed.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecord(Object)} for that.
++	 *
++	 * @param row the information of a single record to be written to the output
++	 */
++	public final <T extends Record> void writeRecord(T row) {
++		if (row == null) {
++			if (skipEmptyLines) {
++				return;
++			} else {
++				writeEmptyRow();
++				return;
++			}
++		}
++		if (recordCount == 0 && isHeaderWritingEnabled && headers == null) {
++			String[] headers = row.getMetaData().headers();
++			if (headers != null) {
++				this.headers = NormalizedString.toArray(headers);
++			}
++		}
++		writeRow((Object[]) row.getValues());
++	}
++
+ 
+ 	/**
+ 	 * Writes the data given for an individual record.
+-	 * <p> The output will remain open for further writing.
+-	 * <p> If the given data is null or empty, and {@link CommonSettings#getSkipEmptyLines()} is true, the input will be just ignored.
+-	 * <p> If {@link CommonSettings#getSkipEmptyLines()} is false, then an empty row will be written to the output (as specified by {@link AbstractWriter#writeEmptyRow()}).
+-	 * <p> In case of any errors, a {@link TextWritingException} will be thrown and the {@link java.io.Writer} given in the constructor will be closed.
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecord(Object)} for that.
++	 * The output will remain open for further writing.
++	 * If the given data is null or empty, and {@link CommonSettings#getSkipEmptyLines()} is true, the input will be just ignored.
++	 * If {@link CommonSettings#getSkipEmptyLines()} is false, then an empty row will be written to the output (as specified by {@link AbstractWriter#writeEmptyRow()}).
++	 * In case of any errors, a {@link TextWritingException} will be thrown and the {@link java.io.Writer} given in the constructor will be closed.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecord(Object)} for that.
+ 	 *
+ 	 * @param row the information of a single record to be written to the output
+ 	 */
+@@ -748,12 +825,12 @@
+ 
+ 	/**
+ 	 * Writes a plain (potentially free-text) String as a line to the output.
+-	 * <p> A newline will automatically written after the given contents, unless this is a
++	 * A newline will automatically written after the given contents, unless this is a
+ 	 * {@link com.univocity.parsers.fixed.FixedWidthWriter} whose
+ 	 * {@link FixedWidthWriterSettings#getWriteLineSeparatorAfterRecord()} evaluates to {@code false}.
+ 	 * The newline character sequence will conform to what is specified in {@link Format#getLineSeparator()}
+-	 * <p> The writer implementation has no control over the format of this content.
+-	 * <p> The output will remain open for further writing.
++	 * The writer implementation has no control over the format of this content.
++	 * The output will remain open for further writing.
+ 	 *
+ 	 * @param row the line to be written to the output
+ 	 */
+@@ -771,8 +848,8 @@
+ 	/**
+ 	 * Writes an empty line to the output, unless this is a {@link com.univocity.parsers.fixed.FixedWidthWriter} whose
+ 	 * {@link FixedWidthWriterSettings#getWriteLineSeparatorAfterRecord()} evaluates to {@code false}.
+-	 * <p> The newline character sequence will conform to what is specified in {@link Format#getLineSeparator()}
+-	 * <p> The output will remain open for further writing.
++	 * The newline character sequence will conform to what is specified in {@link Format#getLineSeparator()}
++	 * The output will remain open for further writing.
+ 	 */
+ 	public final void writeEmptyRow() {
+ 		try {
+@@ -786,11 +863,11 @@
+ 
+ 	/**
+ 	 * Writes a comment row to the output.
+-	 * <p> A newline will automatically written after the given contents, unless this is a
++	 * A newline will automatically written after the given contents, unless this is a
+ 	 * {@link com.univocity.parsers.fixed.FixedWidthWriter} whose
+ 	 * {@link FixedWidthWriterSettings#getWriteLineSeparatorAfterRecord()} evaluates to {@code false}.
+ 	 * The newline character sequence will conform to what is specified in {@link Format#getLineSeparator()}
+-	 * <p> The output will remain open for further writing.
++	 * The output will remain open for further writing.
+ 	 *
+ 	 * @param comment the contents to be written as a comment to the output
+ 	 */
+@@ -806,23 +883,29 @@
+ 	 */
+ 	private <T> void fillOutputRow(T[] row) {
+ 		if (columnReorderingEnabled) {
+-			for (int i = 0; i < indexesToWrite.length; i++) {
+-				if (indexesToWrite[i] < row.length) {
+-					outputRow[i] = row[indexesToWrite[i]];
+-				} else {
+-					outputRow[i] = null;
++			if (row.length > indexesToWrite.length) {
++				for (int i = 0; i < indexesToWrite.length; i++) {
++					outputRow[indexesToWrite[i]] = row[indexesToWrite[i]];
++				}
++			} else {
++				for (int i = 0, j = 0; i < indexesToWrite.length && j < outputRow.length; i++) {
++					outputRow[j++] = row[indexesToWrite[i]];
+ 				}
+ 			}
+ 		} else {
+ 			if (row.length > outputRow.length) {
+-				outputRow = row;
+-			} else if (row.length > indexesToWrite.length) {
++				outputRow = Arrays.copyOf(outputRow, row.length);
++			}
++
++			if (row.length > indexesToWrite.length) {
+ 				for (int i = 0; i < indexesToWrite.length; i++) {
+ 					outputRow[indexesToWrite[i]] = row[indexesToWrite[i]];
+ 				}
+ 			} else {
+ 				for (int i = 0; i < indexesToWrite.length && i < row.length; i++) {
+-					outputRow[indexesToWrite[i]] = row[i];
++					if (indexesToWrite[i] != -1) {
++						outputRow[indexesToWrite[i]] = row[i];
++					}
+ 				}
+ 			}
+ 		}
+@@ -830,7 +913,7 @@
+ 
+ 	/**
+ 	 * Writes the accumulated value of a record to the output, followed by a newline, and increases the record count.
+-	 * <p> The newline character sequence will conform to what is specified in {@link Format#getLineSeparator()}
++	 * The newline character sequence will conform to what is specified in {@link Format#getLineSeparator()}
+ 	 * The contents of {@link AbstractWriter#rowAppender} depend on the concrete implementation of {@link AbstractWriter#processRow(Object[])}
+ 	 */
+ 	private void internalWriteRow() {
+@@ -850,11 +933,10 @@
+ 
+ 	/**
+ 	 * Identifies the starting character index of a value being written if leading whitespaces are to be discarded.
+-	 * <p><b>Implementation note</b> whitespaces are considered all characters where {@code ch <= ' '} evaluates to {@code true}
++	 * <b>Implementation note</b> whitespaces are considered all characters where {@code ch <= ' '} evaluates to {@code true}
+ 	 *
+ 	 * @param whitespaceRangeStart starting range after which characters will be considered whitespace
+ 	 * @param element              the String to be scanned for leading whitespaces.
+-	 *
+ 	 * @return the index of the first non-whitespace character in the given element.
+ 	 */
+ 	protected static int skipLeadingWhitespace(int whitespaceRangeStart, String element) {
+@@ -873,7 +955,7 @@
+ 
+ 	/**
+ 	 * Flushes the {@link java.io.Writer} given in this class constructor.
+-	 * <p> An IllegalStateException will be thrown in case of any errors, and the writer will be closed.
++	 * An IllegalStateException will be thrown in case of any errors, and the writer will be closed.
+ 	 */
+ 	public final void flush() {
+ 		try {
+@@ -885,7 +967,7 @@
+ 
+ 	/**
+ 	 * Closes the {@link java.io.Writer} given in this class constructor.
+-	 * <p> An IllegalStateException will be thrown in case of any errors.
++	 * An IllegalStateException will be thrown in case of any errors.
+ 	 */
+ 	public final void close() {
+ 		try {
+@@ -968,7 +1050,6 @@
+ 	 * </ul>
+ 	 *
+ 	 * @param element the object to be converted into a String.
+-	 *
+ 	 * @return the String representation of the given object
+ 	 */
+ 	protected String getStringValue(Object element) {
+@@ -1108,7 +1189,6 @@
+ 	 * @param headersInContext headers currently in use (they might change).
+ 	 * @param headerName       the name of the header whose position will be identified
+ 	 * @param ignoreOnMismatch flag indicating that if the header is not found, no exception is to be thrown, and -1 should be returned instead.
+-	 *
+ 	 * @return the position of the given header, or -1 if it's not found when ignoreOnMismatch is set to {@code true}
+ 	 */
+ 	private int getFieldIndex(NormalizedString[] headersInContext, NormalizedString headerName, boolean ignoreOnMismatch) {
+@@ -1157,10 +1237,9 @@
+ 
+ 	/**
+ 	 * Writes the given collection of headers to a {@code String}
+-	 * <p> A {@link TextWritingException} will be thrown if no headers were defined.
++	 * A {@link TextWritingException} will be thrown if no headers were defined.
+ 	 *
+ 	 * @param headers the headers to write to a {@code String}
+-	 *
+ 	 * @return a formatted {@code String} containing the given headers
+ 	 */
+ 	public final String writeHeadersToString(Collection<?> headers) {
+@@ -1173,10 +1252,9 @@
+ 
+ 	/**
+ 	 * Writes the given collection of headers to a {@code String}
+-	 * <p> A {@link TextWritingException} will be thrown if no headers were defined or if records were already written to a {@code String}
++	 * A {@link TextWritingException} will be thrown if no headers were defined or if records were already written to a {@code String}
+ 	 *
+ 	 * @param headers the headers to write to a {@code String}
+-	 *
+ 	 * @return a formatted {@code String} containing the given headers
+ 	 */
+ 	public final String writeHeadersToString(String... headers) {
+@@ -1193,10 +1271,9 @@
+ 
+ 	/**
+ 	 * Iterates over all records, processes each one with the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}, and writes them to a {@code List} of {@code String}.
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param records the records to be transformed by a {@link RowWriterProcessor} and then written to a {@code List} of {@code String}.
+-	 *
+ 	 * @return a {@code List} containing the information transformed from the given records as formatted {@code String}s
+ 	 */
+ 	public final List<String> processRecordsToString(Iterable<?> records) {
+@@ -1213,10 +1290,9 @@
+ 
+ 	/**
+ 	 * Iterates over all records, processes each one with the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}, and writes them them to a {@code List} of {@code String}.
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param records the records to transformed by a {@link RowWriterProcessor} and then written a {@code String}.
+-	 *
+ 	 * @return a {@code List} containing the information transformed from the given records as formatted {@code String}s
+ 	 */
+ 	public final List<String> processRecordsToString(Object[] records) {
+@@ -1233,10 +1309,9 @@
+ 
+ 	/**
+ 	 * Processes the data given for an individual record with the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}, then writes it to a {@code String}.
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param record the information of a single record to be transformed by a {@link RowWriterProcessor} and then written to a {@code String}.
+-	 *
+ 	 * @return a formatted {@code String} containing the information transformed from the given record
+ 	 */
+ 	public final String processRecordToString(Object... record) {
+@@ -1244,12 +1319,22 @@
+ 	}
+ 
+ 	/**
+-	 * Processes the data given for an individual record with the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}, then writes it.
+-	 * <p> The output will remain open for further writing.
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * Processes the data given for an individual record with the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}, then writes it to a {@code String}.
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param record the information of a single record to be transformed by a {@link RowWriterProcessor} and then written to a {@code String}.
++	 * @return a formatted {@code String} containing the information transformed from the given record
++	 */
++	public final <T extends Record> String processRecordToString(T record) {
++		return processRecordToString((Object) (record == null ? null : record.getValues()));
++	}
++
++	/**
++	 * Processes the data given for an individual record with the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}, then writes it.
++	 * The output will remain open for further writing.
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
++	 * @param record the information of a single record to be transformed by a {@link RowWriterProcessor} and then written to a {@code String}.
+ 	 * @return a formatted {@code String} containing the information transformed from the given record
+ 	 */
+ 	@SuppressWarnings("unchecked")
+@@ -1271,10 +1356,9 @@
+ 
+ 	/**
+ 	 * Iterates over all records and writes them to a {@code List} of {@code String}.
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Object[])} for that.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Object[])} for that.
+ 	 *
+ 	 * @param rows the rows to be written to a {@code List} of {@code String}.
+-	 *
+ 	 * @return a {@code List} containing the given rows as formatted {@code String}s
+ 	 */
+ 	public final List<String> writeRowsToString(Object[][] rows) {
+@@ -1294,11 +1378,10 @@
+ 
+ 	/**
+ 	 * Iterates over all records and writes them to a {@code List} of {@code String}.
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Iterable)} for that.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Iterable)} for that.
+ 	 *
+ 	 * @param <C>  Collection of objects containing values of a row
+ 	 * @param rows the rows to be written to a {@code List} of {@code String}.
+-	 *
+ 	 * @return a {@code List} containing the given rows as formatted {@code String}s
+ 	 */
+ 	public final <C extends Collection<?>> List<String> writeRowsToString(Iterable<C> rows) {
+@@ -1315,11 +1398,10 @@
+ 
+ 	/**
+ 	 * Iterates over all records and writes them to a {@code List} of {@code String}.
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Iterable)} for that.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Iterable)} for that.
+ 	 *
+ 	 * @param <C>  Collection of objects containing values of a row
+ 	 * @param rows the rows to be written to a {@code List} of {@code String}.
+-	 *
+ 	 * @return a {@code List} containing the given rows as formatted {@code String}s
+ 	 */
+ 	public final <C extends Collection<?>> List<String> writeStringRowsToString(Iterable<C> rows) {
+@@ -1339,10 +1421,9 @@
+ 
+ 	/**
+ 	 * Iterates over all records and writes them to a {@code List} of {@code String}.
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Iterable)} for that.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Iterable)} for that.
+ 	 *
+ 	 * @param rows the rows to be written to a {@code List} of {@code String}.
+-	 *
+ 	 * @return a {@code List} containing the given rows as formatted {@code String}s
+ 	 */
+ 	public final List<String> writeRowsToString(Collection<Object[]> rows) {
+@@ -1359,10 +1440,9 @@
+ 
+ 	/**
+ 	 * Iterates over all records and writes them to a {@code List} of {@code String}.
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Iterable)} for that.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Iterable)} for that.
+ 	 *
+ 	 * @param rows the rows to be written to a {@code List} of {@code String}.
+-	 *
+ 	 * @return a {@code List} containing the given rows as formatted {@code String}s
+ 	 */
+ 	public final List<String> writeStringRowsToString(Collection<String[]> rows) {
+@@ -1378,11 +1458,29 @@
+ 	}
+ 
+ 	/**
++	 * Iterates over all records and writes them to a {@code List} of {@code String}.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecords(Iterable)} for that.
++	 *
++	 * @param rows the rows to be written to a {@code List} of {@code String}.
++	 * @return a {@code List} containing the given rows as formatted {@code String}s
++	 */
++	public final List<String> writeRecordsToString(Collection<? extends Record> rows) {
++		try {
++			List<String> out = new ArrayList<String>(rows.size());
++			for (Record row : rows) {
++				out.add(writeRecordToString(row));
++			}
++			return out;
++		} catch (Throwable t) {
++			throw throwExceptionAndClose("Error writing input rows", t);
++		}
++	}
++
++	/**
+ 	 * Writes the data given for an individual record to a {@code String}.
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecord(Object)} for that.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecord(Object)} for that.
+ 	 *
+ 	 * @param row the information of a single record to be written to a {@code String}
+-	 *
+ 	 * @return a formatted {@code String} containing the information of the given record
+ 	 */
+ 	public final String writeRowToString(Collection<?> row) {
+@@ -1398,12 +1496,11 @@
+ 
+ 	/**
+ 	 * Writes the data given for an individual record to a {@code String}.
+-	 * <p> If the given data is null or empty, and {@link CommonSettings#getSkipEmptyLines()} is true, {@code null} will be returned
+-	 * <p> In case of any errors, a {@link TextWritingException} will be thrown.
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecord(Object)} for that.
++	 * If the given data is null or empty, and {@link CommonSettings#getSkipEmptyLines()} is true, {@code null} will be returned
++	 * In case of any errors, a {@link TextWritingException} will be thrown.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecord(Object)} for that.
+ 	 *
+ 	 * @param row the information of a single record to be written to a {@code String}.
+-	 *
+ 	 * @return a formatted {@code String} containing the information of the given record
+ 	 */
+ 	public final String writeRowToString(String[] row) {
+@@ -1412,12 +1509,24 @@
+ 
+ 	/**
+ 	 * Writes the data given for an individual record to a {@code String}.
+-	 * <p> If the given data is null or empty, and {@link CommonSettings#getSkipEmptyLines()} is true, {@code null} will be returned
+-	 * <p> In case of any errors, a {@link TextWritingException} will be thrown.
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecord(Object)} for that.
++	 * If the given data is null or empty, and {@link CommonSettings#getSkipEmptyLines()} is true, {@code null} will be returned
++	 * In case of any errors, a {@link TextWritingException} will be thrown.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecord(Object)} for that.
+ 	 *
+ 	 * @param row the information of a single record to be written to a {@code String}.
++	 * @return a formatted {@code String} containing the information of the given record
++	 */
++	public final <T extends Record> String writeRecordToString(T row) {
++		return writeRowToString((Object[]) (row == null ? null : row.getValues()));
++	}
++
++	/**
++	 * Writes the data given for an individual record to a {@code String}.
++	 * If the given data is null or empty, and {@link CommonSettings#getSkipEmptyLines()} is true, {@code null} will be returned
++	 * In case of any errors, a {@link TextWritingException} will be thrown.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}. Use {@link AbstractWriter#processRecord(Object)} for that.
+ 	 *
++	 * @param row the information of a single record to be written to a {@code String}.
+ 	 * @return a formatted {@code String} containing the information of the given record
+ 	 */
+ 	public final String writeRowToString(Object... row) {
+@@ -1456,7 +1565,6 @@
+ 	 * Writes a comment row to a {@code String}
+ 	 *
+ 	 * @param comment the contents to be written as a comment to a {@code String}.
+-	 *
+ 	 * @return a formatted {@code String} containing the comment.
+ 	 */
+ 	public final String commentRowToString(String comment) {
+@@ -1465,7 +1573,7 @@
+ 
+ 	/**
+ 	 * Writes the accumulated value of a record to the output, followed by a newline, and increases the record count.
+-	 * <p> The newline character sequence will conform to what is specified in {@link Format#getLineSeparator()}
++	 * The newline character sequence will conform to what is specified in {@link Format#getLineSeparator()}
+ 	 * The contents of {@link AbstractWriter#rowAppender} depend on the concrete implementation of {@link AbstractWriter#processRow(Object[])}
+ 	 *
+ 	 * @return a formatted {@code String} containing the comment.
+@@ -1494,8 +1602,8 @@
+ 	/**
+ 	 * Writes the contents accumulated in an internal in-memory row (using {@link #addValues(Object...) or #addValue()} to a new record in the output.
+ 	 * The objects added to this row will be processed with the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+-	 * <p> The output will remain open for further writing.
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * The output will remain open for further writing.
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 */
+ 	public final void processValuesToRow() {
+ 		fillPartialLineToMatchHeaders();
+@@ -1506,8 +1614,8 @@
+ 	/**
+ 	 * Writes the contents accumulated in an internal in-memory row (using {@link #addValues(Object...) or #addValue()} to a {@code String}
+ 	 * The objects added to this row will be processed with the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+-	 * <p> The output will remain open for further writing.
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * The output will remain open for further writing.
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @return a formatted {@code String} containing the result produced by the {@link RowWriterProcessor} using the values accumulated in internal in-memory row.
+ 	 */
+@@ -1595,10 +1703,9 @@
+ 	/**
+ 	 * Writes the values of a given map to a {@code String} formatted to according to the specified output format.
+ 	 *
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
+ 	 *
+ 	 * @param rowData the map whose values will be used to generate a {@code String}.
+-	 *
+ 	 * @return a {@code String} containing the given data as a formatted {@code String}
+ 	 */
+ 	public final String writeRowToString(Map<?, ?> rowData) {
+@@ -1608,7 +1715,7 @@
+ 	/**
+ 	 * Writes the values of a given map into new output record
+ 	 *
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
+ 	 *
+ 	 * @param rowData the map whose values will be used to generate a new record
+ 	 */
+@@ -1620,12 +1727,11 @@
+ 	/**
+ 	 * Writes the values of a given map to a {@code String} formatted to according to the specified output format.
+ 	 *
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
+ 	 *
+ 	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
+ 	 * @param rowData       the map whose values will be used to generate a {@code String}.
+ 	 * @param <K>           the key type
+-	 *
+ 	 * @return a {@code String} containing the given data as a formatted {@code String}
+ 	 */
+ 	public final <K> String writeRowToString(Map<K, String> headerMapping, Map<K, ?> rowData) {
+@@ -1636,7 +1742,7 @@
+ 	/**
+ 	 * Writes the values of a given map into new output record
+ 	 *
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
+ 	 *
+ 	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
+ 	 * @param rowData       the map whose values will be used to generate a new record
+@@ -1655,12 +1761,11 @@
+ 	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
+ 	 * when a iterator has been fully read.
+ 	 *
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
+ 	 *
+ 	 * @param rowData the map whose values will be used to generate a {@code List} of {@code String}.
+ 	 * @param <K>     the key type
+ 	 * @param <I>     the iterable type
+-	 *
+ 	 * @return a {@code List} of formatted {@code String}, each {@code String} representing one successful iteration over at least one
+ 	 * element of the iterators in the map.
+ 	 */
+@@ -1676,7 +1781,7 @@
+ 	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
+ 	 * when a iterator has been fully read.
+ 	 *
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
+ 	 *
+ 	 * @param rowData the map whose values will be used to generate a number of output records
+ 	 * @param <K>     the key type
+@@ -1694,13 +1799,12 @@
+ 	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
+ 	 * when a iterator has been fully read.
+ 	 *
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
+ 	 *
+ 	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
+ 	 * @param rowData       the map whose values will be used to generate a {@code List} of {@code String}.
+ 	 * @param <K>           the key type
+ 	 * @param <I>           the iterable type
+-	 *
+ 	 * @return a {@code List} of formatted {@code String}, each {@code String} representing one successful iteration over at least one
+ 	 * element of the iterators in the map.
+ 	 */
+@@ -1718,7 +1822,7 @@
+ 	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
+ 	 * when a iterator has been fully read.
+ 	 *
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
+ 	 *
+ 	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
+ 	 * @param rowData       the map whose values will be used to generate a number of output records
+@@ -1737,7 +1841,7 @@
+ 	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
+ 	 * when a iterator has been fully read.
+ 	 *
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
+ 	 *
+ 	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
+ 	 * @param rowData       the map whose values will be used to generate a {@code List} of {@code String}.
+@@ -1753,15 +1857,15 @@
+ 			Object[] keys = new Object[rowData.size()];
+ 			final Map<Object, Object> rowValues = new LinkedHashMap<Object, Object>(rowData.size());
+ 
+-			if(outputList != null && headers == null){
+-				if(headerMapping != null){
++			if (outputList != null && headers == null) {
++				if (headerMapping != null) {
+ 					setHeadersFromMap(headerMapping, true);
+ 				} else {
+ 					setHeadersFromMap(rowData, true);
+ 				}
+ 			}
+ 
+-			if(recordCount == 0 && headers != null && isHeaderWritingEnabled){
++			if (recordCount == 0 && headers != null && isHeaderWritingEnabled) {
+ 				outputList.add(writeHeadersToString());
+ 			}
+ 
+@@ -1815,12 +1919,11 @@
+ 	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
+ 	 * when a iterator has been fully read.
+ 	 *
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
+ 	 *
+ 	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
+ 	 * @param rowData       the map whose values will be used to generate a {@code List} of {@code String}.
+ 	 * @param <K>           the key type
+-	 *
+ 	 * @return a {@code List} of formatted {@code String}, each {@code String} representing one successful iteration over at least one
+ 	 * element of the iterators in the map.
+ 	 */
+@@ -1830,6 +1933,29 @@
+ 		return writtenRows;
+ 	}
+ 
++
++	/**
++	 * Writes the values of a given map to a {@code List} of {@code String} formatted to according to the specified output format.
++	 *
++	 * Each value is expected to be iterable and the result of this method will produce the number of records equal to the longest iterable.
++	 *
++	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
++	 * when a iterator has been fully read.
++	 *
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 *
++	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
++	 * @param rowData       the map whose values will be used to generate a {@code List} of {@code String}.
++	 * @param <K>           the key type
++	 * @return a {@code List} of formatted {@code String}, each {@code String} representing one successful iteration over at least one
++	 * element of the iterators in the map.
++	 */
++	public final <K> List<String> writeRecordsToString(Map<K, String> headerMapping, Map<K, ? extends Record> rowData) {
++		List<String> writtenRows = new ArrayList<String>();
++		writeRows(headerMapping, wrapRecordValues(rowData), writtenRows, false);
++		return writtenRows;
++	}
++
+ 	/**
+ 	 * Writes the values of a given map to multiple output records
+ 	 *
+@@ -1838,7 +1964,7 @@
+ 	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
+ 	 * when a iterator has been fully read.
+ 	 *
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
+ 	 *
+ 	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
+ 	 * @param rowData       the map whose values will be used to generate a number of output records
+@@ -1849,6 +1975,24 @@
+ 	}
+ 
+ 	/**
++	 * Writes the values of a given map to multiple output records
++	 *
++	 * Each value is expected to be iterable and the result of this method will produce the number of records equal to the longest iterable.
++	 *
++	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
++	 * when a iterator has been fully read.
++	 *
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 *
++	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
++	 * @param rowData       the map whose values will be used to generate a number of output records
++	 * @param <K>           the key type
++	 */
++	public final <K> void writeRecords(Map<K, String> headerMapping, Map<K, ? extends Record> rowData) {
++		writeRows(headerMapping, wrapRecordValues(rowData), null, false);
++	}
++
++	/**
+ 	 * Writes the values of a given map to a {@code List} of {@code String} formatted to according to the specified output format.
+ 	 *
+ 	 * Each value is expected to be iterable and the result of this method will produce the number of records equal to the longest iterable.
+@@ -1856,12 +2000,11 @@
+ 	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
+ 	 * when a iterator has been fully read.
+ 	 *
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
+ 	 *
+ 	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
+ 	 * @param rowData       the map whose values will be used to generate a {@code List} of {@code String}.
+ 	 * @param <K>           the key type
+-	 *
+ 	 * @return a {@code List} of formatted {@code String}, each {@code String} representing one successful iteration over at least one
+ 	 * element of the iterators in the map.
+ 	 */
+@@ -1879,7 +2022,7 @@
+ 	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
+ 	 * when a iterator has been fully read.
+ 	 *
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
+ 	 *
+ 	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
+ 	 * @param rowData       the map whose values will be used to generate a number of output records
+@@ -1913,6 +2056,18 @@
+ 		return out;
+ 	}
+ 
++	private <K> Map<K, Iterable<String>> wrapRecordValues(Map<K, ? extends Record> rowData) {
++		Map<K, Iterable<String>> out = new LinkedHashMap<K, Iterable<String>>(rowData.size());
++		for (Map.Entry<K, ? extends Record> e : rowData.entrySet()) {
++			if (e.getValue() == null) {
++				out.put(e.getKey(), Collections.<String>emptyList());
++			} else {
++				out.put(e.getKey(), Arrays.asList(e.getValue().getValues()));
++			}
++		}
++		return out;
++	}
++
+ 
+ 	/**
+ 	 * Writes the values of a given map to multiple output records and closes the output when finished.
+@@ -1922,7 +2077,7 @@
+ 	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
+ 	 * when a iterator has been fully read.
+ 	 *
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
+ 	 *
+ 	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
+ 	 * @param rowData       the map whose values will be used to generate a number of output records
+@@ -1944,7 +2099,7 @@
+ 	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
+ 	 * when a iterator has been fully read.
+ 	 *
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
+ 	 *
+ 	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
+ 	 * @param rowData       the map whose values will be used to generate a number of output records
+@@ -1966,7 +2121,29 @@
+ 	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
+ 	 * when a iterator has been fully read.
+ 	 *
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 *
++	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
++	 * @param rowData       the map whose values will be used to generate a number of output records
++	 * @param <K>           the key type
++	 */
++	public final <K> void writeRecordsAndClose(Map<K, String> headerMapping, Map<K, ? extends Record> rowData) {
++		try {
++			writeRecords(headerMapping, rowData);
++		} finally {
++			close();
++		}
++	}
++
++	/**
++	 * Writes the values of a given map to multiple output records and closes the output when finished.
++	 *
++	 * Each value is expected to be iterable and the result of this method will produce the number of records equal to the longest iterable.
++	 *
++	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
++	 * when a iterator has been fully read.
++	 *
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
+ 	 *
+ 	 * @param rowData the map whose values will be used to generate a number of output records
+ 	 * @param <K>     the key type
+@@ -1983,7 +2160,7 @@
+ 	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
+ 	 * when a iterator has been fully read.
+ 	 *
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
+ 	 *
+ 	 * @param rowData the map whose values will be used to generate a number of output records
+ 	 * @param <K>     the key type
+@@ -2000,7 +2177,24 @@
+ 	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
+ 	 * when a iterator has been fully read.
+ 	 *
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 *
++	 * @param rowData the map whose values will be used to generate a number of output records
++	 * @param <K>     the key type
++	 */
++	public final <K> void writeRecordsAndClose(Map<K, ? extends Record> rowData) {
++		writeRecordsAndClose(null, rowData);
++	}
++
++	/**
++	 * Writes the values of a given map to multiple output records and closes the output when finished.
++	 *
++	 * Each value is expected to be iterable and the result of this method will produce the number of records equal to the longest iterable.
++	 *
++	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
++	 * when a iterator has been fully read.
++	 *
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
+ 	 *
+ 	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
+ 	 * @param rowData       the map whose values will be used to generate a number of output records
+@@ -2024,7 +2218,7 @@
+ 	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
+ 	 * when a iterator has been fully read.
+ 	 *
+-	 * <p><b>Note</b> this method will not use the {@link RowWriterProcessor}.
++	 * <b>Note</b> this method will not use the {@link RowWriterProcessor}.
+ 	 *
+ 	 * @param rowData the map whose values will be used to generate a number of output records
+ 	 * @param <K>     the key type
+@@ -2038,10 +2232,9 @@
+ 	 * Processes the values of a map using the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}
+ 	 * and writes the result into {@code String} formatted according to the specified output format.
+ 	 *
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param rowData the map whose values will be used to generate a {@code List} of {@code String}.
+-	 *
+ 	 * @return a {@code String} containing the given data as a formatted {@code String}
+ 	 */
+ 	public final String processRecordToString(Map<?, ?> rowData) {
+@@ -2052,7 +2245,7 @@
+ 	 * Processes the values of a map using the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}
+ 	 * and writes the result into a new output record
+ 	 *
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param rowData the map whose values will be used to generate a {@code List} of {@code String}.
+ 	 */
+@@ -2065,12 +2258,11 @@
+ 	 * Processes the values of a map using the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}
+ 	 * and writes the result into {@code String} formatted according to the specified output format.
+ 	 *
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
+ 	 * @param rowData       the map whose values will be used to generate a {@code List} of {@code String}.
+ 	 * @param <K>           the key type
+-	 *
+ 	 * @return a {@code String} containing the given data as a formatted {@code String}
+ 	 */
+ 	public final <K> String processRecordToString(Map<K, String> headerMapping, Map<K, ?> rowData) {
+@@ -2082,7 +2274,7 @@
+ 	 * Processes the values of a map using the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}
+ 	 * and writes the result into a new output record
+ 	 *
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
+ 	 * @param rowData       the map whose values will be used to generate a {@code List} of {@code String}.
+@@ -2099,12 +2291,11 @@
+ 	 *
+ 	 * Each value is expected to be iterable and the result of this method will produce the number of records equal to the longest iterable.
+ 	 *
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param rowData the map whose values will be used to generate a {@code List} of {@code String}.
+ 	 * @param <K>     the key type
+ 	 * @param <I>     the iterable type
+-	 *
+ 	 * @return a {@code List} of formatted {@code String}, each {@code String} representing one successful iteration over at least one
+ 	 * element of the iterators in the map.
+ 	 */
+@@ -2118,7 +2309,7 @@
+ 	 *
+ 	 * The output will remain open for further write operations.
+ 	 *
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param rowData the map whose values will be used to generate a number of output records
+ 	 * @param <K>     the key type
+@@ -2134,13 +2325,12 @@
+ 	 *
+ 	 * Each value is expected to be iterable and the result of this method will produce the number of records equal to the longest iterable.
+ 	 *
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
+ 	 * @param rowData       the map whose values will be used to generate a {@code List} of {@code String}.
+ 	 * @param <K>           the key type
+ 	 * @param <I>           the iterable type
+-	 *
+ 	 * @return a {@code List} of formatted {@code String}, each {@code String} representing one successful iteration over at least one
+ 	 * element of the iterators in the map.
+ 	 */
+@@ -2156,7 +2346,7 @@
+ 	 *
+ 	 * The output will remain open for further write operations.
+ 	 *
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
+ 	 * @param rowData       the map whose values will be used to generate a number of output records
+@@ -2173,11 +2363,10 @@
+ 	 *
+ 	 * Each value is expected to be iterable and the result of this method will produce the number of records equal to the longest iterable.
+ 	 *
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param rowData the map whose values will be used to generate a {@code List} of {@code String}.
+ 	 * @param <K>     the key type
+-	 *
+ 	 * @return a {@code List} of formatted {@code String}, each {@code String} representing one successful iteration over at least one
+ 	 * element of the iterators in the map.
+ 	 */
+@@ -2191,12 +2380,11 @@
+ 	 *
+ 	 * Each value is expected to be iterable and the result of this method will produce the number of records equal to the longest iterable.
+ 	 *
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
+ 	 * @param rowData       the map whose values will be used to generate a {@code List} of {@code String}.
+ 	 * @param <K>           the key type
+-	 *
+ 	 * @return a {@code List} of formatted {@code String}, each {@code String} representing one successful iteration over at least one
+ 	 * element of the iterators in the map.
+ 	 */
+@@ -2212,7 +2400,7 @@
+ 	 *
+ 	 * The output will remain open for further write operations.
+ 	 *
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
+ 	 * @param rowData       the map whose values will be used to generate a number of output records
+@@ -2226,7 +2414,7 @@
+ 	 * Processes the data in all values of a map using the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()},
+ 	 * then writes all values to the output  and closes the writer.
+ 	 *
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
+ 	 * @param rowData       the map whose values will be used to generate a number of output records
+@@ -2244,7 +2432,7 @@
+ 	 * Processes the data in all values of a map using the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()},
+ 	 * then writes all values to the output  and closes the writer.
+ 	 *
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param rowData the map whose values will be used to generate a number of output records
+ 	 * @param <K>     the key type
+@@ -2263,7 +2451,7 @@
+ 	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
+ 	 * when a iterator has been fully read.
+ 	 *
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param headerMapping a mapping associating the keys of the input map to their corresponding header names.
+ 	 * @param rowData       the map whose values will be used to generate a number of output records
+@@ -2288,7 +2476,7 @@
+ 	 * A new record will be created each time at least one {@link Iterator#hasNext()} returns {@code true}. {@code Null} will be written
+ 	 * when a iterator has been fully read.
+ 	 *
+-	 * <p> A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.</p>
++	 * A {@link TextWritingException} will be thrown if no {@link RowWriterProcessor} is provided by {@link CommonWriterSettings#getRowWriterProcessor()}.
+ 	 *
+ 	 * @param rowData the map whose values will be used to generate a number of output records
+ 	 * @param <K>     the key type
+@@ -2314,9 +2502,8 @@
+ 	 * @param fieldIndex index of the field to be written.
+ 	 * @return {@code true} if the value being written is not a header name, or it is a header name that won't
+ 	 * conflict with another header if its surrounding whitespaces are trimmed.
+-	 *
+ 	 */
+-	protected final boolean allowTrim(int fieldIndex){
++	protected final boolean allowTrim(int fieldIndex) {
+ 		return !writingHeaders || fieldIndex >= headerTrimFlags.length || headerTrimFlags[fieldIndex];
+ 	}
+ }
+\ No newline at end of file
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/FieldNameSelector.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/FieldNameSelector.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/FieldNameSelector.java	2024-09-08 01:36:19.033843044 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/FieldNameSelector.java	2024-09-08 01:36:19.009842876 +1000
+@@ -22,16 +22,15 @@
+ /**
+  * A FieldSelector capable of selecting fields by their name.
+  *
++ * @author Univocity Software Pty Ltd - <a href="mailto:parsers@univocity.com">parsers@univocity.com</a>
+  * @see FieldSelector
+  * @see FieldSet
+- *
+- * @author Univocity Software Pty Ltd - <a href="mailto:parsers@univocity.com">parsers@univocity.com</a>
+- *
+  */
+ public class FieldNameSelector extends FieldSet<String> implements FieldSelector, Cloneable {
+ 
+ 	/**
+ 	 * Returns the position of a given header
++	 *
+ 	 * @param header the header whose position will be returned
+ 	 * @return the position of the given header.
+ 	 */
+@@ -58,21 +57,22 @@
+ 			}
+ 		}
+ 
+-		int[] out = new int[chosenFields.length];
++		int[] out = new int[selection.size()];
++		Arrays.fill(out, -1);
+ 		int i = 0;
+-		for (NormalizedString chosenField : chosenFields) {
++		for (NormalizedString chosenField : selection) {
+ 			int[] indexes = ArgumentUtils.indexesOf(normalizedHeader, chosenField);
+ 
+ 			if (indexes.length > 1) {
+ 				out = Arrays.copyOf(out, out.length + indexes.length - 1);
+ 			}
+ 
+-			if (indexes.length == 0) {
+-				out[i++] = -1;
+-			} else {
++			if (indexes.length != 0) {
+ 				for (int j = 0; j < indexes.length; j++) {
+ 					out[i++] = indexes[j];
+ 				}
++			} else {
++				i++;
+ 			}
+ 		}
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/routine/AbstractRoutines.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/routine/AbstractRoutines.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/routine/AbstractRoutines.java	2024-09-08 01:36:19.033843044 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/routine/AbstractRoutines.java	2024-09-08 01:36:19.009842876 +1000
+@@ -295,7 +295,6 @@
+ 				}
+ 
+ 				String[] userProvidedHeaders = writerSettings.getHeaders();
+-
+ 				if (userProvidedHeaders == null) {
+ 					writerSettings.setHeaders(headers);
+ 				} else {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/univocity/parsers/common/fields/FieldNameSelectorTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/univocity/parsers/common/fields/FieldNameSelectorTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/univocity/parsers/common/fields/FieldNameSelectorTest.java	2024-09-08 01:36:19.033843044 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/univocity/parsers/common/fields/FieldNameSelectorTest.java	2024-09-08 01:36:19.013842904 +1000
+@@ -17,6 +17,8 @@
+ 
+ import org.testng.annotations.*;
+ 
++import java.util.*;
++
+ import static org.testng.Assert.*;
+ 
+ public class FieldNameSelectorTest {
+@@ -32,4 +34,16 @@
+ 
+ 		assertEquals(indexes, expected);
+ 	}
++
++	@Test
++	public void getFieldsToExtract2() {
++		String[] fields = new String[]{"SellerID", "Brand", "MPN", "SoldPrice", "Shipping", "TotalAmount", "Currency", "SoldPriceUSD", "ShippingUSD", "TotalAmountUSD", "SoldQuantity", "Condition", "Format", "SoldDate", "ProductRating", "UPC", "EAN", "ItemLocation", "Title", "PictureURL", "ListingURL"};
++		String[] selection = new String[]{"Format", "PictureURL", "SellerID", "SoldDate", "ListingURL", "Currency", "Condition", "Title", "BidPrice", "SoldPrice", "SoldPriceUSD", "SystemCurrency", "SoldPriceDiscounted", "Shipping", "ShippingUSD", "TotalAmount", "TotalAmountUSD", "SoldQuantity", "ProductRating", "Brand", "EAN", "UPC", "MPN", "ItemLocation", "SellerID", "SellerFeedback", "StockQuantity", "eBayItemNumber", "PicURL1", "PicURL2", "PicURL3", "PicURL4", "PicURL5", "PicURL6", "PicURL7", "PicURL8", "PicURL9", "PicURL10"};
++		FieldNameSelector selector = new FieldNameSelector();
++		selector.add(selection);
++
++		int[] indexes = selector.getFieldIndexes(fields);
++
++		assertEquals(Arrays.toString(indexes), "[12, 19, 0, 13, 20, 6, 11, 18, -1, 3, 7, -1, -1, 4, 8, 5, 9, 10, 14, 1, 16, 15, 2, 17, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]");
++	}
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/univocity/parsers/csv/CsvWriterTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/univocity/parsers/csv/CsvWriterTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/univocity/parsers/csv/CsvWriterTest.java	2024-09-08 01:36:19.037843072 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/univocity/parsers/csv/CsvWriterTest.java	2024-09-08 01:36:19.013842904 +1000
+@@ -606,7 +606,7 @@
+ 	}
+ 
+ 	@Test
+-	public void testCollectionWriting(){
++	public void testCollectionWriting() {
+ 		CsvWriterSettings settings = new CsvWriterSettings();
+ 		settings.getFormat().setLineSeparator("\n");
+ 		StringWriter out = new StringWriter();
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/univocity/parsers/examples/RoutineExamples.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/univocity/parsers/examples/RoutineExamples.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/univocity/parsers/examples/RoutineExamples.java	2024-09-08 01:36:19.037843072 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/univocity/parsers/examples/RoutineExamples.java	2024-09-08 01:36:19.013842904 +1000
+@@ -204,7 +204,7 @@
+ 
+ 		Statement statement = connectToDatabase();
+ 		try {
+-			ResultSet resultSet = statement.executeQuery("SELECT * FROM users");
++			ResultSet resultSet = statement.executeQuery("SELECT name,id,email FROM users");
+ 
+ 			CsvWriterSettings csvWriterSettings = new CsvWriterSettings();
+ 			csvWriterSettings.selectFields("name", "id");
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/univocity/parsers/issues/support: Ticket_14.java

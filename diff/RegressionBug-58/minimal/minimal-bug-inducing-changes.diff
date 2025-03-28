@@ -1,0 +1,13 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/zaxxer/hikari/HikariConfig.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/zaxxer/hikari/HikariConfig.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/zaxxer/hikari/HikariConfig.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/zaxxer/hikari/HikariConfig.java
+@@ -551,7 +547,8 @@
+       if (metricRegistry != null) {
+          metricRegistry = getObjectOrPerformJndiLookup(metricRegistry);
+ 
+-         if (!(metricRegistry instanceof MetricRegistry) && !(metricRegistry instanceof MeterRegistry)) {
++         if (!(metricRegistry.getClass().getName().contains("MetricRegistry"))
++             && !(metricRegistry.getClass().getName().contains("MeterRegistry"))) {
+             throw new IllegalArgumentException("Class must be instance of com.codahale.metrics.MetricRegistry or io.micrometer.core.instrument.MeterRegistry");
+          }
+       }

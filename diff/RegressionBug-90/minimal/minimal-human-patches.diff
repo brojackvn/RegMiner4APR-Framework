@@ -1,0 +1,272 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/exprtree/VarDefn.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/exprtree/VarDefn.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/exprtree/VarDefn.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/exprtree/VarDefn.java
+@@ -50,8 +50,6 @@
+ 
+     // State variable
+     STATE,
+-    TEMPLATE,
+     // Undeclared variable reference (for legacy templates).
+     UNDECLARED,
+   }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/jbcsrc/EnhancedAbstractExprNodeVisitor.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/jbcsrc/EnhancedAbstractExprNodeVisitor.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/jbcsrc/EnhancedAbstractExprNodeVisitor.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/jbcsrc/EnhancedAbstractExprNodeVisitor.java
+@@ -69,9 +69,8 @@
+         return visitListComprehensionVar(node, (ComprehensionVarDefn) defn);
+       case IMPORT_VAR:
+         throw new IllegalStateException("import vars are not implemented yet");
+-      case TEMPLATE:
+       case UNDECLARED:
+-        throw new RuntimeException(defn.kind() + " are not supported by jbcsrc");
++        throw new RuntimeException("undeclared params are not supported by jbcsrc");
+     }
+     throw new AssertionError(defn.kind());
+   }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/jbcsrc/ExpressionCompiler.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/jbcsrc/ExpressionCompiler.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/jbcsrc/ExpressionCompiler.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/jbcsrc/ExpressionCompiler.java
+@@ -1703,7 +1703,6 @@
+           return false;
+         case UNDECLARED:
+         case IMPORT_VAR:
+-        case TEMPLATE:
+           break;
+       }
+       throw new AssertionError();
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/passes/LocalVariablesNodeVisitor.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/passes/LocalVariablesNodeVisitor.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/passes/LocalVariablesNodeVisitor.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/passes/LocalVariablesNodeVisitor.java
+@@ -16,7 +16,6 @@
+ 
+ package com.google.template.soy.passes;
+ 
+-import static com.google.template.soy.soytree.TemplateDelegateNodeBuilder.isDeltemplateTemplateName;
+ import static java.util.stream.Collectors.toList;
+ 
+ import com.google.common.base.Preconditions;
+@@ -31,7 +30,6 @@
+ import com.google.template.soy.exprtree.ExprRootNode;
+ import com.google.template.soy.exprtree.ListComprehensionNode;
+ import com.google.template.soy.exprtree.VarDefn;
+-import com.google.template.soy.exprtree.VarDefn.Kind;
+ import com.google.template.soy.soytree.AbstractSoyNodeVisitor;
+ import com.google.template.soy.soytree.ForNonemptyNode;
+ import com.google.template.soy.soytree.ImportNode;
+@@ -46,6 +44,7 @@
+ import com.google.template.soy.soytree.SoyNode.ParentSoyNode;
+ import com.google.template.soy.soytree.TemplateNode;
+ import com.google.template.soy.soytree.defn.ImportedVar;
++import com.google.template.soy.soytree.defn.LocalVar;
+ import com.google.template.soy.soytree.defn.TemplateHeaderVarDefn;
+ import java.util.ArrayDeque;
+ import java.util.Deque;
+@@ -53,6 +52,7 @@
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Objects;
++import java.util.Optional;
+ import java.util.function.Predicate;
+ import javax.annotation.Nullable;
+ 
+@@ -80,7 +80,7 @@
+   static final class LocalVariables {
+ 
+     private static final SoyErrorKind VARIABLE_ALREADY_DEFINED =
+-        SoyErrorKind.of("{0} ''{1}'' conflicts with symbol defined at {2}.");
++        SoyErrorKind.of("Variable ''{0}'' already defined{1}.");
+ 
+     private ErrorReporter errorReporter;
+     private final Deque<Map<String, VarDefn>> currentScope = new ArrayDeque<>();
+@@ -123,15 +123,15 @@
+       // Search for the name to see if it is being redefined.
+       VarDefn preexisting = lookupWithReserved(refName);
+       if (preexisting != null) {
+-        if (errorReporter != null && !shouldSkipError(defn, preexisting)) {
+-          SourceLocation defnSourceLocation =
+-              defn.nameLocation() == null ? definingNode.getSourceLocation() : defn.nameLocation();
+-          errorReporter.report(
+-              defnSourceLocation,
+-              VARIABLE_ALREADY_DEFINED,
+-              englishName(defn),
+-              refName,
+-              preexisting.nameLocation().toLineColumnString());
++        Optional<SourceLocation> preexistingSourceLocation = forVarDefn(preexisting);
++        SourceLocation defnSourceLocation =
++            defn.nameLocation() == null ? definingNode.getSourceLocation() : defn.nameLocation();
++        String location =
++            preexistingSourceLocation.isPresent()
++                ? " at line " + preexistingSourceLocation.get().getBeginLine()
++                : "";
++        if (errorReporter != null) {
++          errorReporter.report(defnSourceLocation, VARIABLE_ALREADY_DEFINED, refName, location);
+         }
+         return false;
+       }
+@@ -192,17 +192,14 @@
+           // TODO(b/175405629): As a step towards supporting templates, we verify that there are no
+           // collisions here.
+           for (ImportedVar var : imp.getIdentifiers()) {
+-            localVariables.reserve(var, imp);
++            localVariables.reserve(var, node);
+           }
+         } else {
+           for (ImportedVar var : imp.getIdentifiers()) {
+-            localVariables.define(var, imp);
++            localVariables.define(var, node);
+           }
+         }
+       }
+-      for (TemplateNode template : node.getTemplates()) {
+-        localVariables.reserve(template.asVarDefn(), template);
+-      }
+ 
+       super.visitSoyFileNode(node);
+       localVariables.exitScope();
+@@ -291,29 +288,21 @@
+     }
+   }
+ 
+-  private static boolean shouldSkipError(VarDefn defn, VarDefn preexisting) {
+-    return defn.kind() == Kind.TEMPLATE
+-        && preexisting.kind() == Kind.TEMPLATE
+-        && isDeltemplateTemplateName(defn.name())
+-        && isDeltemplateTemplateName(preexisting.name());
+-  }
+-
+-  private static String englishName(VarDefn varDefn) {
++  private static Optional<SourceLocation> forVarDefn(VarDefn varDefn) {
+     switch (varDefn.kind()) {
+       case PARAM:
+-        return "Parameter";
+       case STATE:
+-        return "State parameter";
+       case IMPORT_VAR:
+-        return "Imported symbol";
++        return Optional.of(varDefn.nameLocation());
+       case LOCAL_VAR:
++        return Optional.of(((LocalVar) varDefn).declaringNode().getSourceLocation());
+       case COMPREHENSION_VAR:
+-        return "Local variable";
+-      case TEMPLATE:
+-        return "Template name";
++        return Optional.of(
++            ((ListComprehensionNode.ComprehensionVarDefn) varDefn)
++                .declaringNode()
++                .getSourceLocation());
+       case UNDECLARED:
+-        return "Symbol";
++        return Optional.empty();
+     }
+     throw new AssertionError(varDefn.kind());
+   }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/passes/ResolveTemplateImportsPass.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/passes/ResolveTemplateImportsPass.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/passes/ResolveTemplateImportsPass.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/passes/ResolveTemplateImportsPass.java
+@@ -26,6 +26,7 @@
+ import com.google.template.soy.base.SourceFilePath;
+ import com.google.template.soy.base.internal.IdGenerator;
+ import com.google.template.soy.error.ErrorReporter;
++import com.google.template.soy.error.SoyErrorKind;
+ import com.google.template.soy.shared.SoyGeneralOptions;
+ import com.google.template.soy.soytree.ImportNode;
+ import com.google.template.soy.soytree.ImportNode.ImportType;
+@@ -53,6 +54,9 @@
+ })
+ public final class ResolveTemplateImportsPass extends ImportsPass implements CompilerFileSetPass {
+ 
++  private static final SoyErrorKind IMPORT_CONFLICTS_WITH_TEMPLATE =
++      SoyErrorKind.of("Import conflicts with local template ''{0}''.");
++
+   private TemplateNameRegistry templateNameRegistry;
+   private final SoyGeneralOptions options;
+   private final ErrorReporter errorReporter;
+@@ -141,7 +145,8 @@
+         // Consider moving this to ImportsPass.
+         String partialTemplateName = symbolToTemplateName.get(symbol.name());
+         if (partialTemplateName != null) {
++          errorReporter.report(
++              symbol.nameLocation(), IMPORT_CONFLICTS_WITH_TEMPLATE, partialTemplateName);
+           symbol.setType(UnknownType.getInstance());
+           continue;
+         }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/soytree/FileSetTemplateRegistry.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/soytree/FileSetTemplateRegistry.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/soytree/FileSetTemplateRegistry.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/soytree/FileSetTemplateRegistry.java
+@@ -122,11 +122,7 @@
+           // Case 1: Basic Template or Element node
+           TemplateMetadata prev =
+               basicTemplatesOrElementsMap.put(template.getTemplateName(), template);
+-          if (prev != null
+-              && !prev.getSourceLocation()
+-                  .getFileName()
+-                  .equals(template.getSourceLocation().getFileName())) {
++          if (prev != null) {
+             errorReporter.report(
+                 template.getSourceLocation(),
+                 DUPLICATE_TEMPLATES,
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/soytree/TemplateDelegateNodeBuilder.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/soytree/TemplateDelegateNodeBuilder.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/soytree/TemplateDelegateNodeBuilder.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/soytree/TemplateDelegateNodeBuilder.java
+@@ -129,10 +129,6 @@
+     return "__deltemplate_" + delPackageTemplateAndVariantStr;
+   }
+ 
+-  public static boolean isDeltemplateTemplateName(String templateName) {
+-    return templateName.startsWith("__deltemplate_");
+-  }
+
+   @Override
+   public TemplateDelegateNode build() {
+     Preconditions.checkState(id != null && cmdText != null);
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/soytree/TemplateNode.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/soytree/TemplateNode.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/soytree/TemplateNode.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/soytree/TemplateNode.java
+@@ -32,9 +32,7 @@
+ import com.google.template.soy.basetree.CopyState;
+ import com.google.template.soy.error.ErrorReporter;
+ import com.google.template.soy.error.SoyErrorKind;
+-import com.google.template.soy.exprtree.AbstractVarDefn;
+ import com.google.template.soy.exprtree.ExprRootNode;
+-import com.google.template.soy.exprtree.VarDefn;
+ import com.google.template.soy.soytree.CommandTagAttribute.CommandTagAttributesHolder;
+ import com.google.template.soy.soytree.SoyNode.ExprHolderNode;
+ import com.google.template.soy.soytree.SoyNode.RenderUnitNode;
+@@ -42,8 +40,6 @@
+ import com.google.template.soy.soytree.defn.TemplateHeaderVarDefn;
+ import com.google.template.soy.soytree.defn.TemplateParam;
+ import com.google.template.soy.soytree.defn.TemplateStateVar;
+-import com.google.template.soy.types.SoyType;
+-import com.google.template.soy.types.TemplateImportType;
+ import java.util.Collection;
+ import java.util.HashSet;
+ import java.util.List;
+@@ -700,28 +696,4 @@
+         srcLocation.getFileName(),
+         srcLocation.getBeginLine());
+   }
+
+-  public VarDefn asVarDefn() {
+-    return new TemplateVarDefn(
+-        getLocalTemplateSymbol(),
+-        getTemplateNameLocation(),
+-        TemplateImportType.create(getTemplateName()));
+-  }
+
+-  private static class TemplateVarDefn extends AbstractVarDefn {
+-    public TemplateVarDefn(
+-        String name, @Nullable SourceLocation nameLocation, @Nullable SoyType type) {
+-      super(name, nameLocation, type);
+-    }
+
+-    @Override
+-    public Kind kind() {
+-      return Kind.TEMPLATE;
+-    }
+
+-    @Override
+-    public boolean isInjected() {
+-      return false;
+-    }
+-  }
+ }

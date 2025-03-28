@@ -1,0 +1,184 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Debugger.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Debugger.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Debugger.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Debugger.java
+@@ -572,6 +573,11 @@
+     }
+ 
+     @Override
++    protected Object visit(ASTInitialization node, Object data) {
++        return infixChildren(node, " = ", false, data);
++    }
+
++    @Override
+     protected Object visit(ASTMultipleAssignment node, Object data) {
+         int num = node.jjtGetNumChildren();
+         boolean isVarDeclare = node.jjtGetChild(0) instanceof ASTExtVar;
+@@ -1488,6 +1494,10 @@
+ 
+     @Override
+     protected Object visit(ASTVar node, Object data) {
++        boolean isFinal = node.isFinal();
++        if (isFinal) {
++           builder.append("final ");
++        }
+         Class type = node.getType();
+         if (type == null) {
+            builder.append("var ");
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java
+@@ -888,7 +913,7 @@
+             } else {
+                 int symbol = var.getSymbol();
+                 if (symbol >= 0) {
+-                    return new VarPointer(symbol);
++                    return var.isFinal() ? new FinalVarPointer(symbol) : new VarPointer(symbol);
+                 } else {
+                     return new ContextVarPointer(var.getName());
+                 }
+@@ -2342,6 +2367,13 @@
+     }
+ 
+     @Override
++    protected Object visit(ASTInitialization node, Object data) {
++        JexlNode left = node.jjtGetChild(0);
++        Object right = node.jjtGetChild(1).jjtAccept(this, data);
++        return executeAssign(node, left, right, null, data);
++    }
+
++    @Override
+     protected Object visit(ASTAssignment node, Object data) {
+         JexlNode left = node.jjtGetChild(0);
+         Object right = node.jjtGetChild(1).jjtAccept(this, data);
+@@ -2533,8 +2565,8 @@
+                 Object self = left.jjtGetChild(0).jjtAccept(this, data);
+                 if (self == null)
+                     throw new JexlException(left, "illegal assignment form *0");
+-                if (self instanceof Pointer) {
+-                    ((Pointer) self).set(right);
++                if (self instanceof SetPointer) {
++                    ((SetPointer) self).set(right);
+                 } else {
+                     Object result = operators.indirectAssign(node, self, right);
+                     if (result == JexlEngine.TRY_FAILED)
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Scope.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Scope.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Scope.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Scope.java
+@@ -53,11 +55,14 @@
+     /**
+      * The set of final variables.
+      */
++    private Set<Integer> finalVariables = null;
+     /**
+      * The empty string array.
+      */
+@@ -167,11 +172,20 @@
++    public boolean isVariableFinal(int symbol) {
++        return finalVariables == null ? false : finalVariables.contains(symbol);
+     }
+ 
+     /**
+@@ -223,7 +237,7 @@
+      * @param name the variable class
+      * @return the register index storing this variable
+      */
+-    public Integer declareVariable(String name, Class type) {
++    public Integer declareVariable(String name, Class type, boolean isFinal) {
+         if (namedVariables == null) {
+             namedVariables = new LinkedHashMap<String, Integer>();
+         }
+@@ -238,6 +252,12 @@
+                 }
+                 variableTypes.put(register, type);
+             }
++            if (isFinal) {
++                if (finalVariables == null) {
++                    finalVariables = new HashSet<Integer>();
++                }
++                finalVariables.add(register);
++            }
+         }
+         return register;
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/ASTIdentifier.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/ASTIdentifier.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/ASTIdentifier.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/ASTIdentifier.java
+@@ -22,6 +22,7 @@
+ public class ASTIdentifier extends JexlNode {
+     protected String name = null;
+     protected int symbol = -1;
++    protected boolean isFinal;
+ 
+     ASTIdentifier(int id) {
+         super(id);
+@@ -55,6 +56,14 @@
+     public String getName() {
+         return name;
+     }
+
++    public boolean isFinal() {
++        return isFinal;
++    }
+
++    void setFinal() {
++        isFinal = true;
++    }
+     
+     public String getNamespace() {
+         return null;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/FeatureController.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/FeatureController.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/FeatureController.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/FeatureController.java
+@@ -232,6 +232,11 @@
+     }
+ 
+     @Override
++    protected Object visit(ASTInitialization node, Object data) {
++        return controlSideEffect(node, data);
++    }
+
++    @Override
+     protected Object visit(ASTMultipleAssignment node, Object data) {
+         return controlSideEffect(node, data);
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/JexlNode.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/JexlNode.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/JexlNode.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/JexlNode.java
+@@ -146,7 +146,7 @@
+     public boolean isLeftValue() {
+         JexlNode walk = this;
+         do {
+-            if (walk instanceof ASTIdentifier
++            if (walk instanceof ASTIdentifier && !((ASTIdentifier) walk).isFinal()
+                 || walk instanceof ASTIdentifierAccess
+                 || walk instanceof ASTArrayAccess
+                 || walk instanceof ASTIndirectNode) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/JexlParser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/JexlParser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/JexlParser.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/JexlParser.java
+@@ -183,6 +183,21 @@
+     * @param image      the identifier image
+     * @return true if final, false otherwise
+     */
++    protected boolean isFinalVariable(String image) {
++        if (frame != null) {
++            Integer register = frame.getSymbol(image);
++            if (register != null) {
++                return frame.isVariableFinal(register);
++            }
++        }
++        return false;
++    }
+
+     protected boolean allowVariable(String image) {
+         JexlFeatures features = getFeatures();
+         if (!features.supportsLocalVar()) {
+@@ -208,7 +223,7 @@
+         if (frame == null) {
+             frame = new Scope(null, (String[]) null);
+         }
+-        Integer register = frame.declareVariable(identifier, var.getType());
++        Integer register = frame.declareVariable(identifier, var.getType(), var.isFinal());
+         var.setSymbol(register.intValue(), identifier);
+     }
+ 

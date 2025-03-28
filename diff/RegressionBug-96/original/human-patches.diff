@@ -1,0 +1,158 @@
+diff -r -U 3 /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BUGGY/src/main/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorOutputStream.java /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BFC/src/main/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorOutputStream.java
+--- /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BUGGY/src/main/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorOutputStream.java	2025-03-24 16:54:18.561390753 +1100
++++ /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BFC/src/main/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorOutputStream.java	2025-03-24 16:54:01.073282007 +1100
+@@ -433,9 +433,7 @@
+         if (blockSize > 9) {
+             throw new IllegalArgumentException("blockSize(" + blockSize + ") > 9");
+         }
+-
+         this.blockSize100k = blockSize;
+-
+         /* 20 is just a paranoia constant */
+         this.allowableBlockSize = this.blockSize100k * BASEBLOCKSIZE - 20;
+         init();
+@@ -560,7 +558,6 @@
+                 endBlock();
+                 endCompression();
+             } finally {
+-                this.out = null;
+                 this.blockSorter = null;
+                 this.data = null;
+             }
+@@ -569,9 +566,8 @@
+ 
+     @Override
+     public void flush() throws IOException {
+-        final OutputStream outShadow = this.out;
+-        if (outShadow != null) {
+-            outShadow.flush();
++        if (out != null) {
++            super.flush();
+         }
+     }
+ 
+diff -r -U 3 /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BUGGY/src/test/java/org/apache/commons/compress/archivers/sevenz/SevenZOutputFileTest.java /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BFC/src/test/java/org/apache/commons/compress/archivers/sevenz/SevenZOutputFileTest.java
+--- /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BUGGY/src/test/java/org/apache/commons/compress/archivers/sevenz/SevenZOutputFileTest.java	2025-03-24 16:54:33.017480654 +1100
++++ /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BFC/src/test/java/org/apache/commons/compress/archivers/sevenz/SevenZOutputFileTest.java	2025-03-24 16:54:16.993381002 +1100
+@@ -136,6 +136,20 @@
+     }
+ 
+     @Test
++    public void testArchiveWithMixedMethods() throws Exception {
++        final File output = newTempFile("mixed-methods.7z");
++        try (SevenZOutputFile outArchive = new SevenZOutputFile(output)) {
++            addFile(outArchive, 0, true);
++            addFile(outArchive, 1, true, Arrays.asList(new SevenZMethodConfiguration(SevenZMethod.BZIP2)));
++        }
++
++        try (SevenZFile archive = SevenZFile.builder().setFile(output).get()) {
++            assertEquals(Boolean.TRUE, verifyFile(archive, 0, Arrays.asList(new SevenZMethodConfiguration(SevenZMethod.LZMA2))));
++            assertEquals(Boolean.TRUE, verifyFile(archive, 1, Arrays.asList(new SevenZMethodConfiguration(SevenZMethod.BZIP2))));
++        }
++    }
++
++    @Test
+     public void testBCJARMRoundtrip() throws Exception {
+         if (XZ_BCJ_IS_BUGGY) {
+             return;
+@@ -184,6 +198,18 @@
+     }
+ 
+     @Test
++    public void testBzip2Roundtrip() throws Exception {
++        testRoundTrip(SevenZMethod.BZIP2);
++    }
++
++    @Test
++    public void testBzip2WithConfiguration() throws Exception {
++        final File output = newTempFile("bzip2-options.7z");
++        // 400k block size
++        createAndReadBack(output, Collections.singletonList(new SevenZMethodConfiguration(SevenZMethod.BZIP2, 4)));
++    }
++
++    @Test
+     public void testCantFinishTwice() throws IOException {
+         final File output = newTempFile("finish.7z");
+         try (SevenZOutputFile outArchive = new SevenZOutputFile(output)) {
+@@ -554,6 +580,29 @@
+     }
+ 
+     @Test
++    public void testStackOfContentCompressions() throws Exception {
++        final File output = newTempFile("multiple-methods.7z");
++        final ArrayList<SevenZMethodConfiguration> methods = new ArrayList<>();
++        methods.add(new SevenZMethodConfiguration(SevenZMethod.LZMA2));
++        methods.add(new SevenZMethodConfiguration(SevenZMethod.COPY));
++        methods.add(new SevenZMethodConfiguration(SevenZMethod.DEFLATE));
++        methods.add(new SevenZMethodConfiguration(SevenZMethod.BZIP2));
++        createAndReadBack(output, methods);
++    }
++
++    @Test
++    public void testStackOfContentCompressionsInMemory() throws Exception {
++        final ArrayList<SevenZMethodConfiguration> methods = new ArrayList<>();
++        methods.add(new SevenZMethodConfiguration(SevenZMethod.LZMA2));
++        methods.add(new SevenZMethodConfiguration(SevenZMethod.COPY));
++        methods.add(new SevenZMethodConfiguration(SevenZMethod.DEFLATE));
++        methods.add(new SevenZMethodConfiguration(SevenZMethod.BZIP2));
++        try (SeekableInMemoryByteChannel channel = new SeekableInMemoryByteChannel()) {
++            createAndReadBack(channel, methods);
++        }
++    }
++
++    @Test
+     public void testTwentyNineEmptyFiles() throws Exception {
+         testCompress252(29, 0);
+     }
+diff -r -U 3 /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BUGGY/src/test/java/org/apache/commons/compress/archivers/tar/TarArchiveOutputStreamTest.java /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BFC/src/test/java/org/apache/commons/compress/archivers/tar/TarArchiveOutputStreamTest.java
+--- /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BUGGY/src/test/java/org/apache/commons/compress/archivers/tar/TarArchiveOutputStreamTest.java	2025-03-24 16:54:32.901479933 +1100
++++ /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BFC/src/test/java/org/apache/commons/compress/archivers/tar/TarArchiveOutputStreamTest.java	2025-03-24 16:54:16.917380530 +1100
+@@ -151,7 +151,7 @@
+         final byte[] contents2 = ArrayFill.fill(new byte[2048], (byte) 42);
+         testPadding(TarConstants.DEFAULT_BLKSIZE, fileName, contents2);
+     }
+-    
++
+     /**
+      * When using long file names the longLinkEntry included the current timestamp as the Entry modification date. This was never exposed to the client, but it
+      * caused identical archives to have different MD5 hashes.
+diff -r -U 3 /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BUGGY/src/test/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorInputStreamTest.java /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BFC/src/test/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorInputStreamTest.java
+--- /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BUGGY/src/test/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorInputStreamTest.java	2025-03-24 16:54:32.129475131 +1100
++++ /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-96/BFC/src/test/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorInputStreamTest.java	2025-03-24 16:54:15.809373639 +1100
+@@ -61,6 +61,36 @@
+         }
+     }
+ 
++    /**
++     * @see "https://issues.apache.org/jira/browse/COMPRESS-309"
++     */
++    @Test
++    public void testReadOfLength0ShouldReturn0() throws Exception {
++        // Create a big random piece of data
++        final byte[] rawData = new byte[1048576];
++        for (int i = 0; i < rawData.length; ++i) {
++            rawData[i] = (byte) Math.floor(Math.random() * 256);
++        }
++
++        // Compress it
++        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
++        try (BZip2CompressorOutputStream bzipOut = new BZip2CompressorOutputStream(baos)) {
++            bzipOut.write(rawData);
++            bzipOut.flush();
++            bzipOut.close();
++            baos.flush();
++        }
++
++        // Try to read it back in
++        final ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
++        try (BZip2CompressorInputStream bzipIn = new BZip2CompressorInputStream(bais)) {
++            final byte[] buffer = new byte[1024];
++            assertEquals(1024, bzipIn.read(buffer, 0, 1024));
++            assertEquals(0, bzipIn.read(buffer, 1024, 0));
++            assertEquals(1024, bzipIn.read(buffer, 0, 1024));
++        }
++    }
++
+     @Test
+     public void testShouldThrowAnIOExceptionWhenAppliedToAZipFile() throws Exception {
+         try (InputStream in = newInputStream("bla.zip")) {

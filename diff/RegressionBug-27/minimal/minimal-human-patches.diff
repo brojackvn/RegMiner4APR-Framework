@@ -1,0 +1,481 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/geometry/internal/RectangleDoubleImpl.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/geometry/internal/RectangleDoubleImpl.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/geometry/internal/RectangleDoubleImpl.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/geometry/internal/RectangleDoubleImpl.java
+@@ -28,40 +28,29 @@
+     }
+ 
+     @Override
+-    public float x1() {
++    public double x1() {
+         return (float) x1;
+     }
+ 
+     @Override
+-    public float y1() {
++    public double y1() {
+         return (float) y1;
+     }
+ 
+     @Override
+-    public float x2() {
++    public double x2() {
+         return (float) x2;
+     }
+ 
+     @Override
+-    public float y2() {
++    public double y2() {
+         return (float) y2;
+     }
+ 
+     @Override
+-    public float area() {
+-        return (float) areaD();
+-    }
+
+-    @Override
+     public Rectangle add(Rectangle r) {
+-        if (r instanceof RectangleDoubleImpl) {
+-            RectangleDoubleImpl rd = (RectangleDoubleImpl) r;
+-            return new RectangleDoubleImpl(min(x1, rd.x1d()), min(y1, rd.y1d()), max(x2, rd.x2d()),
+-                    max(y2, rd.y2d()));
+-        } else {
+-            return new RectangleDoubleImpl(min(x1, r.x1()), min(y1, r.y1()), max(x2, r.x2()),
+-                    max(y2, r.y2()));
+-        }
++        return new RectangleDoubleImpl(min(x1, r.x1()), min(y1, r.y1()), max(x2, r.x2()),
++                max(y2, r.y2()));
+     }
+ 
+     @Override
+@@ -171,13 +160,13 @@
+     }
+ 
+     @Override
+-    public float intersectionArea(Rectangle r) {
+-        return (float) intersectionAreaD(r);
+-    }
+
+-    @Override
+-    public float perimeter() {
+-        return (float) perimeterD();
++    public double intersectionArea(Rectangle r) {
++        if (!intersects(r))
++            return 0;
++        else {
++            return create(max(x1, r.x1()), max(y1, r.y1()), min(x2, r.x2()), min(y2, r.y2()))
++                    .area();
++        }
+     }
+ 
+     @Override
+@@ -207,50 +196,18 @@
+     }
+ 
+     @Override
+-    public double intersectionAreaD(Rectangle r) {
+-        if (!intersects(r))
+-            return 0;
+-        else {
+-            if (r instanceof RectangleDoubleImpl) {
+-                RectangleDoubleImpl rd = (RectangleDoubleImpl) r;
+-                return create(max(x1, rd.x1), max(y1, rd.y1), min(x2, rd.x2), min(y2, rd.y2))
+-                        .areaD();
+-            } else {
+-                return create(max(x1, r.x1()), max(y1, r.y1()), min(x2, r.x2()), min(y2, r.y2()))
+-                        .areaD();
+-            }
+-        }
+-    }
+
+-    @Override
+-    public double perimeterD() {
++    public double perimeter() {
+         return 2 * (x2 - x1) + 2 * (y2 - y1);
+     }
+ 
+     @Override
+-    public double x1d() {
+-        return x1;
+-    }
+
+-    @Override
+-    public double y1d() {
+-        return y1;
+-    }
+
+-    @Override
+-    public double x2d() {
+-        return x2;
+-    }
+
+-    @Override
+-    public double y2d() {
+-        return y2;
++    public double area() {
++        return (x2 - x1) * (y2 - y1);
+     }
+ 
+     @Override
+-    public double areaD() {
+-        return (x2 - x1) * (y2 - y1);
++    public boolean isDoublePrecision() {
++        return true;
+     }
+ 
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/geometry/internal/RectangleImpl.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/geometry/internal/RectangleImpl.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/geometry/internal/RectangleImpl.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/geometry/internal/RectangleImpl.java
+@@ -28,34 +28,39 @@
+     }
+ 
+     @Override
+-    public float x1() {
++    public double x1() {
+         return x1;
+     }
+ 
+     @Override
+-    public float y1() {
++    public double y1() {
+         return y1;
+     }
+ 
+     @Override
+-    public float x2() {
++    public double x2() {
+         return x2;
+     }
+ 
+     @Override
+-    public float y2() {
++    public double y2() {
+         return y2;
+     }
+ 
+     @Override
+-    public float area() {
++    public double area() {
+         return (x2 - x1) * (y2 - y1);
+     }
+ 
+     @Override
+     public Rectangle add(Rectangle r) {
+-        return new RectangleImpl(min(x1, r.x1()), min(y1, r.y1()), max(x2, r.x2()),
+-                max(y2, r.y2()));
++        if (r.isDoublePrecision()) {
++            return RectangleDoubleImpl.create(min(x1, r.x1()), min(y1, r.y1()), max(x2, r.x2()),
++                    max(y2, r.y2()));
++        } else {
++            return RectangleDoubleImpl.create(min(x1, r.x1()), min(y1, r.y1()), max(x2, r.x2()),
++                    max(y2, r.y2()));
++        }
+     }
+ 
+     @Override
+@@ -74,29 +79,29 @@
+         return distance(x1, y1, x2, y2, r.x1(), r.y1(), r.x2(), r.y2());
+     }
+ 
+-    public static double distance(float x1, float y1, float x2, float y2, float a1, float b1,
+-            float a2, float b2) {
++    public static double distance(double x1, double y1, double x2, double y2, double a1, double b1,
++            double a2, double b2) {
+         if (intersects(x1, y1, x2, y2, a1, b1, a2, b2)) {
+             return 0;
+         }
+         boolean xyMostLeft = x1 < a1;
+-        float mostLeftX1 = xyMostLeft ? x1 : a1;
+-        float mostRightX1 = xyMostLeft ? a1 : x1;
+-        float mostLeftX2 = xyMostLeft ? x2 : a2;
++        double mostLeftX1 = xyMostLeft ? x1 : a1;
++        double mostRightX1 = xyMostLeft ? a1 : x1;
++        double mostLeftX2 = xyMostLeft ? x2 : a2;
+         double xDifference = max(0, mostLeftX1 == mostRightX1 ? 0 : mostRightX1 - mostLeftX2);
+ 
+         boolean xyMostDown = y1 < b1;
+-        float mostDownY1 = xyMostDown ? y1 : b1;
+-        float mostUpY1 = xyMostDown ? b1 : y1;
+-        float mostDownY2 = xyMostDown ? y2 : b2;
++        double mostDownY1 = xyMostDown ? y1 : b1;
++        double mostUpY1 = xyMostDown ? b1 : y1;
++        double mostDownY2 = xyMostDown ? y2 : b2;
+ 
+         double yDifference = max(0, mostDownY1 == mostUpY1 ? 0 : mostUpY1 - mostDownY2);
+ 
+         return Math.sqrt(xDifference * xDifference + yDifference * yDifference);
+     }
+ 
+-    private static boolean intersects(float x1, float y1, float x2, float y2, float a1, float b1,
+-            float a2, float b2) {
++    private static boolean intersects(double x1, double y1, double x2, double y2, double a1,
++            double b1, double a2, double b2) {
+         return x1 <= a2 && a1 <= x2 && y1 <= b2 && b1 <= y2;
+     }
+ 
+@@ -126,7 +131,7 @@
+     }
+ 
+     @Override
+-    public float intersectionArea(Rectangle r) {
++    public double intersectionArea(Rectangle r) {
+         if (!intersects(r))
+             return 0;
+         else
+@@ -135,7 +140,7 @@
+     }
+ 
+     @Override
+-    public float perimeter() {
++    public double perimeter() {
+         return 2 * (x2 - x1) + 2 * (y2 - y1);
+     }
+ 
+@@ -144,14 +149,14 @@
+         return this;
+     }
+ 
+-    private static float max(float a, float b) {
++    private static double max(double a, double b) {
+         if (a < b)
+             return b;
+         else
+             return a;
+     }
+ 
+-    private static float min(float a, float b) {
++    private static double min(double a, double b) {
+         if (a < b)
+             return a;
+         else
+@@ -159,38 +164,8 @@
+     }
+ 
+     @Override
+-    public double x1d() {
+-        return x1;
+-    }
+
+-    @Override
+-    public double y1d() {
+-        return y1;
+-    }
+
+-    @Override
+-    public double x2d() {
+-        return x2;
+-    }
+
+-    @Override
+-    public double y2d() {
+-        return y2;
+-    }
+
+-    @Override
+-    public double intersectionAreaD(Rectangle r) {
+-        return intersectionArea(r);
+-    }
+
+-    @Override
+-    public double perimeterD() {
+-        return perimeter();
+-    }
+
+-    @Override
+-    public double areaD() {
+-        return area();
++    public boolean isDoublePrecision() {
++        return false;
+     }
+ 
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/geometry/Point.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/geometry/Point.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/geometry/Point.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/geometry/Point.java
+@@ -1,5 +1,6 @@
+ package com.github.davidmoten.rtree.geometry;
+ 
++import com.github.davidmoten.rtree.geometry.internal.RectangleDoubleImpl;
+ import com.github.davidmoten.rtree.geometry.internal.RectangleImpl;
+ 
+ public final class Point implements Rectangle {
+@@ -27,7 +28,7 @@
+ 
+     @Override
+     public double distance(Rectangle r) {
+-        return RectangleImpl.distance(x, y, x, y, r.x1(), r.y1(), r.x2(), r.y2());
++        return RectangleDoubleImpl.distance(x, y, x, y, r.x1(), r.y1(), r.x2(), r.y2());
+     }
+ 
+     public double distance(Point p) {
+@@ -89,27 +90,27 @@
+     }
+ 
+     @Override
+-    public float x1() {
++    public double x1() {
+         return x;
+     }
+ 
+     @Override
+-    public float y1() {
++    public double y1() {
+         return y;
+     }
+ 
+     @Override
+-    public float x2() {
++    public double x2() {
+         return x;
+     }
+ 
+     @Override
+-    public float y2() {
++    public double y2() {
+         return y;
+     }
+ 
+     @Override
+-    public float area() {
++    public double area() {
+         return 0;
+     }
+ 
+@@ -125,48 +126,18 @@
+     }
+ 
+     @Override
+-    public float intersectionArea(Rectangle r) {
++    public double intersectionArea(Rectangle r) {
+         return 0;
+     }
+ 
+     @Override
+-    public float perimeter() {
++    public double perimeter() {
+         return 0;
+     }
+ 
+     @Override
+-    public double x1d() {
+-        return x;
+-    }
+
+-    @Override
+-    public double y1d() {
+-        return y;
+-    }
+
+-    @Override
+-    public double x2d() {
+-        return x;
+-    }
+
+-    @Override
+-    public double y2d() {
+-        return y;
+-    }
+
+-    @Override
+-    public double intersectionAreaD(Rectangle r) {
+-        return intersectionArea(r);
+-    }
+
+-    @Override
+-    public double perimeterD() {
+-        return perimeter();
+-    }
+
+-    @Override
+-    public double areaD() {
+-        return area();
++    public boolean isDoublePrecision() {
++        return false;
+     }
+ 
+ }
+
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/geometry/Rectangle.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/geometry/Rectangle.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/geometry/Rectangle.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/geometry/Rectangle.java
+@@ -2,36 +2,24 @@
+ 
+ public interface Rectangle extends Geometry, HasGeometry {
+ 
+-    float x1();
++    double x1();
+ 
+-    float y1();
++    double y1();
+ 
+-    float x2();
++    double x2();
+ 
+-    float y2();
++    double y2();
+ 
+-    float area();
++    double area();
+ 
+-    float intersectionArea(Rectangle r);
++    double intersectionArea(Rectangle r);
+ 
+-    float perimeter();
++    double perimeter();
+ 
+     Rectangle add(Rectangle r);
+ 
+     boolean contains(double x, double y);
+
+-    double x1d();
+
+-    double y1d();
+
+-    double x2d();
+
+-    double y2d();
+
+-    double intersectionAreaD(Rectangle r);
+
+-    double perimeterD();
+
+-    double areaD();
+    
++    boolean isDoublePrecision();
+ 
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/internal/Util.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/internal/Util.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/internal/Util.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/internal/Util.java
+@@ -42,10 +42,10 @@
+      */
+     public static Rectangle mbr(Collection<? extends HasGeometry> items) {
+         Preconditions.checkArgument(!items.isEmpty());
+-        float minX1 = Float.MAX_VALUE;
+-        float minY1 = Float.MAX_VALUE;
+-        float maxX2 = -Float.MAX_VALUE;
+-        float maxY2 = -Float.MAX_VALUE;
++        double minX1 = Double.MAX_VALUE;
++        double minY1 = Double.MAX_VALUE;
++        double maxX2 = -Double.MAX_VALUE;
++        double maxY2 = -Double.MAX_VALUE;
+         for (final HasGeometry item : items) {
+             Rectangle r = item.geometry().mbr();
+             if (r.x1() < minX1)
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/RTree.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/RTree.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/davidmoten/rtree/RTree.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/davidmoten/rtree/RTree.java
+@@ -427,9 +427,9 @@
+             private double mid(HasGeometry o) {
+                 Rectangle mbr = o.geometry().mbr();
+                 if (dimension == 0)
+-                    return (mbr.x1d() + mbr.x2d()) / 2;
++                    return (mbr.x1() + mbr.x2()) / 2;
+                 else
+-                    return (mbr.y1d() + mbr.y2d()) / 2;
++                    return (mbr.y1() + mbr.y2()) / 2;
+             }
+         }
+ 
+ 

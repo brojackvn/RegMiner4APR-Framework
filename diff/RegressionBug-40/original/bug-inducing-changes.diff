@@ -1,0 +1,41 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/CHANGES ./RegMiner4APR-Regression-Bugs/BIC/CHANGES
+--- ./RegMiner4APR-Regression-Bugs/WORKING/CHANGES	2024-09-08 01:36:15.501818307 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/CHANGES	2024-09-08 01:36:15.493818251 +1000
+@@ -24,6 +24,10 @@
+   * Bugfix: boolean attributes with empty string values were not collapsing in HTML output.
+     <https://github.com/jhy/jsoup/issues/985>
+ 
++  * Bugfix: when using the XML Parser set to lowercase normalize tags, uppercase closing tags were not correctly
++    handled.
++    <https://github.com/jhy/jsoup/issues/998>
++
+ *** Release 1.11.2 [2017-Nov-19]
+   * Improvement: added a new pseudo selector :matchText, which allows text nodes to match as if they were elements.
+     This enables finding text that is only marked by a "br" tag, for example.
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/XmlTreeBuilder.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/XmlTreeBuilder.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/XmlTreeBuilder.java	2024-09-08 01:36:15.501818307 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/XmlTreeBuilder.java	2024-09-08 01:36:15.493818251 +1000
+@@ -114,7 +114,7 @@
+      * @param endTag tag to close
+      */
+     private void popStackToClose(Token.EndTag endTag) {
+-        String elName = endTag.name();
++        String elName = endTag.normalName();
+         Element firstFound = null;
+ 
+         for (int pos = stack.size() -1; pos >= 0; pos--) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/jsoup/parser/HtmlParserTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/jsoup/parser/HtmlParserTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/jsoup/parser/HtmlParserTest.java	2024-09-08 01:36:15.505818336 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/jsoup/parser/HtmlParserTest.java	2024-09-08 01:36:15.493818251 +1000
+@@ -1105,6 +1105,11 @@
+         assertEquals("<r> <x> A </x> <y> B </y> </r>", StringUtil.normaliseWhitespace(doc.body().html()));
+     }
+ 
++    @Test public void normalizesDiscordantTags() {
++        Document document = Jsoup.parse("<div>test</DIV><p></p>");
++        assertEquals("<div>\n test\n</div>\n<p></p>", document.body().html());
++    }
++
+     @Test public void selfClosingVoidIsNotAnError() {
+         String html = "<p>test<br/>test<br/></p>";
+         Parser parser = Parser.htmlParser().setTrackErrors(5);

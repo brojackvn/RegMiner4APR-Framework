@@ -1,0 +1,12 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/parser/XmlTreeBuilder.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/parser/XmlTreeBuilder.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/parser/XmlTreeBuilder.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/parser/XmlTreeBuilder.java
+@@ -114,7 +114,7 @@
+      * @param endTag tag to close
+      */
+     private void popStackToClose(Token.EndTag endTag) {
+-        String elName = endTag.normalName();
++        String elName = settings.normalizeTag(endTag.tagName);
+         Element firstFound = null;
+ 
+         for (int pos = stack.size() -1; pos >= 0; pos--) {

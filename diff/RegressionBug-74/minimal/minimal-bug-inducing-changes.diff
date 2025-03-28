@@ -1,0 +1,51 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/util/JavaBeanInfo.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/util/JavaBeanInfo.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/util/JavaBeanInfo.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/util/JavaBeanInfo.java
+@@ -45,6 +41,8 @@
+     public final String         typeName;
+     public final String         typeKey;
+ 
++    public String[]             orders;
+
+     public JavaBeanInfo(Class<?> clazz, //
+                         Class<?> builderClass, //
+                         Constructor<?> defaultConstructor, //
+@@ -72,17 +70,38 @@
+             } else {
+                 this.typeName = clazz.getName();
+             }
++            String[] orders = jsonType.orders();
++            this.orders = orders.length == 0 ? null : orders;
+         } else {
+             this.typeName = clazz.getName();
+             this.typeKey = null;
++            this.orders = null;
+         }
+ 
+         fields = new FieldInfo[fieldList.size()];
+         fieldList.toArray(fields);
+ 
+         FieldInfo[] sortedFields = new FieldInfo[fields.length];
++        if (orders != null) {
++            LinkedHashMap<String, FieldInfo> map = new LinkedHashMap<String, FieldInfo>(fieldList.size());
++            for (FieldInfo field : fields) {
++                map.put(field.name, field);
++            }
++            int i = 0;
++            for (String item : orders) {
++                FieldInfo field = map.get(item);
++                if (field != null) {
++                    sortedFields[i++] = field;
++                    map.remove(item);
++                }
++            }
++            for (FieldInfo field : map.values()) {
++                sortedFields[i++] = field;
++            }
++        } else {
+             System.arraycopy(fields, 0, sortedFields, 0, fields.length);
+             Arrays.sort(sortedFields);
++        }
+ 
+         if (Arrays.equals(fields, sortedFields)) {
+             sortedFields = fields;

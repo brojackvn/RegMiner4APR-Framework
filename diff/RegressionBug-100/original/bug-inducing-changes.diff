@@ -1,0 +1,24 @@
+diff -r -U 3 /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-100/WORKING/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-100/BIC/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java
+--- /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-100/WORKING/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java	2025-03-24 17:00:55.167859387 +1100
++++ /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-100/BIC/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java	2025-03-24 17:00:55.083858865 +1100
+@@ -111,12 +111,19 @@
+         {
+             for (int x = 0; x < sizeX; x++)
+             {
+-                // label of current pixel 
++                // label of current pixel
+                 int label = (int) skeleton.getf(x, y);
++                
++                // do not process background pixels
+                 if (label == 0)
+                 {
+                     continue;
+                 }
++                // do not process labels not in the list
++                if (labelIndices.containsKey(label))
++                {
++                    continue;
++                }
+ 
+                 int index = labelIndices.get(label);
+                 

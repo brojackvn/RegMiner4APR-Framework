@@ -1,0 +1,26 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/pom.xml ./RegMiner4APR-Regression-Bugs/BFC/pom.xml
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/pom.xml	2024-09-08 01:36:15.273816710 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/pom.xml	2024-09-08 01:36:15.249816542 +1000
+@@ -4,7 +4,7 @@
+ 	<modelVersion>4.0.0</modelVersion>
+ 	<groupId>com.univocity</groupId>
+ 	<artifactId>univocity-parsers</artifactId>
+-	<version>2.5.2</version>
++	<version>2.5.3-SNAPSHOT</version>
+ 	<name>univocity-parsers</name>
+ 	<packaging>jar</packaging>
+ 	<description>uniVocity's open source parsers for processing different text formats using a consistent API</description>
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/input/AbstractCharInputReader.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/input/AbstractCharInputReader.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/input/AbstractCharInputReader.java	2024-09-08 01:36:15.273816710 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/input/AbstractCharInputReader.java	2024-09-08 01:36:15.253816570 +1000
+@@ -202,7 +202,9 @@
+ 					process.execute(buffer, length);
+ 				}
+ 			} finally {
+-				inputAnalysisProcesses = null;
++				if(length > 4) {
++					inputAnalysisProcesses = null;
++				}
+ 			}
+ 		}
+ 	}

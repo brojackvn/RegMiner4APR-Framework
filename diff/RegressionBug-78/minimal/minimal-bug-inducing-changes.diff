@@ -1,0 +1,95 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/springframework/hateoas/server/core/WebHandler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/springframework/hateoas/server/core/WebHandler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/springframework/hateoas/server/core/WebHandler.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/springframework/hateoas/server/core/WebHandler.java
+@@ -104,7 +104,7 @@
+ 
+ 		String mapping = DISCOVERER.getMapping(invocation.getTargetType(), invocation.getMethod());
+ 
+-		return finisher -> {
++		return (finisher, conversionService) -> {
+ 
+ 			UriComponentsBuilder builder = finisher.apply(mapping);
+ 			UriTemplate template = UriTemplateFactory.templateFor(mapping == null ? "/" : mapping);
+@@ -120,16 +120,18 @@
+ 
+ 			HandlerMethodParameters parameters = HandlerMethodParameters.of(invocation.getMethod());
+ 			Object[] arguments = invocation.getArguments();
++			ConversionService resolved = conversionService;
+
+ 			for (HandlerMethodParameter parameter : parameters.getParameterAnnotatedWith(PathVariable.class, arguments)) {
+-				values.put(parameter.getVariableName(), encodePath(parameter.getValueAsString(arguments)));
++				values.put(parameter.getVariableName(),
++						encodePath(parameter.getValueAsString(arguments, resolved)));
+ 			}
+ 
+ 			List<String> optionalEmptyParameters = new ArrayList<>();
+ 
+@@ -335,7 +337,6 @@
+ 
+ 	private abstract static class HandlerMethodParameter {
+ 
+-		private static final ConversionService CONVERSION_SERVICE = new DefaultFormattingConversionService();
+ 		private static final TypeDescriptor STRING_DESCRIPTOR = TypeDescriptor.valueOf(String.class);
+ 		private static final Map<Class<? extends Annotation>, Function<MethodParameter, ? extends HandlerMethodParameter>> FACTORY;
+ 		private static final String NO_PARAMETER_NAME = "Could not determine name of parameter %s! Make sure you compile with parameter information or explicitly define a parameter name in %s.";
+@@ -400,7 +401,7 @@
+ 			return variableName;
+ 		}
+ 
+-		public String getValueAsString(Object[] values) {
++		public String getValueAsString(Object[] values, ConversionService conversionService) {
+ 
+ 			Object value = values[parameter.getParameterIndex()];
+ 
+@@ -414,11 +415,9 @@
+			// Try to lookup ConversionService from the request's context
+			// Guard with ….canConvert(…)
+			// if not, fall back to ….toString();
+-			Object result = CONVERSION_SERVICE.convert(value, typeDescriptor, STRING_DESCRIPTOR);
++			Object result = conversionService.canConvert(typeDescriptor, STRING_DESCRIPTOR)
++					? conversionService.convert(value, typeDescriptor, STRING_DESCRIPTOR)
++					: value == null ? null : value.toString();
+ 
+ 			if (result == null) {
+ 				throw new IllegalArgumentException(String.format("Conversion of value %s resulted in null!", value));
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/springframework/hateoas/server/mvc/WebMvcLinkBuilderFactory.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/springframework/hateoas/server/mvc/WebMvcLinkBuilderFactory.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/springframework/hateoas/server/mvc/WebMvcLinkBuilderFactory.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/springframework/hateoas/server/mvc/WebMvcLinkBuilderFactory.java
+@@ -47,6 +57,8 @@
+  */
+ public class WebMvcLinkBuilderFactory implements MethodLinkBuilderFactory<WebMvcLinkBuilder> {
+ 
++	private static ConversionService FALLBACK_CONVERSION_SERVICE = new DefaultFormattingConversionService();
+
+ 	private List<UriComponentsContributor> uriComponentsContributors = new ArrayList<>();
+ 
+ 	/**
+@@ -124,7 +136,7 @@
+ 
+ 			return builder;
+ 
+-		}, builderFactory);
++		}, builderFactory, getConversionService());
+ 	}
+ 
+ 	/*
+@@ -135,4 +147,24 @@
+ 	public WebMvcLinkBuilder linkTo(Method method, Object... parameters) {
+ 		return WebMvcLinkBuilder.linkTo(method, parameters);
+ 	}
+
++	@SuppressWarnings("null")
++	private Supplier<ConversionService> getConversionService() {
++		return () -> {
++			RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
++			if (!ServletRequestAttributes.class.isInstance(attributes)) {
++				return null;
++			}
++			ServletContext servletContext = ((ServletRequestAttributes) attributes).getRequest().getServletContext();
++			WebApplicationContext context = WebApplicationContextUtils.getWebApplicationContext(servletContext);
++			return context == null || !context.containsBean("mvcConversionService")
++					? FALLBACK_CONVERSION_SERVICE
++					: context.getBean("mvcConversionService", ConversionService.class);
++		};
++	}
+ }

@@ -1,0 +1,90 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/liqp/tags/Cycle.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/liqp/tags/Cycle.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/liqp/tags/Cycle.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/liqp/tags/Cycle.java
+@@ -5,11 +5,10 @@
+ 
+ import java.util.ArrayList;
+ import java.util.List;
++import java.util.Map;
+ 
+ class Cycle extends Tag {
+ 
+-    private static final String PREPEND = "\"'";
+
+     /*
+      * Cycle is usually used within a loop to alternate
+      * between values, like colors or DOM classes.
+@@ -17,25 +16,25 @@
+     @Override
+     public Object render(TemplateContext context, LNode... nodes) {
+ 
+-        String groupName = nodes[0] == null ?
+-                PREPEND + (nodes.length - 1) :
+-                super.asString(nodes[0].render(context)); 
+-        groupName = PREPEND + groupName;
+-        Object obj = context.remove(groupName);
+
+-        List<Object> elements = new ArrayList<Object>();
++        List<Object> elements = new ArrayList<>();
+ 
+         for (int i = 1; i < nodes.length; i++) {
+             elements.add(nodes[i].render(context));
+         }
+ 
++        String groupName = nodes[0] == null ?
++                super.asString(elements) :
++                super.asString(nodes[0].render(context));
++        Map<String, Object> cycleRegistry = context.getRegistry(TemplateContext.REGISTRY_CYCLE);
++        Object obj = cycleRegistry.remove(groupName);
+
+         CycleGroup group;
+ 
+         if (obj == null) {
+@@ -45,7 +44,7 @@
+             group = (CycleGroup) obj;
+         }
+ 
+-        context.put(groupName, group);
++        cycleRegistry.put(groupName, group);
+ 
+         return group.next(elements);
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/liqp/TemplateContext.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/liqp/TemplateContext.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/liqp/TemplateContext.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/liqp/TemplateContext.java
+@@ -10,12 +10,15 @@
+ public class TemplateContext {
+ 
++    public static final String REGISTRY_CYCLE = "cycle";
+
+     protected TemplateContext parent;
+     public final ProtectionSettings protectionSettings;
+     public final RenderSettings renderSettings;
+     public final ParseSettings parseSettings;
+     private Map<String, Object> variables;
+     private Map<String, Object> environmentMap;
++    private Map<String, Map<String, Object>> registry;
+ 
+     private List<RuntimeException> errors;
+ 
+@@ -133,4 +136,24 @@
+         }
+         return environmentMap;
+     }
+
++    public Map<String, Object> getRegistry(String registryName) {
++        if (parent != null) {
++            return parent.getRegistry(registryName);
++        }
++        if (!REGISTRY_CYCLE.equals(registryName)) {
++            throw new RuntimeException("unknown registry type: " + registryName);
++        }
++        if (registry == null) {
++            registry = new HashMap<>();
++        }
++        if (!registry.containsKey(registryName)) {
++            registry.put(registryName, new HashMap<String, Object>());
++        }
++        return registry.get(registryName);
++    }
+ }

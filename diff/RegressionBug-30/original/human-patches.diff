@@ -1,0 +1,110 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/input/AbstractCharInputReader.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/input/AbstractCharInputReader.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/input/AbstractCharInputReader.java	2024-09-08 01:36:14.177809034 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/input/AbstractCharInputReader.java	2024-09-08 01:36:14.153808866 +1000
+@@ -405,6 +405,28 @@
+ 	}
+ 
+ 	@Override
++	public final boolean skipString(char ch, char stop) {
++		if (i == 0) {
++			return false;
++		}
++		int i = this.i;
++		for (; ch != stop; ch = buffer[i++]) {
++			if (i >= length) {
++				return false;
++			}
++			if (lineSeparator1 == ch && (lineSeparator2 == '\0' || lineSeparator2 == buffer[i])) {
++				break;
++			}
++		}
++
++		this.i = i - 1;
++
++		nextChar();
++
++		return true;
++	}
++
++	@Override
+ 	public final String getString(char ch, char stop, boolean trim, String nullValue, int maxLength) {
+ 		if (i == 0) {
+ 			return null;
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/input/CharInputReader.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/input/CharInputReader.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/input/CharInputReader.java	2024-09-08 01:36:14.177809034 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/input/CharInputReader.java	2024-09-08 01:36:14.153808866 +1000
+@@ -149,6 +149,19 @@
+ 	String getString(char ch, char stop, boolean trim, String nullValue, int maxLength);
+ 
+ 	/**
++	 * Attempts to skip a {@code String} from the current position until a stop character is found on the input,
++	 * or a line ending is reached. If the {@code String} can be skipped, the current position of the parser will be updated to
++	 * the last consumed character. If the internal buffer needs to be reloaded, this method will return {@code false}
++	 * and the current position of the buffer will remain unchanged.
++	 *
++	 * @param ch        the current character to be considered. If equal to the stop character {@code false} will be returned
++	 * @param stop      the stop character that identifies the end of the content to be collected
++	 *
++	 * @return {@code true} if an entire {@code String} value was found on the input and skipped, or {@code false} if the buffer needs to reloaded or the maximum length has been exceeded.
++	 */
++	boolean skipString(char ch, char stop);
++
++	/**
+ 	 * Attempts to collect a quoted {@code String} from the current position until a closing quote or stop character is found on the input,
+ 	 * or a line ending is reached. If the {@code String} can be obtained, the current position of the parser will be updated to
+ 	 * the last consumed character. If the internal buffer needs to be reloaded, this method will return {@code null}
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/input/LookaheadCharInputReader.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/input/LookaheadCharInputReader.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/input/LookaheadCharInputReader.java	2024-09-08 01:36:14.177809034 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/input/LookaheadCharInputReader.java	2024-09-08 01:36:14.153808866 +1000
+@@ -243,4 +243,9 @@
+ 	public int currentParsedContentLength() {
+ 		return reader.currentParsedContentLength();
+ 	}
++
++	@Override
++	public boolean skipString(char ch, char stop) {
++		return reader.skipString(ch, stop);
++	}
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/ParserOutput.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/ParserOutput.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/ParserOutput.java	2024-09-08 01:36:14.177809034 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/ParserOutput.java	2024-09-08 01:36:14.153808866 +1000
+@@ -179,6 +179,7 @@
+ 			currentRecord++;
+ 			if (columnsReordered) {
+ 				if(selectedIndexes.length == 0){
++					column = 0;
+ 					return ArgumentUtils.EMPTY_STRING_ARRAY;
+ 				}
+ 				String[] reorderedValues = new String[selectedIndexes.length];
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvParser.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvParser.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvParser.java	2024-09-08 01:36:14.177809034 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvParser.java	2024-09-08 01:36:14.157808895 +1000
+@@ -148,15 +148,24 @@
+ 					output.valueParsed();
+ 				} else if (doNotEscapeUnquotedValues) {
+ 					String value = null;
+-					if (output.appender.length() == 0) {
++					int len = output.appender.length();
++					if (len == 0) {
+ 						value = input.getString(ch, delimiter, ignoreTrailingWhitespace, nullValue, maxColumnLength);
+ 					}
+ 					if (value != null) {
+ 						output.valueParsed(value);
+ 						ch = input.getChar();
+ 					} else {
+-						output.trim = ignoreTrailingWhitespace;
+-						ch = output.appender.appendUntil(ch, input, delimiter, newLine);
++						if (len != -1) {
++							output.trim = ignoreTrailingWhitespace;
++							ch = output.appender.appendUntil(ch, input, delimiter, newLine);
++						} else {
++							if (input.skipString(ch, delimiter)) {
++								ch = input.getChar();
++							} else {
++								ch = output.appender.appendUntil(ch, input, delimiter, newLine);
++							}
++						}
+ 						output.valueParsed();
+ 					}
+ 				} else {

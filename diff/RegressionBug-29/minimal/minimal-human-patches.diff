@@ -1,0 +1,25 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/AbstractWriter.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/AbstractWriter.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/AbstractWriter.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/AbstractWriter.java
+@@ -957,7 +957,7 @@
+ 		usingNullOrEmptyValue = false;
+ 		if (element == null) {
+ 			usingNullOrEmptyValue = true;
+-			return null;
++			return nullValue;
+ 		}
+ 		String string = String.valueOf(element);
+ 		if (string.isEmpty()) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvWriter.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvWriter.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvWriter.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvWriter.java
+@@ -207,7 +207,7 @@
+ 			boolean isElementQuoted = append(quoteAllFields || quotedColumns.contains(i), nextElement);
+ 
+ 			//skipped all whitespaces and wrote nothing
+-			if (appender.length() == originalLength) {
++			if (appender.length() == originalLength && !usingNullOrEmptyValue) {
+ 				if (isElementQuoted) {
+ 					if (nextElement == null) {
+ 						append(false, nullValue);
+;

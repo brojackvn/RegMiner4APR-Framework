@@ -1,0 +1,12 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/formulas/FormulaFactory.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/formulas/FormulaFactory.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/formulas/FormulaFactory.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/formulas/FormulaFactory.java
+@@ -276,6 +278,8 @@ public Formula implication(final Formula left, final Formula right) {
+       return this.not(left);
+     if (left.equals(right))
+       return this.verum();
++    if (left.negate().equals(right))
++      return left.negate();
+     final Pair<Formula, Formula> key = new Pair<>(left, right);
+     Implication implication = this.implications.get(key);
+     if (implication == null) {

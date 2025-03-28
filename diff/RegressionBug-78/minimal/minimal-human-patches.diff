@@ -1,0 +1,19 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/springframework/hateoas/server/mvc/WebMvcLinkBuilderFactory.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/springframework/hateoas/server/mvc/WebMvcLinkBuilderFactory.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/springframework/hateoas/server/mvc/WebMvcLinkBuilderFactory.java	2024-09-08 01:36:25.113885627 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/springframework/hateoas/server/mvc/WebMvcLinkBuilderFactory.java	2024-09-08 01:36:25.089885459 +1000
+@@ -148,15 +148,14 @@
+ 		return WebMvcLinkBuilder.linkTo(method, parameters);
+ 	}
+ 
+-	@SuppressWarnings("null")
+-	private Supplier<ConversionService> getConversionService() {
++	private static Supplier<ConversionService> getConversionService() {
+ 
+ 		return () -> {
+ 			RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+-			if (!ServletRequestAttributes.class.isInstance(attributes)) {
+-				return null;
++			if (attributes == null || !ServletRequestAttributes.class.isInstance(attributes)) {
++				return FALLBACK_CONVERSION_SERVICE;
+ 			}
+ 			ServletContext servletContext = ((ServletRequestAttributes) attributes).getRequest().getServletContext();

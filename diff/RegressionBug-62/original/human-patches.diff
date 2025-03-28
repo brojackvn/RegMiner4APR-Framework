@@ -1,0 +1,52 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/cactoos/func/RepeatedFunc.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/cactoos/func/RepeatedFunc.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/cactoos/func/RepeatedFunc.java	2024-09-21 19:16:59.581961376 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/cactoos/func/RepeatedFunc.java	2024-09-21 19:16:58.065947045 +1000
+@@ -25,14 +25,13 @@
+ 
+ import org.cactoos.Func;
+ import org.cactoos.Proc;
+-import org.cactoos.text.FormattedText;
+ 
+ /**
+  * Func that repeats its calculation a few times before
+  * returning the last result.
+  *
+  * @author Yegor Bugayenko (yegor256@gmail.com)
+- * @version $Id: 67451448475a303d1d85ebd6015e1f880ba2c8f5 $
++ * @version $Id: cd523b3ef8b42da0c40ccdcb9d16e4d84afa07b7 $
+  * @param <X> Type of input
+  * @param <Y> Type of output
+  * @since 0.6
+@@ -63,7 +62,7 @@
+      * Ctor.
+      *
+      * <p>If {@code max} is equal or less than zero {@link #apply(Object)}
+-     * will return {@code null}.</p>
++     * will return an exception.</p>
+      *
+      * @param fnc Func original
+      * @param max How many times
+@@ -75,18 +74,15 @@
+ 
+     @Override
+     public Y apply(final X input) throws Exception {
++        if (this.times <= 0) {
++            throw new IllegalArgumentException(
++                "The number of repetitions must be at least 1"
++            );
++        }
+         Y result = null;
+         for (int idx = 0; idx < this.times; ++idx) {
+             result = this.func.apply(input);
+         }
+-        if (result == null) {
+-            throw new IllegalArgumentException(
+-                new FormattedText(
+-                    "Repeat counter is equal or less than zero: %d",
+-                    this.times
+-                ).asString()
+-            );
+-        }
+         return result;
+     }
+ 

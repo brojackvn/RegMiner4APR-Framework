@@ -1,0 +1,368 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/ice4j/stack/StunClientTransaction.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/ice4j/stack/StunClientTransaction.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/ice4j/stack/StunClientTransaction.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/ice4j/stack/StunClientTransaction.java
+@@ -46,13 +47,12 @@
+  * @author Lyubomir Marinov
+  */
+ public class StunClientTransaction
+-    implements Runnable
+ {
+     /**
+      * Our class logger.
+      */
+@@ -77,40 +77,20 @@
+      * The pool of <tt>Thread</tt>s which retransmit
+      * <tt>StunClientTransaction</tt>s.
+      */
+-    private static final ExecutorService retransmissionThreadPool
+-        = Executors.newCachedThreadPool(
+-                new ThreadFactory()
+-                {
+-                    private final ThreadFactory defaultThreadFactory
+-                        = Executors.defaultThreadFactory();
+-
+-                    @Override
+-                    public Thread newThread(Runnable r)
+-                    {
+-                        Thread t = defaultThreadFactory.newThread(r);
+-
+-                        if (t != null)
+-                        {
+-                            t.setDaemon(true);
+-                            String name = t.getName();
+-
+-                            if (name == null)
+-                                name = "";
+-                            t.setName("StunClientTransaction-" + name);
+-                        }
+-                        return t;
+-                    }
+-                });
++    private static final ScheduledExecutorService retransmissionThreadPool;
++
++    static {
++        CustomizableThreadFactory threadFactory
++            = new CustomizableThreadFactory("ice4j.StunClientTransaction-", true);
++
++        final ScheduledThreadPoolExecutor terminationExecutor
++            = new ScheduledThreadPoolExecutor(0, threadFactory);
++        terminationExecutor.setKeepAliveTime(60, TimeUnit.SECONDS);
++        terminationExecutor.setRemoveOnCancelPolicy(true);
++        retransmissionThreadPool
++            = Executors.unconfigurableScheduledExecutorService(
++            terminationExecutor);
++    }
+ 
+     /**
+      * Maximum number of retransmissions. Once this number is reached and if no
+@@ -166,25 +146,12 @@
+     /**
+      * Determines whether the transaction is active or not.
+      */
+-    private boolean cancelled = false;
+
+-    private final Lock lock = new ReentrantLock();
++    private final AtomicBoolean cancelled = new AtomicBoolean(false);
+ 
+-    private final Condition lockCondition = lock.newCondition();
++    private final Retransmitter retransmitter = new Retransmitter();
+ 
+     /**
+      * Creates a client transaction.
+@@ -257,102 +224,6 @@
+     }
+ 
+-    @Override
+-    public void run()
+-    {
+-        lock.lock();
+-        try
+-        {
+-            runLocked();
+-        }
+-        finally
+-        {
+-            lock.unlock();
+-        }
+-    }
+
+-    private void runLocked()
+-    {
+-        int retransmissionCounter = 0;
+-        int nextWaitInterval = originalWaitInterval;
+
+-        for (retransmissionCounter = 0;
+-             retransmissionCounter < maxRetransmissions;
+-             retransmissionCounter ++)
+-        {
+-            waitFor(nextWaitInterval);
+
+-            if(cancelled)
+-                return;
+
+-            int curWaitInterval = nextWaitInterval;
+-            if(nextWaitInterval < maxWaitInterval)
+-                nextWaitInterval *= 2;
+
+-            try
+-            {
+-                logger.fine(
+-                        "retrying STUN tid " + transactionID + " from "
+-                            + localAddress + " to " + requestDestination
+-                            + " waited " + curWaitInterval + " ms retrans "
+-                            + (retransmissionCounter + 1) + " of "
+-                            + maxRetransmissions);
+-                sendRequest0();
+-            }
+-            catch (Exception ex)
+-            {
+-                logger.log(
+-                        Level.INFO,
+-                        "A client tran retransmission failed",
+-                        ex);
+-            }
+-        }
+
+-        if(nextWaitInterval < maxWaitInterval)
+-            nextWaitInterval *= 2;
+
+-        waitFor(nextWaitInterval);
+-
+-        if(cancelled)
+-            return;
+
+-        stackCallback.removeClientTransaction(this);
+-        responseCollector.processTimeout(
+-                new StunTimeoutEvent(
+-                        stackCallback,
+-                        this.request, getLocalAddress(), transactionID));
+-    }
+
+      * Sends the request and schedules the first retransmission for after
+      * {@link #originalWaitInterval} and thus starts the retransmission
+      * algorithm.
+@@ -371,7 +242,7 @@
+                     + localAddress + " to " + requestDestination);
+         sendRequest0();
+ 
+-        retransmissionThreadPool.execute(this);
++        this.retransmitter.schedule();
+     }
+ 
+     /**
+@@ -385,7 +256,7 @@
+     private void sendRequest0()
+         throws IllegalArgumentException, IOException
+     {
+-        if(cancelled)
++        if (cancelled.get())
+         {
+             logger.finer("Trying to resend a cancelled transaction.");
+         }
+@@ -409,73 +280,17 @@
+      *
+      * @param millis the number of milliseconds to wait for.
+      */
+-    void waitFor(long millis)
+-    {
+-        lock.lock();
+-        try
+-        {
+-            lockCondition.await(millis, TimeUnit.MILLISECONDS);
+-        }
+-        catch (InterruptedException ex)
+-        {
+-            throw new RuntimeException(ex);
+-        }
+-        finally
+-        {
+-            lock.unlock();
+-        }
+-    }
+
+-    void cancel(boolean waitForResponse)
++    void cancel()
+     {
+-        cancelled = true;
+-
+-        if(!waitForResponse)
+-        {
+-            if (lock.tryLock())
+-            {
+-                try
+-                {
+-                    lockCondition.signal();
+-                }
+-                finally
+-                {
+-                    lock.unlock();
+-                }
+-            }
+-        }
+-    }
+
++        cancelled.set(true);
+ 
+
+-    void cancel()
+-    {
+-        cancel(false);
++        this.retransmitter.cancel();
+     }
+ 
+     /**
+@@ -486,27 +301,21 @@
+      */
+     public void handleResponse(StunMessageEvent evt)
+     {
+-        lock.lock();
+-        try
+-        {
+-            TransactionID transactionID = getTransactionID();
++        TransactionID transactionID = getTransactionID();
+ 
+-            logger.log(Level.FINE, "handleResponse tid " + transactionID);
+-            if(!Boolean.getBoolean(StackProperties.KEEP_CRANS_AFTER_A_RESPONSE))
+-                cancel();
+-
+-            responseCollector.processResponse(
+-                    new StunResponseEvent(
+-                            stackCallback,
+-                            evt.getRawMessage(),
+-                            (Response) evt.getMessage(),
+-                            request,
+-                            transactionID));
+-        }
+-        finally
++        logger.fine("handleResponse tid " + transactionID);
++        if(!Boolean.getBoolean(StackProperties.KEEP_CRANS_AFTER_A_RESPONSE))
+         {
+-            lock.unlock();
++            cancel();
+         }
++
++        responseCollector.processResponse(
++            new StunResponseEvent(
++                stackCallback,
++                evt.getRawMessage(),
++                (Response) evt.getMessage(),
++                request,
++                transactionID));
+     }
+ 
+     /**
+@@ -608,4 +417,152 @@
+     {
+         return requestDestination;
+     }
+
++    private final class Retransmitter
++    {
++        private int retransmissionCounter = 0;
++        private int nextRetransmissionDelay = originalWaitInterval;
++        private ScheduledFuture<?> retransmissionFuture;
+
++        private final Runnable retransmissionAttempt = new Runnable()
++        {
++            @Override
++            public void run()
++            {
++                if (cancelled.get())
++                {
++                    return;
++                }
+
++                retransmissionCounter++;
+
++                int curWaitInterval = nextRetransmissionDelay;
++                nextRetransmissionDelay
++                    = Math.min(maxWaitInterval, 2 * nextRetransmissionDelay);
+
++                try
++                {
++                    logger.fine(
++                        "retrying STUN tid " + transactionID + " from "
++                            + localAddress + " to " + requestDestination
++                            + " waited " + curWaitInterval + " ms retrans "
++                            + retransmissionCounter + " of "
++                            + maxRetransmissions);
++                    sendRequest0();
++                }
++                catch (Exception ex)
++                {
++                    logger.log(
++                        Level.INFO,
++                        "A client tran retransmission failed",
++                        ex);
++                }
++                if(!cancelled.get())
++                {
++                    reschedule();
++                }
++            }
+
++            private void reschedule()
++            {
++                if (retransmissionCounter < maxRetransmissions)
++                {
++                    retransmissionFuture = retransmissionThreadPool.schedule(
++                        retransmissionAttempt,
++                        nextRetransmissionDelay,
++                        TimeUnit.MILLISECONDS);
++                }
++                else
++                {
++                    nextRetransmissionDelay =
++                        Math.min(maxWaitInterval, 2* nextRetransmissionDelay);
++
++                    retransmissionFuture = retransmissionThreadPool.schedule(
++                        transactionTimedOut,
++                        nextRetransmissionDelay,
++                        TimeUnit.MILLISECONDS);
++                }
++            }
++        };
+
++        private final Runnable transactionTimedOut = new Runnable()
++        {
++            @Override
++            public void run()
++            {
++                if (cancelled.get())
++                {
++                    return;
++                }
+
++                stackCallback.removeClientTransaction(
++                    StunClientTransaction.this);
+
++                responseCollector.processTimeout(
++                    new StunTimeoutEvent(
++                        stackCallback,
++                        getRequest(), getLocalAddress(), getTransactionID()));
++            }
++        };
+
++        void schedule()
++        {
++            if (retransmissionFuture != null)
++            {
++                return;
++            }
++            retransmissionFuture = retransmissionThreadPool.schedule(
++                retransmissionAttempt,
++                nextRetransmissionDelay,
++                TimeUnit.MILLISECONDS);
++        }
+
++        void cancel()
++        {
++            final ScheduledFuture<?> retransmissionFuture =
++                this.retransmissionFuture;
++            if (retransmissionFuture != null)
++            {
++                retransmissionFuture.cancel(true);
++            }
++        }
++    }
+ }

@@ -1,0 +1,14 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/cronutils/model/definition/CronDefinitionBuilder.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/cronutils/model/definition/CronDefinitionBuilder.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/cronutils/model/definition/CronDefinitionBuilder.java	2024-09-08 01:36:25.029885038 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/cronutils/model/definition/CronDefinitionBuilder.java	2024-09-08 01:36:25.021884982 +1000
+@@ -273,8 +273,8 @@
+                 .withSeconds().and()
+                 .withMinutes().and()
+                 .withHours().and()
+-                .withDayOfMonth().supportsL().supportsW().supportsLW().supportsQuestionMark().and()
+-                .withMonth().and()
++                .withDayOfMonth().withValidRange(1, 32).supportsL().supportsW().supportsLW().supportsQuestionMark().and()
++                .withMonth().withValidRange(1, 13).and()
+                 .withDayOfWeek().withValidRange(1, 7).withMondayDoWValue(2).supportsHash().supportsL().supportsQuestionMark().and()
+                 .withYear().withValidRange(1970, 2099).optional().and()
+                 .withCronValidation(CronConstraintsFactory.ensureEitherDayOfWeekOrDayOfMonth())

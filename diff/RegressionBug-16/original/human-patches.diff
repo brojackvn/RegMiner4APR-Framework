@@ -1,0 +1,27 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/nonapi/io/github/classgraph/fileslice/reader/ClassfileReader.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/nonapi/io/github/classgraph/fileslice/reader/ClassfileReader.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/nonapi/io/github/classgraph/fileslice/reader/ClassfileReader.java	2024-09-22 13:08:58.717841197 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/nonapi/io/github/classgraph/fileslice/reader/ClassfileReader.java	2024-09-22 13:08:58.513839418 +1000
+@@ -178,13 +178,17 @@
+                 maxArrLen);
+ 
+         // Double the size of the array if it's too small to contain the new chunk of bytes
+-        if (arr.length < maxNewArrUsed) {
+-            arr = Arrays.copyOf(arr, (int) Math.min(arr.length * 2L, maxArrLen));
++        long newArrLength = arr.length;
++        while (newArrLength < maxNewArrUsed) {
++            newArrLength = Math.min(maxNewArrUsed, newArrLength * 2L);
+         }
++        if (newArrLength > FileUtils.MAX_BUFFER_SIZE) {
++            throw new IOException("Hit 2GB limit while trying to grow buffer array");
++        }
++        arr = Arrays.copyOf(arr, (int) Math.min(newArrLength, maxArrLen));
+ 
+-        // Figure out the maximum number of bytes that can be read into the array (which is the minimum
+-        // of the number of requested bytes, and the space left in the array)
+-        final int maxBytesToRead = Math.min(maxNewArrUsed - arrUsed, arr.length - arrUsed);
++        // Figure out the maximum number of bytes that can be read into the array
++        final int maxBytesToRead = arr.length - arrUsed;
+ 
+         // Read a new chunk into the buffer, starting at position arrUsed
+         if (inflaterInputStream != null) {
+Only in ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/io/github/classgraph/issues: issue128

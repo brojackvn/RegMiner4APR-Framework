@@ -1,0 +1,205 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/jssrc/dsl/CodeChunk.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/jssrc/dsl/CodeChunk.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/jssrc/dsl/CodeChunk.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/jssrc/dsl/CodeChunk.java
+@@ -63,8 +63,8 @@
+   public static final WithValue LITERAL_TRUE = id("true");
+   public static final WithValue LITERAL_FALSE = id("false");
+   public static final WithValue LITERAL_NULL = id("null");
+-  public static final WithValue LITERAL_EMPTY_STRING = Leaf.create("''", /* isCheap= */ true);
+-  public static final WithValue EMPTY_OBJECT_LITERAL = Leaf.create("{}", /* isCheap= */ false);
++  public static final WithValue LITERAL_EMPTY_STRING = Leaf.create("''");
++  public static final WithValue EMPTY_OBJECT_LITERAL = Leaf.create("{}");
+ 
+   /** Creates a new code chunk representing the concatenation of the given chunks. */
+   public static CodeChunk statements(CodeChunk first, CodeChunk... rest) {
+@@ -93,7 +93,7 @@
+    * Creates a new code chunk from the given expression. The expression's precedence is preserved.
+    */
+   public static WithValue fromExpr(JsExpr expr, Iterable<GoogRequire> requires) {
+-    return Leaf.create(expr, /* isCheap= */ false, requires);
++    return Leaf.create(expr, requires);
+   }
+ 
+   /**
+@@ -103,7 +103,7 @@
+    */
+   public static WithValue id(String id) {
+     CodeChunkUtils.checkId(id);
+-    return Leaf.create(id, /* isCheap= */ true);
++    return Leaf.create(id);
+   }
+   /**
+    * Creates a code chunk representing a JavaScript identifier.
+@@ -112,7 +112,7 @@
+    */
+   static WithValue id(String id, Iterable<GoogRequire> requires) {
+     CodeChunkUtils.checkId(id);
+-    return Leaf.create(id, /* isCheap= */ true, requires);
++    return Leaf.create(id, requires);
+   }
+ 
+   /**
+@@ -162,19 +162,19 @@
+     // forward slash in the string to get around this issue.
+     escaped = escaped.replace("</script", "<\\/script");
+ 
+-    return Leaf.create(escaped, /* isCheap= */ true);
++    return Leaf.create(escaped);
+   }
+ 
+   /** Creates a code chunk representing a JavaScript number literal. */
+   public static WithValue number(long value) {
+     Preconditions.checkArgument(
+         IntegerNode.isInRange(value), "Number is outside JS safe integer range: %s", value);
+-    return Leaf.create(Long.toString(value), /* isCheap= */ true);
++    return Leaf.create(Long.toString(value));
+   }
+ 
+   /** Creates a code chunk representing a JavaScript number literal. */
+   public static WithValue number(double value) {
+-    return Leaf.create(Double.toString(value), /* isCheap= */ true);
++    return Leaf.create(Double.toString(value));
+   }
+ 
+   /** Creates a code chunk that assigns value to a preexisting variable with the given name. */
+@@ -489,16 +489,6 @@
+      *
+      * <p>The default is {@code false}, only certain special code chunks return {@code true}.
+      */
+-    public boolean isCheap() {
+-      return false;
+-    }
+   }
+ 
+   /**
+@@ -676,11 +666,6 @@
+       return CodeChunk.declare(newVarName(), rhs);
+     }
+ 
+     /** Creates a code chunk declaring an automatically-named variable with no initializer. */
+-    public VariableDeclaration declare() {
+-      return VariableDeclaration.create(newVarName(), /*initializer=*/ null);
+-    }
+-
+     /**
+      * Returns a code chunk representing an if-then-else condition.
+      *
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/jssrc/dsl/Conditional.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/jssrc/dsl/Conditional.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/jssrc/dsl/Conditional.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/jssrc/dsl/Conditional.java
+@@ -144,7 +144,7 @@
+    */
+   CodeChunk.WithValue asConditionalExpression(CodeChunk.Generator codeGenerator) {
+     Preconditions.checkState(everyBranchHasAValue());
+-    VariableDeclaration decl = codeGenerator.declare();
++    VariableDeclaration decl = codeGenerator.declare(WithValue.LITERAL_NULL);
+     CodeChunk.WithValue var = decl.ref();
+     ConditionalBuilder builder = null;
+     for (IfThenPair oldCondition : conditions()) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/jssrc/dsl/Leaf.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/jssrc/dsl/Leaf.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/jssrc/dsl/Leaf.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/jssrc/dsl/Leaf.java
+@@ -28,24 +28,22 @@
+ @AutoValue
+ @Immutable
+ abstract class Leaf extends CodeChunk.WithValue {
+-  static WithValue create(String text, boolean isCheap, Iterable<GoogRequire> require) {
+-    return create(new JsExpr(text, Integer.MAX_VALUE), isCheap, ImmutableSet.copyOf(require));
++  static WithValue create(String text, Iterable<GoogRequire> require) {
++    return create(new JsExpr(text, Integer.MAX_VALUE), ImmutableSet.copyOf(require));
+   }
+ 
+-  static Leaf create(String text, boolean isCheap) {
+-    return create(new JsExpr(text, Integer.MAX_VALUE), isCheap, ImmutableSet.<GoogRequire>of());
++  static Leaf create(String text) {
++    return create(new JsExpr(text, Integer.MAX_VALUE), ImmutableSet.<GoogRequire>of());
+   }
+ 
+-  static Leaf create(JsExpr value, boolean isCheap, Iterable<GoogRequire> requires) {
+-    return new AutoValue_Leaf(value, ImmutableSet.copyOf(requires), isCheap);
++  static Leaf create(JsExpr value, Iterable<GoogRequire> requires) {
++    return new AutoValue_Leaf(value, ImmutableSet.copyOf(requires));
+   }
+
+   abstract JsExpr value();
+ 
+   abstract ImmutableSet<GoogRequire> requires();
+ 
+-  @Override
+-  public abstract boolean isCheap();
+ 
+   @Override
+   void doFormatInitialStatements(FormattingContext ctx) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/jssrc/internal/NullSafeAccumulator.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/jssrc/internal/NullSafeAccumulator.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/jssrc/internal/NullSafeAccumulator.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/jssrc/internal/NullSafeAccumulator.java
+@@ -22,11 +22,11 @@
+ 
+ import com.google.auto.value.AutoValue;
+ import com.google.common.base.Preconditions;
++import com.google.common.collect.ImmutableList;
+ import com.google.errorprone.annotations.ForOverride;
+ import com.google.template.soy.jssrc.dsl.CodeChunk;
+ import com.google.template.soy.jssrc.dsl.CodeChunk.WithValue;
+ import java.util.ArrayList;
+-import java.util.Iterator;
+ import java.util.List;
+ import javax.annotation.Nullable;
+ 
+@@ -106,51 +106,52 @@
+    * generate code to make sure the chain is non-null before performing the access.
+    */
+   CodeChunk.WithValue result(CodeChunk.Generator codeGenerator) {
+-    CodeChunk.WithValue accessChain = buildAccessChain(base, codeGenerator, chain.iterator());
+     // First generate a list of every partial evaluation of the chain.
++    ImmutableList<CodeChunk.WithValue> intermediateValues = buildIntermediateValues();
++    Preconditions.checkState(intermediateValues.size() == chain.size() + 1);
+
++    CodeChunk.WithValue cur = intermediateValues.get(intermediateValues.size() - 1);
++    for (int i = intermediateValues.size() - 2; i >= 0; --i) {
++      CodeChunk.WithValue chunk = intermediateValues.get(i);
++      boolean nullSafe = chain.get(i).nullSafe;
++      if (nullSafe) {
++        cur = ifExpression(chunk.doubleEqualsNull(), LITERAL_NULL).else_(cur).build(codeGenerator);
++      }
++    }
+ 
+     if (unpackFunction == null) {
+-      return accessChain;
++      return cur;
+     } else if (!isRepeated) {
+       // It's okay if the whole chain evals to null. The unpack functions accept null.
+-      return unpackFunction.call(accessChain);
++      return unpackFunction.call(cur);
+     } else {
+-      return GOOG_ARRAY_MAP.call(accessChain, unpackFunction);
++      return GOOG_ARRAY_MAP.call(cur, unpackFunction);
+     }
+   }
+ 
+-  private static CodeChunk.WithValue buildAccessChain(
+-      CodeChunk.WithValue base, CodeChunk.Generator generator, Iterator<ChainAccess> chain) {
+-    if (!chain.hasNext()) {
+-      return base; // base case
+-    }
+-    ChainAccess link = chain.next();
+-    if (link.nullSafe) {
+-      if (!base.isCheap()) {
+-        base = generator.declare(base).ref();
+-      }
+-      return ifExpression(base.doubleEqualsNull(), LITERAL_NULL)
+-          .else_(buildAccessChain(link.extend(base), generator, chain))
+-          .build(generator);
++  private ImmutableList<CodeChunk.WithValue> buildIntermediateValues() {
++    ImmutableList.Builder<CodeChunk.WithValue> builder = ImmutableList.builder();
++    CodeChunk.WithValue prev = base;
++    builder.add(prev);
++    for (ChainAccess link : chain) {
++      prev = link.extend(prev);
++      builder.add(prev);
+     }
+-    return buildAccessChain(link.extend(base), generator, chain);
++    return builder.build();
+   }
+ 
+   /**

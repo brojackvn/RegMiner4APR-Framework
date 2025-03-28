@@ -1,0 +1,13 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/gitlab4j/api/utils/JacksonJson.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/gitlab4j/api/utils/JacksonJson.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/gitlab4j/api/utils/JacksonJson.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/gitlab4j/api/utils/JacksonJson.java
+@@ -132,7 +134,8 @@
+      */
+     public <T> List<T> unmarshalList(Class<T> returnType, Reader reader) throws JsonParseException, JsonMappingException, IOException {
+         ObjectMapper objectMapper = getContext(null);
+-        return (objectMapper.readValue(reader, new TypeReference<List<T>>() {}));
++        CollectionType javaType = objectMapper.getTypeFactory().constructCollectionType(List.class, returnType);
++        return (objectMapper.readValue(reader, javaType));
+     }
+ 
+     /**

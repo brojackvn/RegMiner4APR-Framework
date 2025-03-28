@@ -1,0 +1,23 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/javafaker/Number.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/javafaker/Number.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/github/javafaker/Number.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/github/javafaker/Number.java
+@@ -27,7 +27,10 @@
+      * @see Number#numberBetween(long, long) 
+      */
+     public int numberBetween(int min, int max) {
++        if (min == max) return min;
+-        return decimalBetween(min, max).setScale(0, BigDecimal.ROUND_HALF_DOWN).intValue();
++        return decimalBetween(min, max).setScale(0, BigDecimal.ROUND_HALF_DOWN).intValue() == max ? value - 1 : value;
+     }
+ 
+     /**
+@@ -39,7 +42,10 @@
+      * @param max exclusive (unless min == max)
+      */
+     public long numberBetween(long min, long max) {
++        if (min == max) return min;          
+-        return decimalBetween(min, max).setScale(0, BigDecimal.ROUND_HALF_DOWN).longValue();
++        return decimalBetween(min, max).setScale(0, BigDecimal.ROUND_HALF_DOWN).longValue() == max ? value - 1 : value;
+     }
+     
+     /**

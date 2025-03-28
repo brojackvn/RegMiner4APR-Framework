@@ -1,0 +1,15 @@
+diff -r -U 3 RegressionBug-96/WORKING/src/main/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorOutputStream.java RegressionBug-96/BIC/src/main/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorOutputStream.java
+--- RegressionBug-96/WORKING/src/main/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorOutputStream.java
++++ RegressionBug-96/BIC/src/main/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorOutputStream.java
+@@ -484,8 +484,10 @@
+     @Override
+     public void close() throws IOException {
+         if (!closed) {
+-            try (OutputStream outShadow = this.out) {
++            try {
+                 finish();
++            } finally {
++                this.out.close();
+             }
+         }
+     }
