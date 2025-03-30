@@ -1,6 +1,6 @@
-diff -r -U 3 /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-100/BUGGY/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-100/BFC/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java
---- /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-100/BUGGY/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java	2025-03-24 17:00:54.923857868 +1100
-+++ /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-100/BFC/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java	2025-03-24 17:00:54.843857370 +1100
+diff -r -U 3 RegressionBug-100/BUGGY/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java RegressionBug-100/BFC/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java
+--- RegressionBug-100/BUGGY/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java
++++ RegressionBug-100/BFC/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java
 @@ -120,7 +120,7 @@
                      continue;
                  }

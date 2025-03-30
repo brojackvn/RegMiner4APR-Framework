@@ -1772,5 +1772,91 @@
                 }
             ]
         }
+    },
+    "96": {
+        "bug_id": "RegressionBug-96",
+        "github_repository": "apache/commons-compress",
+        "bfcID": "29c2703bbc1c879329f187b47013bb8e99449326",
+        "buggyID": "0a2d5642a83f172c12bf53e2bb1a9a40e43fb81b",
+        "bicID": "ed84b21e7de77648fd4e80b09dbdfdfe87394aed",
+        "workingID": "784ea342ef6cb685dc9585ad9dd774838229e17d",
+        "failing_tests": {
+            "org.apache.commons.compress.compressors.bzip2.Compress686Test#testRoundtrip": [
+                {
+                    "type": "java.io.IOException",
+                    "message": ": Stream is not in the BZip2 format"
+                }
+            ]
+        }
+    },
+    "97": {
+        "bug_id": "RegressionBug-97",
+        "github_repository": "classgraph/classgraph",
+        "bfcID": "59b85b98402ea0333894f238e6e7b4f3a8d79534",
+        "buggyID": "dc2035188d2082324e5bda8f8037a91cd8545465",
+        "bicID": "afc0608581e529a7df80e8ef4589eed581a73061",
+        "workingID": "0d56b0c06c9504652ff45a6ee4dabf20cbf96445",
+        "failing_tests": {
+            "io.github.classgraph.issues.issue352.Issue352#test": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": "Expecting <[\"com/sun/istack/XMLStreamReaderToContentHandler.class\",\n    \"com/sun/istack/FinalArrayList.class\",\n    \"com/sun/istack/XMLStreamReaderToContentHandler$1.class\",\n    \"com/sun/istack/Interned.class\",\n    \"com/sun/istack/XMLStreamException2.class\",\n    \"com/sun/istack/Builder.class\",\n    \"com/sun/istack/localization/LocalizableMessageFactory$ResourceBundleSupplier.class\",\n    \"com/sun/istack/localization/NullLocalizable.class\",\n    \"com/sun/istack/localization/LocalizableMessage.class\",\n    \"com/sun/istack/localization/Localizer.class\",\n    \"com/sun/istack/localization/Localizable.class\",\n    \"com/sun/istack/localization/LocalizableMessageFactory.class\",\n    \"com/sun/istack/logging/Logger.class\",\n    \"com/sun/istack/FragmentContentHandler.class\",\n    \"com/sun/istack/Pool$Impl.class\",\n    \"com/sun/istack/Nullable.class\",\n    \"com/sun/istack/NotNull.class\",\n    \"com/sun/istack/SAXParseException2.class\",\n    \"com/sun/istack/ByteArrayDataSource.class\",\n    \"com/sun/istack/SAXException2.class\",\n    \"com/sun/istack/Pool.class\",\n    \"module-info.class\"]>\nnot to contain\n <[\"module-info.class\"]>\nbut found\n <[\"module-info.class\"]>"
+                }
+            ]
+        }
+    },
+    "98": {
+        "bug_id": "RegressionBug-98",
+        "github_repository": "apache/commons-io",
+        "bfcID": "e0e69af621294fb0d9c665666d20ad6f421cdf06",
+        "buggyID": "9e14f9604bd17a061560b30d63571db4420df44b",
+        "bicID": "9e14f9604bd17a061560b30d63571db4420df44b",
+        "workingID": "0fd437d1db3870cb55bff32cdf7d0c854c29e77b",
+        "failing_tests": {
+            "org.apache.commons.io.input.BufferedFileChannelInputStreamTest#testAvailableAfterClose": [
+                {
+                    "type": "java.nio.channels.ClosedChannelException",
+                    "message": ""
+                }
+            ]
+        }
+    },
+    "99": {
+        "bug_id": "RegressionBug-99",
+        "github_repository": "apache/commons-io",
+        "bfcID": "4f71ae00a52bd6617f36654730b260417b75f98a",
+        "buggyID": "5e8fdba2cf5dc5b9d70461bc01f7334201419344",
+        "bicID": "ec4144b01b4107d6b39f5f4d784cf05217ea4dfa",
+        "workingID": "e8a073978dfabdd517508121ccc9e7bc0a08728e",
+        "failing_tests": {
+            "org.apache.commons.io.FileUtilsTest#testCopyFile_symLink": [
+                {
+                    "type": "org.opentest4j.AssertionFailedError",
+                    "message": "expected: <false> but was: <true>"
+                }
+            ]
+        }
+    },
+    "100": {
+        "bug_id": "RegressionBug-100",
+        "github_repository": "ijpb/MorphoLibJ",
+        "bfcID": "cadc595a698e0f831e38ba341d5ce56643d7759a",
+        "buggyID": "8385d145d4689c0c096818b7ef03dccf4caea1fd",
+        "bicID": "8385d145d4689c0c096818b7ef03dccf4caea1fd",
+        "workingID": "3ad88b5663c4fdcf500b6e2acf63863b98a91671",
+        "failing_tests": {
+            "inra.ijpb.measure.region2d.AverageThicknessTest#test_process_rectangle": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": ""
+                }
+            ],
+            "inra.ijpb.measure.region2d.AverageThicknessTest#test_process_ThinLines_TouchingLabels": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": ""
+                }
+            ]
+        }
     }
 }
