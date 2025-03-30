@@ -71,16 +71,14 @@ def get_test_identifiers(report_directory):
                 # Check for failures or errors
                 if testcase.find('failure') is not None or testcase.find('error') is not None:
                     failing_test_identifiers.append(test_identifier)
-                    count_neg += 1
                 else:
                     passing_test_identifiers.append(test_identifier)
-                    count_pos += 1
     
     # Remove duplicates by converting lists to sets and back to lists
     passing_test_identifiers = list(set(passing_test_identifiers))
     failing_test_identifiers = list(set(failing_test_identifiers))
 
-    return passing_test_identifiers, failing_test_identifiers, count_pos, count_neg
+    return passing_test_identifiers, failing_test_identifiers, len(passing_test_identifiers), len(failing_test_identifiers)
 
 def get_test_identifiers_and_exception(report_directory):
     passing_test_identifiers = []
