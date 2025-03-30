@@ -27,7 +27,7 @@ def checkout_command(regressionbug_id, working_dir):
     os.makedirs(target_directory, exist_ok=True)
 
     # Define the repository URL (you may need to modify this)
-    repository_url = f"https://github.com/MSR25-RegressionBug/RegMiner4APR-Benchmark.git"  # Replace with your actual repository URL
+    repository_url = f"https://github.com/brojackvn/RegMiner4APR-Benchmark.git"  # Replace with your actual repository URL
 
     if subprocess.call(
         ["git", "clone", "--branch", f"RegressionBug-{regressionbug_id}", repository_url, target_directory],
