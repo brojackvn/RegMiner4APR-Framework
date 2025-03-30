@@ -55,6 +55,8 @@ def get_test_identifiers(report_directory):
 
     for filename in os.listdir(report_directory):
         if filename.endswith(".xml") and filename.startswith("TEST-"):
+            if filename.lower().endswith(".alltests.xml") and filename.lower().startswith("test-inra."):
+                continue
             file_path = os.path.join(report_directory, filename)
             tree = ET.parse(file_path)
             root = tree.getroot()
@@ -71,24 +73,28 @@ def get_test_identifiers(report_directory):
                 # Check for failures or errors
                 if testcase.find('failure') is not None or testcase.find('error') is not None:
                     failing_test_identifiers.append(test_identifier)
+                    count_neg += 1
                 else:
                     passing_test_identifiers.append(test_identifier)
+                    count_pos += 1
     
     # Remove duplicates by converting lists to sets and back to lists
     passing_test_identifiers = list(set(passing_test_identifiers))
     failing_test_identifiers = list(set(failing_test_identifiers))
 
-    return passing_test_identifiers, failing_test_identifiers, len(passing_test_identifiers), len(failing_test_identifiers)
+    return passing_test_identifiers, failing_test_identifiers, count_pos, count_neg
 
 def get_test_identifiers_and_exception(report_directory):
     passing_test_identifiers = []
     failing_test_identifiers = {}
 
-    count_pos = 0
     count_neg = 0
+    count_pos = 0
 
     for filename in os.listdir(report_directory):
         if filename.endswith(".xml") and filename.startswith("TEST-"):
+            if filename.lower().endswith(".alltests.xml") and filename.lower().startswith("test-inra."):
+                continue
             file_path = os.path.join(report_directory, filename)
             tree = ET.parse(file_path)
             root = tree.getroot()
@@ -139,26 +145,20 @@ def get_test_identifiers_and_exception(report_directory):
                                 "message": error_message
                             }
                         ]
-                    count_neg += 1  # Increment the count for failing tests
+                    count_neg += 1 
                 else:
                     passing_test_identifiers.append(test_identifier)
                     count_pos += 1
     
     # Remove duplicates by converting lists to sets and back to lists
     passing_test_identifiers = list(set(passing_test_identifiers))
-
+    
     return passing_test_identifiers, failing_test_identifiers, count_pos, count_neg
 
 
-
-
-
-
-
-
-
-
-
+# ======================================================================================================
+# ======================================================================================================
+# ======================================================================================================
 # ======================================================================================================
 # def update_meta_data(meta_data_path, bug_id, passing_tests, failing_tests, count_pos, count_neg):
 #     # Load the existing meta-data.json
