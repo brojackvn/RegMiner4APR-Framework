@@ -35,6 +35,9 @@ diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/pa
 diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/NormalizedString.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/NormalizedString.java
 --- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/NormalizedString.java
 +++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/NormalizedString.java
+@@ -0,0 +1,525 @@
++ public final class NormalizedString implements Serializable, Comparable<NormalizedString>, CharSequence {
++   private static final long serialVersionUID = -3904288692735859811L;
 +	private static final StringCache<NormalizedString> stringCache = new StringCache<NormalizedString>() {
 +		@Override
 +		protected NormalizedString process(String input) {
