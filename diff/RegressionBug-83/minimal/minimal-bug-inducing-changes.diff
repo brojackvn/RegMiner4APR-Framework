@@ -1,0 +1,98 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/passes/PassManager.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/passes/PassManager.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/passes/PassManager.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/passes/PassManager.java
+@@ -285,6 +285,7 @@
+       // meaning that errors reported in earlier passes do not prevent running subsequent passes.
+       building = true;
+       ImmutableList.Builder<CompilerFilePass> singleFilePassesBuilder = ImmutableList.builder();
++      addPass(new StripSoyCommentsPass(), singleFilePassesBuilder);
+       // Needs to run after htmlrewriting, before ResolveNames, ResolveTemplateParamTypes and
+       // autoescaping.
+       addPass(new ContentSecurityPolicyNonceInjectionPass(errorReporter), singleFilePassesBuilder);
+Only in ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/passes: StripSoyCommentsPass.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soyparse/HtmlRewriter.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soyparse/HtmlRewriter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soyparse/HtmlRewriter.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soyparse/HtmlRewriter.java
+@@ -1250,6 +1251,12 @@
+     }
+ 
+     @Override
++    protected void visitLineCommentNode(LineCommentNode node) {
++      processNonPrintableNode(
++          node); // otherwise InferenceEngine is unable to correctly infer escaping mode.
++    }
+
++    @Override
+     protected void visitCallParamContentNode(CallParamContentNode node) {
+       visitScopedBlock(node.getContentKind(), node, "param");
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soytree/AbstractSoyNodeVisitor.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soytree/AbstractSoyNodeVisitor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soytree/AbstractSoyNodeVisitor.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soytree/AbstractSoyNodeVisitor.java
+@@ -197,6 +197,10 @@
+         visitDebuggerNode((DebuggerNode) node);
+         break;
+ 
++      case LINE_COMMENT_NODE:
++        visitLineCommentNode((LineCommentNode) node);
++        break;
+
+       default:
+         visitSoyNode(node);
+         break;
+diff -r -u ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soytree/LineCommentNode.java ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soytree/LineCommentNode.java
+--- ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soytree/LineCommentNode.java
++++ ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soytree/LineCommentNode.java
+@@ -0,0 +36,2 @@
++  public LineCommentNode(int id, String comment, SourceLocation sourceLocation) {
++    super(id, sourceLocation);
++    String trimmed = whitespace().trimLeadingFrom(comment);
++    checkArgument(
++      trimmed.length() < comment.length() && trimmed.startsWith("//"),
++      "Line comment must start with ' //': %s",
++      comment);
++    this.comment = whitespace().trimFrom(trimmed.substring(2));
++  }
+@@ -0,0 +60,2 @@
+   /** Escapes `*\/` in the commment text. */
++   public String getEscapedCommentText() {
++    return comment.replace("*/", "*&#47;");
++  }
+
++  @Override
++  public Kind getKind() {
++    return Kind.LINE_COMMENT_NODE;
++  }
+
++  @SuppressWarnings("unchecked")
++  @Override
++  public ParentSoyNode<StandaloneNode> getParent() {
++    return (ParentSoyNode<StandaloneNode>) super.getParent();
++  }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soytree/RawTextNode.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soytree/RawTextNode.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soytree/RawTextNode.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soytree/RawTextNode.java
+@@ -138,6 +138,25 @@
+    * @throws IndexOutOfBoundsException if index is out of range.
+    * @return {@code true} if command executed
+    */
++  public boolean commandAt(int index) {
++    return offsets == null ? false : offsets.getReasonAt(index) == SourceOffsets.Reason.COMMAND;
++  }
+ 
+   @Nullable
+   public Reason getReasonAt(int index) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soytree/SoyNode.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soytree/SoyNode.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soytree/SoyNode.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soytree/SoyNode.java
+@@ -100,8 +100,9 @@
+ 
+     LOG_NODE,
+     DEBUGGER_NODE,
+-  }
+ 
++    LINE_COMMENT_NODE,
++  }
+ 
+   /** Returns this node's kind (corresponding to this node's specific type). */
+   Kind getKind();

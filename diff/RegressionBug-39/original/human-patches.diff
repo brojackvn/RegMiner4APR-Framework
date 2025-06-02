@@ -1,0 +1,24 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/pom.xml ./RegMiner4APR-Regression-Bugs/BFC/pom.xml
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/pom.xml	2024-09-08 01:36:15.393817551 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/pom.xml	2024-09-08 01:36:15.369817383 +1000
+@@ -4,7 +4,7 @@
+ 	<modelVersion>4.0.0</modelVersion>
+ 	<groupId>com.univocity</groupId>
+ 	<artifactId>univocity-parsers</artifactId>
+-	<version>2.5.1</version>
++	<version>2.5.2-SNAPSHOT</version>
+ 	<name>univocity-parsers</name>
+ 	<packaging>jar</packaging>
+ 	<description>uniVocity's open source parsers for processing different text formats using a consistent API</description>
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvParser.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvParser.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvParser.java	2024-09-08 01:36:15.397817579 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvParser.java	2024-09-08 01:36:15.373817411 +1000
+@@ -280,7 +280,7 @@
+ 					processQuoteEscape();
+ 					prev = ch;
+ 					ch = input.nextChar();
+-					if(unescaped && ch == delimiter || ch == newLine){
++					if(unescaped && (ch == delimiter || ch == newLine)){
+ 						return;
+ 					}
+ 				}

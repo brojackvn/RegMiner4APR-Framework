@@ -1,0 +1,205 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/liqp/ProtectionSettings.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/liqp/ProtectionSettings.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/liqp/ProtectionSettings.java	2024-09-08 01:36:08.413768666 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/liqp/ProtectionSettings.java	2024-09-08 01:36:08.405768610 +1000
+@@ -1,5 +1,7 @@
+ package liqp;
+ 
++import liqp.exceptions.ExceededMaxIterationsException;
++
+ public class ProtectionSettings {
+ 
+     public final int maxIterations;
+@@ -7,6 +9,9 @@
+     public final long maxRenderTimeMillis;
+     public final long maxTemplateSizeBytes;
+ 
++    // A global counter that keeps track of the amount of iterations
++    private int iterations = 0;
++
+     public static class Builder {
+ 
+         private int maxIterations;
+@@ -52,4 +57,13 @@
+         this.maxRenderTimeMillis = maxRenderTimeMillis;
+         this.maxTemplateSizeBytes = maxTemplateSizeBytes;
+     }
++
++    public void incrementIterations() {
++
++        this.iterations++;
++
++        if (this.iterations > this.maxIterations) {
++            throw new ExceededMaxIterationsException(this.maxIterations);
++        }
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/liqp/tags/Assign.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/liqp/tags/Assign.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/liqp/tags/Assign.java	2024-09-08 01:36:08.413768666 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/liqp/tags/Assign.java	2024-09-08 01:36:08.409768639 +1000
+@@ -31,7 +31,8 @@
+             value = filter.apply(value, context);
+         }
+ 
+-        context.put(id, value);
++        // Assign causes variable to be saved "globally"
++        context.put(id, value, true);
+ 
+         return "";
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/liqp/tags/Capture.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/liqp/tags/Capture.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/liqp/tags/Capture.java	2024-09-08 01:36:08.413768666 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/liqp/tags/Capture.java	2024-09-08 01:36:08.409768639 +1000
+@@ -15,7 +15,8 @@
+ 
+         LNode block = nodes[1];
+ 
+-        context.put(id, block.render(context));
++        // Capture causes variable to be saved "globally"
++        context.put(id, block.render(context), true);
+ 
+         return null;
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/liqp/tags/For.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/liqp/tags/For.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/liqp/tags/For.java	2024-09-08 01:36:08.413768666 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/liqp/tags/For.java	2024-09-08 01:36:08.409768639 +1000
+@@ -48,11 +48,12 @@
+ 
+         String id = super.asString(nodes[1].render(context));
+ 
+-        context.put(FORLOOP, new HashMap<String, Object>());
++        // Each for tag has its own context that keeps track of its own variables (scope)
++        TemplateContext nestedContext = new TemplateContext(context);
+ 
+-        Object rendered = array ? renderArray(id, context, nodes) : renderRange(id, context, nodes);
++        nestedContext.put(FORLOOP, new HashMap<String, Object>());
+ 
+-        context.remove(FORLOOP);
++        Object rendered = array ? renderArray(id, nestedContext, nodes) : renderRange(id, nestedContext, nodes);
+ 
+         return rendered;
+     }
+@@ -140,7 +141,7 @@
+             }
+         }
+ 
+-        context.put(CONTINUE, continueIndex + 1);
++        context.put(CONTINUE, continueIndex + 1, true);
+ 
+         return builder.toString();
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/liqp/TemplateContext.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/liqp/TemplateContext.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/liqp/TemplateContext.java	2024-09-08 01:36:08.413768666 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/liqp/TemplateContext.java	2024-09-08 01:36:08.405768610 +1000
+@@ -1,6 +1,5 @@
+ package liqp;
+ 
+-import liqp.exceptions.ExceededMaxIterationsException;
+ import liqp.parser.Flavor;
+ 
+ import java.util.LinkedHashMap;
+@@ -8,45 +7,93 @@
+ 
+ public class TemplateContext {
+ 
++    protected TemplateContext parent;
+     public final ProtectionSettings protectionSettings;
+     public final Flavor flavor;
+-    private final Map<String, Object> variables;
+-    private int iterations;
++    private Map<String, Object> variables;
+ 
+     public TemplateContext() {
+         this(new ProtectionSettings.Builder().build(), Flavor.LIQUID, new LinkedHashMap<String, Object>());
+     }
+ 
+     public TemplateContext(ProtectionSettings protectionSettings, Flavor flavor, Map<String, Object> variables) {
++        this.parent = null;
+         this.protectionSettings = protectionSettings;
+         this.flavor = flavor;
+         this.variables = variables;
+-        this.iterations = 0;
++    }
++
++    public TemplateContext(TemplateContext parent) {
++        this.parent = parent;
++        this.protectionSettings = parent.protectionSettings;
++        this.flavor = parent.flavor;
++        this.variables = new LinkedHashMap<String, Object>();
+     }
+ 
+     public void incrementIterations() {
++        this.protectionSettings.incrementIterations();
++    }
+ 
+-        this.iterations++;
++    public boolean containsKey(String key) {
+ 
+-        if (this.iterations > this.protectionSettings.maxIterations) {
+-            throw new ExceededMaxIterationsException(this.protectionSettings.maxIterations);
++        if (this.containsKey(key)) {
++            return true;
+         }
+-    }
+ 
+-    public boolean containsKey(String key) {
+-        return this.variables.containsKey(key);
++        if (parent != null) {
++            return parent.containsKey(key);
++        }
++
++        return false;
+     }
+ 
+     public Object get(String key) {
+-        return this.variables.get(key);
++
++        // First try to retrieve the key from the local context
++        Object value = this.variables.get(key);
++
++        if (value != null) {
++            return value;
++        }
++
++        if (parent != null) {
++            // Not available locally, try the parent context
++            return parent.get(key);
++        }
++
++        // Not available
++        return null;
+     }
+ 
+     public Object put(String key, Object value) {
+-        return this.variables.put(key, value);
++        return this.put(key, value, false);
++    }
++
++    public Object put(String key, Object value, boolean putInRootContext) {
++
++        if (!putInRootContext || parent == null) {
++            // Either store it in the local context, or this context is the root context
++            return this.variables.put(key, value);
++        }
++
++        // Else put in the parent context
++        return parent.put(key, value, putInRootContext);
+     }
+ 
+     public Object remove(String key) {
+-        return this.variables.remove(key);
++
++        if (this.variables.containsKey(key)) {
++            // Remove the key from the local context
++            return this.variables.remove(key);
++        }
++
++        if (parent != null) {
++            // Not available in the local context, try the parent
++            return parent.remove(key);
++        }
++
++        // Key was not present
++        return null;
+     }
+ 
+     public Map<String,Object> getVariables() {

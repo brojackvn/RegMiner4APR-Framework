@@ -1,0 +1,498 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/springframework/hateoas/server/core/WebHandler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/springframework/hateoas/server/core/WebHandler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/springframework/hateoas/server/core/WebHandler.java	2024-09-08 01:36:25.125885711 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/springframework/hateoas/server/core/WebHandler.java	2024-09-08 01:36:25.105885571 +1000
+@@ -26,12 +26,12 @@
+ import java.util.concurrent.ConcurrentHashMap;
+ import java.util.function.BiFunction;
+ import java.util.function.Function;
++import java.util.function.Supplier;
+ import java.util.stream.Collectors;
+ 
+ import org.springframework.core.MethodParameter;
+ import org.springframework.core.convert.ConversionService;
+ import org.springframework.core.convert.TypeDescriptor;
+-import org.springframework.format.support.DefaultFormattingConversionService;
+ import org.springframework.hateoas.Affordance;
+ import org.springframework.hateoas.TemplateVariable;
+ import org.springframework.hateoas.TemplateVariables;
+@@ -71,7 +71,7 @@
+ 	}
+ 
+ 	public interface PreparedWebHandler<T extends LinkBuilder> {
+-		T conclude(Function<String, UriComponentsBuilder> finisher);
++		T conclude(Function<String, UriComponentsBuilder> finisher, ConversionService conversionService);
+ 	}
+ 
+ 	public static <T extends LinkBuilder> PreparedWebHandler<T> linkTo(Object invocationValue,
+@@ -82,9 +82,9 @@
+ 
+ 	public static <T extends LinkBuilder> T linkTo(Object invocationValue, LinkBuilderCreator<T> creator,
+ 			@Nullable BiFunction<UriComponentsBuilder, MethodInvocation, UriComponentsBuilder> additionalUriHandler,
+-			Function<String, UriComponentsBuilder> finisher) {
++			Function<String, UriComponentsBuilder> finisher, Supplier<ConversionService> conversionService) {
+ 
+-		return linkTo(invocationValue, creator, additionalUriHandler).conclude(finisher);
++		return linkTo(invocationValue, creator, additionalUriHandler).conclude(finisher, conversionService.get());
+ 	}
+ 
+ 	private static <T extends LinkBuilder> PreparedWebHandler<T> linkTo(Object invocationValue,
+@@ -104,7 +104,7 @@
+ 
+ 		String mapping = DISCOVERER.getMapping(invocation.getTargetType(), invocation.getMethod());
+ 
+-		return finisher -> {
++		return (finisher, conversionService) -> {
+ 
+ 			UriComponentsBuilder builder = finisher.apply(mapping);
+ 			UriTemplate template = UriTemplateFactory.templateFor(mapping == null ? "/" : mapping);
+@@ -120,16 +120,18 @@
+ 
+ 			HandlerMethodParameters parameters = HandlerMethodParameters.of(invocation.getMethod());
+ 			Object[] arguments = invocation.getArguments();
++			ConversionService resolved = conversionService;
+ 
+ 			for (HandlerMethodParameter parameter : parameters.getParameterAnnotatedWith(PathVariable.class, arguments)) {
+-				values.put(parameter.getVariableName(), encodePath(parameter.getValueAsString(arguments)));
++				values.put(parameter.getVariableName(),
++						encodePath(parameter.getValueAsString(arguments, resolved)));
+ 			}
+ 
+ 			List<String> optionalEmptyParameters = new ArrayList<>();
+ 
+ 			for (HandlerMethodParameter parameter : parameters.getParameterAnnotatedWith(RequestParam.class, arguments)) {
+ 
+-				bindRequestParameters(builder, parameter, arguments);
++				bindRequestParameters(builder, parameter, arguments, conversionService);
+ 
+ 				if (SKIP_VALUE.equals(parameter.getVerifiedValue(arguments))) {
+ 
+@@ -177,7 +179,7 @@
+ 	 */
+ 	@SuppressWarnings("unchecked")
+ 	private static void bindRequestParameters(UriComponentsBuilder builder, HandlerMethodParameter parameter,
+-			Object[] arguments) {
++			Object[] arguments, ConversionService conversionService) {
+ 
+ 		Object value = parameter.getVerifiedValue(arguments);
+ 
+@@ -223,7 +225,7 @@
+ 
+ 		} else {
+ 			if (key != null) {
+-				builder.queryParam(key, encodeParameter(parameter.getValueAsString(arguments)));
++				builder.queryParam(key, encodeParameter(parameter.getValueAsString(arguments, conversionService)));
+ 			}
+ 		}
+ 	}
+@@ -335,7 +337,6 @@
+ 
+ 	private abstract static class HandlerMethodParameter {
+ 
+-		private static final ConversionService CONVERSION_SERVICE = new DefaultFormattingConversionService();
+ 		private static final TypeDescriptor STRING_DESCRIPTOR = TypeDescriptor.valueOf(String.class);
+ 		private static final Map<Class<? extends Annotation>, Function<MethodParameter, ? extends HandlerMethodParameter>> FACTORY;
+ 		private static final String NO_PARAMETER_NAME = "Could not determine name of parameter %s! Make sure you compile with parameter information or explicitly define a parameter name in %s.";
+@@ -400,7 +401,7 @@
+ 			return variableName;
+ 		}
+ 
+-		public String getValueAsString(Object[] values) {
++		public String getValueAsString(Object[] values, ConversionService conversionService) {
+ 
+ 			Object value = values[parameter.getParameterIndex()];
+ 
+@@ -414,11 +415,9 @@
+ 
+ 			value = ObjectUtils.unwrapOptional(value);
+ 
+-			// Try to lookup ConversionService from the request's context
+-
+-			// Guard with ….canConvert(…)
+-			// if not, fall back to ….toString();
+-			Object result = CONVERSION_SERVICE.convert(value, typeDescriptor, STRING_DESCRIPTOR);
++			Object result = conversionService.canConvert(typeDescriptor, STRING_DESCRIPTOR)
++					? conversionService.convert(value, typeDescriptor, STRING_DESCRIPTOR)
++					: value == null ? null : value.toString();
+ 
+ 			if (result == null) {
+ 				throw new IllegalArgumentException(String.format("Conversion of value %s resulted in null!", value));
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/springframework/hateoas/server/mvc/WebMvcLinkBuilderFactory.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/springframework/hateoas/server/mvc/WebMvcLinkBuilderFactory.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/springframework/hateoas/server/mvc/WebMvcLinkBuilderFactory.java	2024-09-08 01:36:25.125885711 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/springframework/hateoas/server/mvc/WebMvcLinkBuilderFactory.java	2024-09-08 01:36:25.105885571 +1000
+@@ -23,13 +23,23 @@
+ import java.util.List;
+ import java.util.Map;
+ import java.util.function.Function;
++import java.util.function.Supplier;
++
++import javax.servlet.ServletContext;
+ 
+ import org.springframework.core.MethodParameter;
++import org.springframework.core.convert.ConversionService;
++import org.springframework.format.support.DefaultFormattingConversionService;
+ import org.springframework.hateoas.Link;
+ import org.springframework.hateoas.server.MethodLinkBuilderFactory;
+ import org.springframework.hateoas.server.core.LinkBuilderSupport;
+ import org.springframework.hateoas.server.core.MethodParameters;
+ import org.springframework.hateoas.server.core.WebHandler;
++import org.springframework.web.context.WebApplicationContext;
++import org.springframework.web.context.request.RequestAttributes;
++import org.springframework.web.context.request.RequestContextHolder;
++import org.springframework.web.context.request.ServletRequestAttributes;
++import org.springframework.web.context.support.WebApplicationContextUtils;
+ import org.springframework.web.util.UriComponentsBuilder;
+ 
+ /**
+@@ -47,6 +57,8 @@
+  */
+ public class WebMvcLinkBuilderFactory implements MethodLinkBuilderFactory<WebMvcLinkBuilder> {
+ 
++	private static ConversionService FALLBACK_CONVERSION_SERVICE = new DefaultFormattingConversionService();
++
+ 	private List<UriComponentsContributor> uriComponentsContributors = new ArrayList<>();
+ 
+ 	/**
+@@ -124,7 +136,7 @@
+ 
+ 			return builder;
+ 
+-		}, builderFactory);
++		}, builderFactory, getConversionService());
+ 	}
+ 
+ 	/*
+@@ -135,4 +147,24 @@
+ 	public WebMvcLinkBuilder linkTo(Method method, Object... parameters) {
+ 		return WebMvcLinkBuilder.linkTo(method, parameters);
+ 	}
++
++	@SuppressWarnings("null")
++	private Supplier<ConversionService> getConversionService() {
++
++		return () -> {
++
++			RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
++
++			if (!ServletRequestAttributes.class.isInstance(attributes)) {
++				return null;
++			}
++
++			ServletContext servletContext = ((ServletRequestAttributes) attributes).getRequest().getServletContext();
++			WebApplicationContext context = WebApplicationContextUtils.getWebApplicationContext(servletContext);
++
++			return context == null || !context.containsBean("mvcConversionService")
++					? FALLBACK_CONVERSION_SERVICE
++					: context.getBean("mvcConversionService", ConversionService.class);
++		};
++	}
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/springframework/hateoas/server/reactive/WebFluxLinkBuilder.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/springframework/hateoas/server/reactive/WebFluxLinkBuilder.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/springframework/hateoas/server/reactive/WebFluxLinkBuilder.java	2024-09-08 01:36:25.125885711 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/springframework/hateoas/server/reactive/WebFluxLinkBuilder.java	2024-09-08 01:36:25.105885571 +1000
+@@ -22,6 +22,9 @@
+ import java.util.List;
+ import java.util.function.Function;
+ 
++import org.springframework.context.ApplicationContext;
++import org.springframework.core.convert.ConversionService;
++import org.springframework.core.convert.support.DefaultConversionService;
+ import org.springframework.hateoas.Affordance;
+ import org.springframework.hateoas.IanaLinkRelations;
+ import org.springframework.hateoas.Link;
+@@ -75,7 +78,7 @@
+ 	 * @param exchange must not be {@literal null}.
+ 	 */
+ 	public static WebFluxBuilder linkTo(Object invocation, ServerWebExchange exchange) {
+-		return new WebFluxBuilder(linkToInternal(invocation, Mono.just(getBuilder(exchange))));
++		return new WebFluxBuilder(linkToInternal(invocation, CurrentRequest.of(exchange)));
+ 	}
+ 
+ 	/**
+@@ -87,7 +90,6 @@
+ 	 * @return
+ 	 */
+ 	public static <T> T methodOn(Class<T> controller, Object... parameters) {
+-
+ 		return DummyInvocationUtils.methodOn(controller, parameters);
+ 	}
+ 
+@@ -245,40 +247,58 @@
+ 		}
+ 	}
+ 
++	private static Mono<WebFluxLinkBuilder> linkToInternal(Object invocation) {
++
++		return linkToInternal(invocation,
++				Mono.deferContextual(
++						context -> CurrentRequest.of(context.getOrDefault(EXCHANGE_CONTEXT_ATTRIBUTE, null))));
++	}
++
++	private static Mono<WebFluxLinkBuilder> linkToInternal(Object invocation, Mono<CurrentRequest> builder) {
++
++		PreparedWebHandler<WebFluxLinkBuilder> handler = WebHandler.linkTo(invocation, WebFluxLinkBuilder::new);
++
++		return builder.map(it -> handler.conclude(path -> it.builder.path(path), it.conversionService));
++	}
++
+ 	/**
+-	 * Returns a {@link UriComponentsBuilder} obtained from the {@link ServerWebExchange}.
++	 * Access to components we can obtain from the current request or fallbacks in case no current request is available.
+ 	 *
+-	 * @param exchange
++	 * @author Oliver Drotbohm
+ 	 */
+-	private static UriComponentsBuilder getBuilder(@Nullable ServerWebExchange exchange) {
++	private static class CurrentRequest {
+ 
+-		if (exchange == null) {
+-			return UriComponentsBuilder.fromPath("/");
+-		}
++		private static final ConversionService FALLBACK_CONVERSION_SERVICE = new DefaultConversionService();
+ 
+-		ServerHttpRequest request = exchange.getRequest();
+-		PathContainer contextPath = request.getPath().contextPath();
++		private UriComponentsBuilder builder;
++		private ConversionService conversionService;
+ 
+-		return UriComponentsBuilder.fromHttpRequest(request) //
+-				.replacePath(contextPath.toString()) //
+-				.replaceQuery("");
+-	}
++		public static Mono<CurrentRequest> of(@Nullable ServerWebExchange exchange) {
+ 
+-	private static Mono<WebFluxLinkBuilder> linkToInternal(Object invocation) {
++			CurrentRequest result = new CurrentRequest();
+ 
+-		return linkToInternal(invocation,
+-				Mono.subscriberContext().map(context -> getBuilder(context.getOrDefault(EXCHANGE_CONTEXT_ATTRIBUTE, null))));
+-	}
++			if (exchange == null) {
+ 
+-	private static Mono<WebFluxLinkBuilder> linkToInternal(Object invocation, Mono<UriComponentsBuilder> builder) {
++				result.builder = UriComponentsBuilder.fromPath("/");
++				result.conversionService = FALLBACK_CONVERSION_SERVICE;
+ 
+-		PreparedWebHandler<WebFluxLinkBuilder> handler = WebHandler.linkTo(invocation, WebFluxLinkBuilder::new);
++				return Mono.just(result);
++			}
+ 
+-		return builder.map(WebFluxLinkBuilder::getBuilderCreator) //
+-				.map(handler::conclude);
+-	}
++			ServerHttpRequest request = exchange.getRequest();
++			PathContainer contextPath = request.getPath().contextPath();
++
++			result.builder = UriComponentsBuilder.fromHttpRequest(request) //
++					.replacePath(contextPath.toString()) //
++					.replaceQuery("");
++
++			ApplicationContext context = exchange.getApplicationContext();
+ 
+-	private static Function<String, UriComponentsBuilder> getBuilderCreator(UriComponentsBuilder builder) {
+-		return path -> builder.path(path);
++			result.conversionService = context != null && context.containsBean("webFluxConversionService")
++					? context.getBean("webFluxConversionService", ConversionService.class)
++					: FALLBACK_CONVERSION_SERVICE;
++
++			return Mono.just(result);
++		}
+ 	}
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/springframework/hateoas/config/HypermediaWebFluxConfigurerTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/springframework/hateoas/config/HypermediaWebFluxConfigurerTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/springframework/hateoas/config/HypermediaWebFluxConfigurerTest.java	2024-09-08 01:36:25.125885711 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/springframework/hateoas/config/HypermediaWebFluxConfigurerTest.java	2024-09-08 01:36:25.105885571 +1000
+@@ -18,6 +18,7 @@
+ import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+ import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
+ import static org.springframework.hateoas.config.EnableHypermediaSupport.HypermediaType.*;
++import static org.springframework.hateoas.server.reactive.WebFluxLinkBuilder.*;
+ 
+ import reactor.core.publisher.Flux;
+ import reactor.core.publisher.Mono;
+@@ -31,6 +32,7 @@
+ import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+ import org.springframework.context.annotation.Bean;
+ import org.springframework.context.annotation.Configuration;
++import org.springframework.format.FormatterRegistry;
+ import org.springframework.hateoas.CollectionModel;
+ import org.springframework.hateoas.EntityModel;
+ import org.springframework.hateoas.IanaLinkRelations;
+@@ -41,7 +43,11 @@
+ import org.springframework.hateoas.server.core.TypeReferences.CollectionModelType;
+ import org.springframework.hateoas.server.core.TypeReferences.EntityModelType;
+ import org.springframework.hateoas.support.Employee;
++import org.springframework.http.HttpEntity;
++import org.springframework.http.HttpStatus;
+ import org.springframework.http.MediaType;
++import org.springframework.http.ResponseEntity;
++import org.springframework.stereotype.Controller;
+ import org.springframework.test.web.reactive.server.WebTestClient;
+ import org.springframework.web.bind.annotation.GetMapping;
+ import org.springframework.web.bind.annotation.PathVariable;
+@@ -50,6 +56,7 @@
+ import org.springframework.web.bind.annotation.RequestBody;
+ import org.springframework.web.bind.annotation.RestController;
+ import org.springframework.web.reactive.config.EnableWebFlux;
++import org.springframework.web.reactive.config.WebFluxConfigurer;
+ 
+ /**
+  * @author Greg Turnquist
+@@ -67,7 +74,7 @@
+ 		ctx.register(context);
+ 		ctx.refresh();
+ 
+-        HypermediaWebTestClientConfigurer configurer = ctx.getBean(HypermediaWebTestClientConfigurer.class);
++		HypermediaWebTestClientConfigurer configurer = ctx.getBean(HypermediaWebTestClientConfigurer.class);
+ 
+ 		this.testClient = WebTestClient.bindToApplicationContext(ctx).build().mutateWith(configurer);
+ 	}
+@@ -322,6 +329,24 @@
+ 				}).verifyComplete();
+ 	}
+ 
++	@Test // #118
++	void linkCreationConsidersRegisteredConverters() throws Exception {
++
++		setUp(WithConversionService.class);
++
++		this.testClient.get().uri("/sample/4711").exchange() //
++				.expectStatus().isEqualTo(HttpStatus.I_AM_A_TEAPOT) //
++				.returnResult(String.class).getResponseBody()
++				.as(StepVerifier::create)
++				.expectNextMatches(it -> {
++
++					assertThat(it).isEqualTo("/sample/sample");
++
++					return true;
++				})
++				.verifyComplete();
++	}
++
+ 	private void verifyRootUriServesHypermedia(MediaType mediaType) {
+ 		verifyRootUriServesHypermedia(mediaType, mediaType);
+ 	}
+@@ -555,4 +580,33 @@
+ 		}
+ 	}
+ 
++	// #118
++
++	@Configuration
++	static class WithConversionService extends HalWebFluxConfig implements WebFluxConfigurer {
++
++		/*
++		 * (non-Javadoc)
++		 * @see org.springframework.web.servlet.config.annotation.WebMvcConfigurer#addFormatters(org.springframework.format.FormatterRegistry)
++		 */
++		@Override
++		public void addFormatters(FormatterRegistry registry) {
++			registry.addConverter(Sample.class, String.class, source -> "sample");
++			registry.addConverter(String.class, Sample.class, source -> new Sample());
++		}
++
++		static class Sample {}
++
++		@Controller
++		static class SampleController {
++
++			@GetMapping("/sample/{sample}")
++			Mono<HttpEntity<?>> sample(@PathVariable Sample sample) {
++
++				return linkTo(methodOn(SampleController.class).sample(new Sample())).withSelfRel()
++						.toMono()
++						.map(it -> new ResponseEntity<>(it.getHref(), HttpStatus.I_AM_A_TEAPOT));
++			}
++		}
++	}
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/springframework/hateoas/config/HypermediaWebMvcConfigurerTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/springframework/hateoas/config/HypermediaWebMvcConfigurerTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/springframework/hateoas/config/HypermediaWebMvcConfigurerTest.java	2024-09-08 01:36:25.125885711 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/springframework/hateoas/config/HypermediaWebMvcConfigurerTest.java	2024-09-08 01:36:25.105885571 +1000
+@@ -18,6 +18,7 @@
+ import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+ import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
+ import static org.springframework.hateoas.config.EnableHypermediaSupport.HypermediaType.*;
++import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
+ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+ import static org.springframework.test.web.servlet.setup.MockMvcBuilders.*;
+@@ -29,6 +30,7 @@
+ import org.junit.jupiter.api.Test;
+ import org.springframework.context.annotation.Bean;
+ import org.springframework.context.annotation.Configuration;
++import org.springframework.format.FormatterRegistry;
+ import org.springframework.hateoas.CollectionModel;
+ import org.springframework.hateoas.EntityModel;
+ import org.springframework.hateoas.IanaLinkRelations;
+@@ -41,9 +43,13 @@
+ import org.springframework.hateoas.mediatype.uber.Jackson2UberModule;
+ import org.springframework.hateoas.server.SimpleRepresentationModelAssembler;
+ import org.springframework.hateoas.support.Employee;
++import org.springframework.http.HttpEntity;
+ import org.springframework.http.HttpHeaders;
++import org.springframework.http.HttpStatus;
+ import org.springframework.http.MediaType;
++import org.springframework.http.ResponseEntity;
+ import org.springframework.mock.web.MockServletContext;
++import org.springframework.stereotype.Controller;
+ import org.springframework.test.context.web.WebAppConfiguration;
+ import org.springframework.test.web.servlet.MockMvc;
+ import org.springframework.web.bind.annotation.GetMapping;
+@@ -54,6 +60,7 @@
+ import org.springframework.web.bind.annotation.RestController;
+ import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
+ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
++import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+ 
+ import com.fasterxml.jackson.databind.DeserializationFeature;
+ import com.fasterxml.jackson.databind.JavaType;
+@@ -256,6 +263,15 @@
+ 				.isEqualTo("{\"links\":[{\"rel\":\"self\",\"href\":\"/\"},{\"rel\":\"employees\",\"href\":\"/employees\"}]}");
+ 	}
+ 
++	@Test // #118
++	void linkCreationConsidersRegisteredConverters() throws Exception {
++
++		setUp(WithConversionService.class);
++
++		this.mockMvc.perform(get("/sample/4711"))
++				.andExpect(status().isIAmATeapot());
++	}
++
+ 	private void verifyRootUriServesHypermedia(MediaType mediaType) throws Exception {
+ 		verifyRootUriServesHypermedia(mediaType, mediaType);
+ 	}
+@@ -478,4 +494,33 @@
+ 		}
+ 	}
+ 
++	// #118
++
++	@Configuration
++	static class WithConversionService extends BaseConfig implements WebMvcConfigurer {
++
++		/*
++		 * (non-Javadoc)
++		 * @see org.springframework.web.servlet.config.annotation.WebMvcConfigurer#addFormatters(org.springframework.format.FormatterRegistry)
++		 */
++		@Override
++		public void addFormatters(FormatterRegistry registry) {
++			registry.addConverter(Sample.class, String.class, source -> "sample");
++			registry.addConverter(String.class, Sample.class, source -> new Sample());
++		}
++
++		static class Sample {}
++
++		@Controller
++		static class SampleController {
++
++			@GetMapping("/sample/{sample}")
++			HttpEntity<?> sample(@PathVariable Sample sample) {
++
++				linkTo(methodOn(SampleController.class).sample(new Sample())).withSelfRel();
++
++				return new ResponseEntity<>(HttpStatus.I_AM_A_TEAPOT);
++			}
++		}
++	}
+ }

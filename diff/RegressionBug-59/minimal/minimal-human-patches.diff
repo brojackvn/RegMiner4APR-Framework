@@ -1,0 +1,19 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/esri/core/geometry/ogc/OGCConcreteGeometryCollection.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/esri/core/geometry/ogc/OGCConcreteGeometryCollection.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/esri/core/geometry/ogc/OGCConcreteGeometryCollection.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/esri/core/geometry/ogc/OGCConcreteGeometryCollection.java
+@@ -444,13 +444,13 @@
+ 		}
+ 
+ 		if (!polygon.isEmpty()) {
+-			if (!resultGeom.isEmpty()) {
++			if (resultGeom != null && !resultGeom.isEmpty()) {
+ 				Geometry[] geoms = { resultGeom, polygon };
+ 				resultGeom = OperatorConvexHull.local().execute(
+ 						new SimpleGeometryCursor(geoms), true, null).next();
+ 			}
+ 			else {
+-				resultGeom = polygon;
++				resultGeom = OperatorConvexHull.local().execute(polygon, null);
+ 			}
+ 		}
+ 

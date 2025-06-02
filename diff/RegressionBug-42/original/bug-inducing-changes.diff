@@ -1,0 +1,52 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/helper/StringUtil.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/helper/StringUtil.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/helper/StringUtil.java	2024-09-08 01:36:15.637819259 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/helper/StringUtil.java	2024-09-08 01:36:15.625819176 +1000
+@@ -128,6 +128,11 @@
+         // 160 is &nbsp; (non-breaking space). Not in the spec but expected.
+     }
+ 
++    public static boolean isInvisibleChar(int c) {
++        return Character.getType(c) == 16 && (c == 8203 || c == 8204 || c == 8205 || c == 173);
++        // zero width sp, zw non join, zw join, soft hyphen
++    }
++
+     /**
+      * Normalise the whitespace within this string; multiple spaces collapse to a single, and all whitespace characters
+      * (e.g. newline, tab) convert to a simple space
+@@ -160,7 +165,7 @@
+                 accum.append(' ');
+                 lastWasWhite = true;
+             }
+-            else {
++            else if (!isInvisibleChar(c)) {
+                 accum.appendCodePoint(c);
+                 lastWasWhite = false;
+                 reachedNonWhite = true;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/jsoup/nodes/ElementTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/jsoup/nodes/ElementTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/jsoup/nodes/ElementTest.java	2024-09-08 01:36:15.637819259 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/jsoup/nodes/ElementTest.java	2024-09-08 01:36:15.629819204 +1000
+@@ -1212,6 +1212,24 @@
+         assertEquals("p", matched.nodeName());
+         assertTrue(matched.is(":containsOwn(get what you want)"));
+     }
++
++    @Test public void testNormalizesInvisiblesInText() {
++        // return Character.getType(c) == 16 && (c == 8203 || c == 8204 || c == 8205 || c == 173);
++        String escaped = "This&shy;is&#x200b;one&#x200c;long&#x200d;word";
++        String decoded = "This\u00ADis\u200Bone\u200Clong\u200Dword"; // browser would not display those soft hyphens / other chars, so we don't want them in the text
++
++        Document doc = Jsoup.parse("<p>" + escaped);
++        Element p = doc.select("p").first();
++        doc.outputSettings().charset("ascii"); // so that the outer html is easier to see with escaped invisibles
++        assertEquals("Thisisonelongword", p.text()); // text is normalized
++        assertEquals("<p>" + escaped + "</p>", p.outerHtml()); // html / whole text keeps &shy etc;
++        assertEquals(decoded, p.textNodes().get(0).getWholeText());
++
++        Element matched = doc.select("p:contains(Thisisonelongword)").first(); // really just oneloneword, no invisibles
++        assertEquals("p", matched.nodeName());
++        assertTrue(matched.is(":containsOwn(Thisisonelongword)"));
++
++    }
+ 	
+ 	@Test
+ 	public void testRemoveBeforeIndex() {

@@ -1,0 +1,22 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/explanations/smus/SmusComputation.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/explanations/smus/SmusComputation.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/explanations/smus/SmusComputation.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/explanations/smus/SmusComputation.java
+@@ -110,16 +110,13 @@
+             growSolver.add(f.equivalence(selector, proposition.formula()));
+         }
+         final boolean sat = growSolver.sat(satHandler(handler), propositionMapping.keySet()) == Tristate.TRUE;
+-        if (aborted(handler)) {
++        if (sat || aborted(handler)) {
+             return null;
+         }
+-        if (sat) {
+-            throw new IllegalArgumentException("Cannot compute a smallest MUS for a satisfiable formula set.");
+-        }
+         final SATSolver hSolver = MiniSat.miniSat(f);
+         while (true) {
+             final SortedSet<Variable> h = minimumHs(hSolver, propositionMapping.keySet(), handler);
+-            if (aborted(handler)) {
++            if (h == null || aborted(handler)) {
+                 return null;
+             }
+             final SortedSet<Variable> c = grow(growSolver, h, propositionMapping.keySet(), handler);

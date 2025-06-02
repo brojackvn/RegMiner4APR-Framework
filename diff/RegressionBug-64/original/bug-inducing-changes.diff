@@ -1,0 +1,172 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/deserializer/FieldDeserializer.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/deserializer/FieldDeserializer.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/deserializer/FieldDeserializer.java	2024-09-24 22:14:04.669758979 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/deserializer/FieldDeserializer.java	2024-09-24 22:13:57.157688656 +1000
+@@ -20,8 +20,6 @@
+     protected Enum[] enums;
+     protected long[] enumNameHashCodes;
+ 
+-    public char[] smartMatchKey;
+-    
+     public FieldDeserializer(Class<?> clazz, FieldInfo fieldInfo, int fastMatchToken){
+         this.clazz = clazz;
+         this.fieldInfo = fieldInfo;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/JavaBeanDeserializer.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/JavaBeanDeserializer.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/JavaBeanDeserializer.java	2024-09-24 22:14:04.673759017 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/JavaBeanDeserializer.java	2024-09-24 22:13:57.157688656 +1000
+@@ -31,6 +31,8 @@
+     public final JavaBeanInfo         beanInfo;
+     private ConcurrentMap<String, Object> extraFieldDeserializers;
+ 
++    private transient long[] smartMatchHashArray;
++
+     public JavaBeanDeserializer(ParserConfig config, Class<?> clazz, Type type){
+         this(config, clazz, type, JavaBeanInfo.build(clazz, clazz.getModifiers(), type, false, true, true, true, config.propertyNamingStrategy));
+     }
+@@ -882,34 +884,7 @@
+         return null;  // key not found.
+     }
+ 
+-    private static char[] buildSmartKey(String key) {
+-        final int key_len = key.length();
+-
+-        char[] buf = new char[key_len];
+-
+-        int buf_size = 0;
+-        for (int i = 0, j = 0; i < key_len; ++i) {
+-            char ch = key.charAt(i);
+-            if (ch == '_' || ch == '-') {
+-                continue;
+-            }
+-
+-            if (ch >= 'A' && ch <= 'Z') {
+-                ch = (char) (ch + 32);
+-            }
+-            buf[buf_size++] = ch;
+-        }
+-
+-        if (buf_size == buf.length) {
+-            return buf;
+-        }
+ 
+-        char[] buf2 = new char[buf_size];
+-        for (int i = 0; i < buf_size; ++i) {
+-            buf2[i] = buf[i];
+-        }
+-        return buf2;
+-    }
+ 
+     private boolean parseField(DefaultJSONParser parser, String key, Object object, Type objectType,
+                               Map<String, Object> fieldValues) {
+@@ -918,59 +893,27 @@
+         FieldDeserializer fieldDeserializer = getFieldDeserializer(key);
+ 
+         if (fieldDeserializer == null) {
+-            char[] smartKey = buildSmartKey(key);
+-
+-            char[] smartKey_is = null;
+-            boolean startsWithIs = key.startsWith("is");
+-
+-            for (FieldDeserializer fieldDeser : sortedFieldDeserializers) {
+-                FieldInfo fieldInfo = fieldDeser.fieldInfo;
+-                Class<?> fieldClass = fieldInfo.fieldClass;
+-                String fieldName = fieldInfo.name;
+-                if (fieldName.equalsIgnoreCase(key)) {
+-                    fieldDeserializer = fieldDeser;
+-                    break;
+-                }
+-
+-                char[] fieldSmartMatchKey = fieldDeser.smartMatchKey;
+-                if (fieldSmartMatchKey == null) {
+-                    fieldSmartMatchKey = buildSmartKey(fieldName);
+-                    fieldDeser.smartMatchKey = fieldSmartMatchKey;
+-                }
+-
+-                boolean eq = smartKey.length == fieldSmartMatchKey.length;
+-                if (eq) {
+-                    for (int i = 0; i < smartKey.length; ++i) {
+-                        if (smartKey[i] != fieldSmartMatchKey[i]) {
+-                            eq = false;
+-                            break;
+-                        }
+-                    }
+-                }
++            long smartKeyHash = TypeUtils.fnv_64_lower(key);
++            if (this.smartMatchHashArray == null) {
++                long[] hashArray = new long[sortedFieldDeserializers.length];
++                for (int i = 0; i < sortedFieldDeserializers.length; i++) {
++                    hashArray[i] = TypeUtils.fnv_64_lower(sortedFieldDeserializers[i].fieldInfo.name);
++                }
++                this.smartMatchHashArray = hashArray;
++            }
+ 
+-                if (eq) {
+-                    fieldDeserializer = fieldDeser;
++            for (int i = 0; i < this.smartMatchHashArray.length; i++) {
++                if (this.smartMatchHashArray[i] == smartKeyHash) {
++                    fieldDeserializer = sortedFieldDeserializers[i];
+                     break;
+                 }
++            }
+ 
+-                if (startsWithIs //
+-                        && (fieldClass == boolean.class || fieldClass == Boolean.class)) {
+-                    if (smartKey_is == null) {
+-                        smartKey_is = buildSmartKey(key.substring(2));
+-                    }
+-
+-                    eq = smartKey_is.length == fieldSmartMatchKey.length;
+-                    if (eq) {
+-                        for (int i = 0; i < smartKey_is.length; ++i) {
+-                            if (smartKey_is[i] != fieldSmartMatchKey[i]) {
+-                                eq = false;
+-                                break;
+-                            }
+-                        }
+-                    }
+-
+-                    if (eq) {
+-                        fieldDeserializer = fieldDeser;
++            if (fieldDeserializer == null && key.startsWith("is")) {
++                smartKeyHash = TypeUtils.fnv_64_lower(key.substring(2));
++                for (int i = 0; i < this.smartMatchHashArray.length; i++) {
++                    if (this.smartMatchHashArray[i] == smartKeyHash) {
++                        fieldDeserializer = sortedFieldDeserializers[i];
+                         break;
+                     }
+                 }
+@@ -1138,4 +1081,6 @@
+ 
+         return null;
+     }
++
++
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/util/TypeUtils.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/util/TypeUtils.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/util/TypeUtils.java	2024-09-24 22:14:04.673759017 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/util/TypeUtils.java	2024-09-24 22:13:57.157688656 +1000
+@@ -1483,6 +1483,25 @@
+         return changed;
+     }
+ 
++    public static long fnv_64_lower(String key) {
++        long hashCode = 0x811c9dc5;
++        for (int i = 0; i < key.length(); ++i) {
++            char ch = key.charAt(i);
++            if (ch == '_' || ch == '-') {
++                continue;
++            }
++
++            if (ch >= 'A' && ch <= 'Z') {
++                ch = (char) (ch + 32);
++            }
++
++            hashCode ^= ch;
++            hashCode *= 0x1000193;
++        }
++
++        return hashCode;
++    }
++
+ //    public static long fnv_hash(char[] chars) {
+ //        long hash = 0x811c9dc5;
+ //        for (int i = 0; i < chars.length; ++i) {

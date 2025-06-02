@@ -1,0 +1,352 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/AbstractParser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/AbstractParser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/AbstractParser.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/AbstractParser.java
+@@ -67,6 +67,9 @@
+ 	private final boolean extractHeaders;
+ 	protected final int whitespaceRangeStart;
+ 
++	protected boolean ignoreTrailingWhitespace;
++	protected boolean ignoreLeadingWhitespace;
+
+ 	/**
+ 	 * All parsers must support, at the very least, the settings provided by {@link CommonParserSettings}. The AbstractParser requires its configuration to be properly initialized.
+ 	 *
+@@ -76,6 +79,8 @@
+ 		settings.autoConfigure();
+ 		this.settings = settings;
+ 		this.errorContentLength = settings.getErrorContentLength();
++		this.ignoreTrailingWhitespace = settings.getIgnoreTrailingWhitespaces();
++		this.ignoreLeadingWhitespace = settings.getIgnoreLeadingWhitespaces();
+ 		this.output = new ParserOutput(this, settings);
+ 		this.processor = settings.getProcessor();
+ 		this.recordsToRead = settings.getNumberOfRecordsToRead();
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/DefaultContext.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/DefaultContext.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/DefaultContext.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/DefaultContext.java
+@@ -45,7 +45,7 @@
+ 		if (output == null) {
+ 			return ArgumentUtils.EMPTY_STRING_ARRAY;
+ 		}
+-		return output.getHeaders();
++		return output.getHeaderAsStringArray();
+ 	}
+ 
+ 	public String[] selectedHeaders() {}
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/NormalizedString.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/NormalizedString.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/NormalizedString.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/NormalizedString.java
+@@ -0,0 +1,525 @@
++ public final class NormalizedString implements Serializable, Comparable<NormalizedString>, CharSequence {
++   private static final long serialVersionUID = -3904288692735859811L;
++	private static final StringCache<NormalizedString> stringCache = new StringCache<NormalizedString>() {
++		@Override
++		protected NormalizedString process(String input) {
++			if (input == null) {
++				return null;
++			}
++			return new NormalizedString(input);
++		}
++	};
+
++ 	private final String original;
++ 	private final String normalized;
++ 	private final boolean literal;
++ 	private final int hashCode;
+
++ 	private NormalizedString(String string) {
++ 		String trimmed = string.trim();
++ 		if (trimmed.length() > 2 && trimmed.charAt(0) == '\'' && trimmed.charAt(trimmed.length() - 1) == '\'') {
++ 			this.original = string.substring(1, string.length() - 1);
++ 			this.normalized = original;
++ 			this.hashCode = normalize(original).hashCode();
++ 			this.literal = true;
++ 		} else {
++ 			this.original = string;
++ 			this.normalized = normalize(original);
++ 			this.hashCode = normalized.hashCode();
++ 			this.literal = false;
++ 		}
++ 	}
+
++	private String normalize(Object value) {
++		String str = String.valueOf(value);
++		str = str.trim().toLowerCase();
++		return str;
++	}
+
++ 	public boolean isLiteral() {
++ 		return literal;
++ 	}
+
++ 	@Override
++ 	public int compareTo(NormalizedString o) {
++ 		if (o == this) {
++ 			return 0;
++ 		}
+
++ 		if (this.literal || o.literal) {
++ 			return original.compareTo(o.original);
++ 		}
+
++ 		return this.normalized.compareTo(o.normalized);
++ 	}
+
++ 	@Override
++ 	public String toString() {
++ 		return original;
++ 	}
+
++ 	public static NormalizedString valueOf(String string) {
++ 		if (string == null) {
++ 			return null;
++ 		}
++ 		return stringCache.get(string);
++ 	}
+
++ 	public static String valueOf(NormalizedString string) {
++ 		if (string == null) {
++ 			return null;
++ 		}
++ 		return string.original;
++ 	}
+
++ 	public static NormalizedString[] toArray(String... args) {
++ 		if (args == null) {
++ 			return null;
++ 		} else if (args.length == 0) {
++ 			return EMPTY_NORMALIZED_STRING_ARRAY;
++ 		}
+
++ 		NormalizedString[] out = new NormalizedString[args.length];
++ 		for (int i = 0; i < args.length; i++) {
++ 			out[i] = valueOf(args[i]);
++ 		}
++ 		return out;
++ 	}
+
++ 	public static String[] toArray(NormalizedString... args) {
++ 		if (args == null) {
++ 			return null;
++ 		} else if (args.length == 0) {
++ 			return EMPTY_STRING_ARRAY;
++ 		}
++ 		String[] out = new String[args.length];
++ 		for (int i = 0; i < args.length; i++) {
++ 			out[i] = valueOf(args[i]);
++ 		}
++ 		return out;
++ 	}
+
++ 	public static NormalizedString[] toIdentifierGroupArray(String[] strings) {
++ 		NormalizedString[] out = toArray(strings);
++ 		identifyLiterals(out, false, false);
++ 		return out;
++ 	}
+
++ 	public static boolean identifyLiterals(NormalizedString[] strings, boolean lowercaseIdentifiers, boolean uppercaseIdentifiers) {
++ 		if (strings == null) {
++ 			return false;
++ 		}
++ 		TreeMap<NormalizedString, Object[]> normalizedMap = new TreeMap<NormalizedString, Object[]>();
+
++ 		boolean modified = false;
+
++ 		for (int i = 0; i < strings.length; i++) {
++ 			NormalizedString string = strings[i];
++ 			if (string == null || string.isLiteral()) {
++ 				continue;
++ 			}
+
++ 			if (shouldBeLiteral(string.original, lowercaseIdentifiers, uppercaseIdentifiers)) {
++ 				strings[i] = NormalizedString.literalValueOf(string.original);
++ 				continue;
++ 			}
+
++ 			Object[] clashing = normalizedMap.get(string);
++ 			if (clashing != null && !string.original.equals(((NormalizedString) clashing[0]).original)) {
++ 				strings[i] = NormalizedString.literalValueOf(string.original);
++ 				strings[(Integer) clashing[1]] = ((NormalizedString) clashing[0]).toLiteral();
++ 				modified = true;
++ 			} else {
++ 				normalizedMap.put(string, new Object[]{string, i});
++ 			}
++ 		}
+
++ 		return modified;
++ 	}
+
++ 	private static boolean shouldBeLiteral(String string, boolean lowercaseIdentifiers, boolean uppercaseIdentifiers) {
++ 		if (lowercaseIdentifiers || uppercaseIdentifiers) {
++ 			for (int i = 0; i < string.length(); i++) {
++ 				char ch = string.charAt(i);
++ 				if ((uppercaseIdentifiers && !Character.isUpperCase(ch)) || (lowercaseIdentifiers && !Character.isLowerCase(ch))) {
++ 					return true;
++ 				}
++ 			}
++ 		}
++ 		return false;
++ 	}
++}
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/ParserOutput.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/ParserOutput.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/ParserOutput.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/ParserOutput.java
+@@ -74,7 +74,8 @@
+ 	private boolean columnsReordered;
+ 	private boolean columnReorderingEnabledSetting;
+ 
+-	private String[] headers;
++	private String[] headerStrings;
++	private NormalizedString[] headers;
+ 	private int[] selectedIndexes;
+ 
+ 	private long currentRecord;
+@@ -117,6 +118,10 @@
+ 		this.nullValue = settings.getNullValue();
+ 		this.columnsToExtractInitialized = false;
+ 		this.currentRecord = 0;
++		if (settings.isHeaderExtractionEnabled() && parser != null) {
++			parser.ignoreTrailingWhitespace = false;
++			parser.ignoreLeadingWhitespace = false;
++		}
+ 		if (settings.getHeaders() != null) {
+ 			initializeHeaders();
+ 		}
+@@ -134,17 +139,42 @@
+ 			System.arraycopy(parsedValues, 0, parsedHeaders, 0, column);
+ 		}
+ 
+-		this.headers = settings.getHeaders();
++		boolean usingParsedHeaders = false;
++		this.headers = NormalizedString.toIdentifierGroupArray(settings.getHeaders());
+ 		if (headers != null) {
+ 			headers = headers.clone();
+ 		} else if (column > 0) { //we only initialize headers from a parsed row if it is not empty
+-			headers = parsedHeaders.clone();
++			headers = NormalizedString.toIdentifierGroupArray(parsedHeaders.clone());
++			usingParsedHeaders = true;
+ 		}
+ 
+-		if (headers != null) {
+-			columnsToExtractInitialized = true;
+-			initializeColumnsToExtract(headers);
++		if (parser != null) {
++			parser.ignoreTrailingWhitespace = settings.getIgnoreTrailingWhitespaces();
++			parser.ignoreLeadingWhitespace = settings.getIgnoreLeadingWhitespaces();
++			if (usingParsedHeaders) {
++				parser.initialize();
++			}
++		}
+
++		if (usingParsedHeaders) {
++			for (int i = 0; i < headers.length; i++) {
++				NormalizedString header = headers[i];
++				if (header != null && !header.isLiteral()) {
++					if (settings.getIgnoreLeadingWhitespaces()) {
++						if (settings.getIgnoreTrailingWhitespaces()) {
++							headers[i] = NormalizedString.valueOf(headers[i].toString().trim());
++						} else {
++							headers[i] = NormalizedString.valueOf(ArgumentUtils.trim(headers[i].toString(), true, false));
++						}
++					} else if (settings.getIgnoreTrailingWhitespaces()) {
++						headers[i] = NormalizedString.valueOf(ArgumentUtils.trim(headers[i].toString(), false, true));
++					}
++				}
++			}
+ 		}
+
++		columnsToExtractInitialized = true;
++		initializeColumnsToExtract(headers);
+ 	}
+ 
+ 	/**
+@@ -238,7 +268,7 @@
+ 	 *
+ 	 * @param values a sequence of values that represent the headers of the input. This can be either a parsed record or the headers as defined in {@link CommonSettings#getHeaders()}
+ 	 */
+-	private void initializeColumnsToExtract(String[] values) {
++	private void initializeColumnsToExtract(NormalizedString[] values) {
+ 		FieldSelector selector = settings.getFieldSelector();
+ 		if (selector != null) {
+ 			selectedIndexes = selector.getFieldIndexes(values);
+@@ -263,17 +293,24 @@
+ 		}
+ 	}
+ 
++	public String[] getHeaderAsStringArray() {
++		if (headerStrings == null) {
++			headerStrings = NormalizedString.toArray(getHeaders());
++		}
++		return headerStrings;
++	}
++
+ 	/**
+ 	 * Returns the sequence of values that represent the headers each field in the input. This can be either a parsed record or the headers as defined in {@link CommonSettings#getHeaders()}
+ 	 *
+ 	 * @return the headers each field in the input
+ 	 */
+-	public String[] getHeaders() {
++	public NormalizedString[] getHeaders() {
+ 		if (parser != null) {
+ 			parser.extractHeadersIfRequired();
+ 		}
++		if (this.headers == null && parser != null && parser.settings != null) {
+-			this.headers = parser.settings.getHeaders();
++			this.headers = NormalizedString.toIdentifierGroupArray(parser.settings.getHeaders());
+ 		}
+ 		return this.headers;
+ 	}
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/StringCache.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/StringCache.java
+--- ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/StringCache.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/StringCache.java
++public abstract class StringCache<T> {
+
++ 	private final Map<String, SoftReference<T>> stringCache = new ConcurrentHashMap<String, SoftReference<T>>();
+
++	protected abstract T process(String input);
+
++	public boolean containsKey(String input){
++		return stringCache.containsKey(input);
++	}
+
++	public void put(String input, T value) {
++		stringCache.put(input, new SoftReference<T>(value));
++	}
+
++	public T get(String input) {
++		if(input == null){
++			return null;
++		}
++		SoftReference<T> ref = stringCache.get(input);
++ 		T out;
++		if (ref == null || ref.get() == null) {
++ 			out = process(input);
++ 			ref = new SoftReference<T>(out);
++ 			stringCache.put(input, ref);
++ 		} else {
++			out = ref.get();
++ 		}
++		return out;
++ 	}
++}
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvParser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvParser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvParser.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvParser.java
+@@ -34,8 +34,6 @@
+  */
+ public final class CsvParser extends AbstractParser<CsvParserSettings> {
+ 
+-	private final boolean ignoreTrailingWhitespace;
+-	private final boolean ignoreLeadingWhitespace;
+ 	private boolean parseUnescapedQuotes;
+ 	private boolean parseUnescapedQuotesUntilDelimiter;
+ 	private boolean backToDelimiter;
+@@ -69,8 +67,6 @@
+ 	 */
+ 	public CsvParser(CsvParserSettings settings) {
+ 		super(settings);
+-		ignoreTrailingWhitespace = settings.getIgnoreTrailingWhitespaces();
+-		ignoreLeadingWhitespace = settings.getIgnoreLeadingWhitespaces();
+ 		parseUnescapedQuotes = settings.isParseUnescapedQuotes();
+ 		parseUnescapedQuotesUntilDelimiter = settings.isParseUnescapedQuotesUntilDelimiter();
+ 		doNotEscapeUnquotedValues = !settings.isEscapeUnquotedValues();

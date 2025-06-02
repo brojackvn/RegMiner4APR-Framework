@@ -1,0 +1,14 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/util/FieldInfo.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/util/FieldInfo.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/util/FieldInfo.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/util/FieldInfo.java
+@@ -289,8 +289,8 @@
+             ParameterizedType parameterizedFieldType = (ParameterizedType) fieldType;
+ 
+             Type[] arguments = parameterizedFieldType.getActualTypeArguments();
+-            TypeVariable<?>[] typeVariables = null;
++            TypeVariable<?>[] typeVariables = type.getClass().getTypeParameters();
+-            ParameterizedType paramType = null;
++            ParameterizedType paramType = parameterizedFieldType;
+             if (type instanceof ParameterizedType) {
+                 paramType = (ParameterizedType) type;
+                 typeVariables = clazz.getTypeParameters();

@@ -1,0 +1,189 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/passes/ResolveExpressionTypesVisitor.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/passes/ResolveExpressionTypesVisitor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/passes/ResolveExpressionTypesVisitor.java	2024-09-08 01:36:27.605903080 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/passes/ResolveExpressionTypesVisitor.java	2024-09-08 01:36:27.561902772 +1000
+@@ -17,7 +17,6 @@
+ package com.google.template.soy.passes;
+ 
+ import com.google.common.base.Equivalence.Wrapper;
+-import com.google.common.base.Optional;
+ import com.google.common.base.Preconditions;
+ import com.google.common.collect.Maps;
+ import com.google.template.soy.base.SourceLocation;
+@@ -566,18 +565,7 @@
+ 
+     @Override
+     protected void visitDivideByOpNode(DivideByOpNode node) {
+-      // division is special. it is always coerced to a float
+-      visitChildren(node);
+-      SoyType left = node.getChild(0).getType();
+-      SoyType right = node.getChild(1).getType();
+-      if (SoyTypes.isNumericOrUnknown(left) && SoyTypes.isNumericOrUnknown(right)) {
+-        node.setType(FloatType.getInstance());
+-      } else {
+-        // TODO(b/37359174): jssrc will do some type coercions here, tofu and jbcsrc will throw
+-        // exceptions.  Consider making this a compiler error
+-        node.setType(UnknownType.getInstance());
+-      }
+-      tryApplySubstitution(node);
++      visitArithmeticOpNode(node);
+     }
+ 
+     @Override
+@@ -933,18 +921,21 @@
+ 
+     private void visitArithmeticOpNode(AbstractOperatorNode node) {
+       visitChildren(node);
++      boolean isDivide = node instanceof DivideByOpNode;
+       SoyType left = node.getChild(0).getType();
+       SoyType right = node.getChild(1).getType();
+-      Optional<SoyType> arithmeticType = SoyTypes.computeLowestCommonTypeArithmetic(left, right);
+-      if (arithmeticType.isPresent()) {
+-        node.setType(arithmeticType.get());
+-      } else {
+-        // TODO(b/37359174): Be more strict about arithmetic operations as well.
+-        // jssrc will do some type coercions here, tofu will throw exceptions.
+-        // so the best idea is probably to add an error.
+-        // 'number' is probably the most accurate (even if sometimes it will fail).
+-        node.setType(SoyTypes.NUMBER_TYPE);
++      SoyType result =
++          SoyTypes.getSoyTypeForBinaryOperator(
++              left, right, new SoyTypes.SoyTypeArithmeticOperator());
++      if (result == null) {
++        errorReporter.report(node.getSourceLocation(), INCOMPATIBLE_AIRTHMETIC_OP, left, right);
++        result = UnknownType.getInstance();
+       }
++      // Division is special. it is always coerced to a float. For other operators, use the value
++      // returned by getSoyTypeForBinaryOperator.
++      // TODO(b/64098780): Should we add nullability to divide operator? Probably not, but we should
++      // also consolidate the behaviors when we divide something by 0 or null.
++      node.setType(isDivide ? FloatType.getInstance() : result);
+       tryApplySubstitution(node);
+     }
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/types/SoyTypes.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/types/SoyTypes.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/types/SoyTypes.java	2024-09-08 01:36:27.609903108 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/types/SoyTypes.java	2024-09-08 01:36:27.565902801 +1000
+@@ -291,4 +291,17 @@
+       }
+     }
+   }
++
++  /**
++   * Type resolver for all arithmetic operators (except plus operator). In particular, minus,
++   * multiply, divide and modulo.
++   */
++  public static final class SoyTypeArithmeticOperator implements SoyTypeBinaryOperator {
++    @Override
++    @Nullable
++    public SoyType resolve(SoyType left, SoyType right) {
++      Optional<SoyType> arithmeticType = SoyTypes.computeLowestCommonTypeArithmetic(left, right);
++      return arithmeticType.orNull();
++    }
++  }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/tests/com/google/template/soy/types/SoyTypesTest.java ./RegMiner4APR-Regression-Bugs/BIC/java/tests/com/google/template/soy/types/SoyTypesTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/tests/com/google/template/soy/types/SoyTypesTest.java	2024-09-08 01:36:27.617903164 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/tests/com/google/template/soy/types/SoyTypesTest.java	2024-09-08 01:36:27.569902828 +1000
+@@ -502,4 +502,79 @@
+                 UnionType.of(NULL_TYPE, STRING_TYPE), UnionType.of(NULL_TYPE, INT_TYPE), plusOp))
+         .isEqualTo(UnionType.of(NULL_TYPE, STRING_TYPE));
+   }
++
++  @Test
++  public void testGetSoyTypeForBinaryOperatorArithmeticOp() {
++    SoyTypes.SoyTypeBinaryOperator plusOp = new SoyTypes.SoyTypeArithmeticOperator();
++    // All number types
++    assertThat(SoyTypes.getSoyTypeForBinaryOperator(INT_TYPE, FLOAT_TYPE, plusOp))
++        .isEqualTo(FLOAT_TYPE);
++    assertThat(SoyTypes.getSoyTypeForBinaryOperator(FLOAT_TYPE, INT_TYPE, plusOp))
++        .isEqualTo(FLOAT_TYPE);
++    assertThat(SoyTypes.getSoyTypeForBinaryOperator(INT_TYPE, INT_TYPE, plusOp))
++        .isEqualTo(INT_TYPE);
++    assertThat(SoyTypes.getSoyTypeForBinaryOperator(FLOAT_TYPE, FLOAT_TYPE, plusOp))
++        .isEqualTo(FLOAT_TYPE);
++    assertThat(SoyTypes.getSoyTypeForBinaryOperator(FLOAT_TYPE, NUMBER_TYPE, plusOp))
++        .isEqualTo(FLOAT_TYPE);
++    assertThat(SoyTypes.getSoyTypeForBinaryOperator(INT_TYPE, NUMBER_TYPE, plusOp))
++        .isEqualTo(NUMBER_TYPE);
++    assertThat(SoyTypes.getSoyTypeForBinaryOperator(NUMBER_TYPE, NUMBER_TYPE, plusOp))
++        .isEqualTo(NUMBER_TYPE);
++
++    // Unknown types are fine
++    assertThat(SoyTypes.getSoyTypeForBinaryOperator(FLOAT_TYPE, UNKNOWN_TYPE, plusOp))
++        .isEqualTo(UNKNOWN_TYPE);
++    assertThat(SoyTypes.getSoyTypeForBinaryOperator(UNKNOWN_TYPE, FLOAT_TYPE, plusOp))
++        .isEqualTo(UNKNOWN_TYPE);
++    assertThat(SoyTypes.getSoyTypeForBinaryOperator(UNKNOWN_TYPE, UNKNOWN_TYPE, plusOp))
++        .isEqualTo(UNKNOWN_TYPE);
++
++    // Any string types should be rejected
++    assertThat(SoyTypes.getSoyTypeForBinaryOperator(INT_TYPE, STRING_TYPE, plusOp)).isNull();
++    assertThat(SoyTypes.getSoyTypeForBinaryOperator(STRING_TYPE, FLOAT_TYPE, plusOp)).isNull();
++    assertThat(SoyTypes.getSoyTypeForBinaryOperator(STRING_TYPE, NUMBER_TYPE, plusOp)).isNull();
++    assertThat(SoyTypes.getSoyTypeForBinaryOperator(STRING_TYPE, STRING_TYPE, plusOp)).isNull();
++    assertThat(SoyTypes.getSoyTypeForBinaryOperator(INT_TYPE, URI_TYPE, plusOp)).isNull();
++    assertThat(SoyTypes.getSoyTypeForBinaryOperator(HTML_TYPE, STRING_TYPE, plusOp)).isNull();
++
++    // Arbitrary types are banned
++    assertThat(SoyTypes.getSoyTypeForBinaryOperator(ListType.of(STRING_TYPE), FLOAT_TYPE, plusOp))
++        .isNull();
++    assertThat(
++            SoyTypes.getSoyTypeForBinaryOperator(
++                INT_TYPE, MapType.of(INT_TYPE, STRING_TYPE), plusOp))
++        .isNull();
++    assertThat(
++            SoyTypes.getSoyTypeForBinaryOperator(
++                INT_TYPE, RecordType.of(ImmutableMap.of("a", INT_TYPE, "b", FLOAT_TYPE)), plusOp))
++        .isNull();
++
++    // If any of these combinations are incompatible, we should return null.
++    assertThat(
++            SoyTypes.getSoyTypeForBinaryOperator(
++                INT_TYPE, UnionType.of(BOOL_TYPE, FLOAT_TYPE, INT_TYPE), plusOp))
++        .isNull();
++    assertThat(
++            SoyTypes.getSoyTypeForBinaryOperator(
++                UnionType.of(STRING_TYPE, INT_TYPE),
++                UnionType.of(INT_TYPE, STRING_TYPE, ListType.of(INT_TYPE)),
++                plusOp))
++        .isNull();
++    assertThat(
++            SoyTypes.getSoyTypeForBinaryOperator(
++                UnionType.of(NULL_TYPE, STRING_TYPE), UnionType.of(NULL_TYPE, INT_TYPE), plusOp))
++        .isNull();
++
++    // Nullable types should be fine. However, null type itself is not allowed.
++    assertThat(SoyTypes.getSoyTypeForBinaryOperator(INT_TYPE, NULL_TYPE, plusOp)).isNull();
++    assertThat(
++            SoyTypes.getSoyTypeForBinaryOperator(
++                INT_TYPE, UnionType.of(NULL_TYPE, INT_TYPE), plusOp))
++        .isEqualTo(INT_TYPE);
++    assertThat(
++            SoyTypes.getSoyTypeForBinaryOperator(
++                UnionType.of(NULL_TYPE, FLOAT_TYPE), UnionType.of(NULL_TYPE, INT_TYPE), plusOp))
++        .isEqualTo(UnionType.of(NULL_TYPE, FLOAT_TYPE));
++  }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/testdata/javascript/soy_usegoog_lib.js ./RegMiner4APR-Regression-Bugs/BIC/testdata/javascript/soy_usegoog_lib.js
+--- ./RegMiner4APR-Regression-Bugs/WORKING/testdata/javascript/soy_usegoog_lib.js	2024-09-08 01:36:27.617903164 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/testdata/javascript/soy_usegoog_lib.js	2024-09-08 01:36:27.573902856 +1000
+@@ -3427,8 +3427,8 @@
+ goog.addDependency('history/html5history_test.js', ['goog.history.Html5HistoryTest'], ['goog.Timer', 'goog.events', 'goog.events.EventType', 'goog.history.EventType', 'goog.history.Html5History', 'goog.testing.MockControl', 'goog.testing.jsunit', 'goog.testing.mockmatchers', 'goog.testing.recordFunction'], {});
+ goog.addDependency('html/flash.js', ['goog.html.flash'], ['goog.asserts', 'goog.html.SafeHtml'], {});
+ goog.addDependency('html/flash_test.js', ['goog.html.flashTest'], ['goog.html.SafeHtml', 'goog.html.TrustedResourceUrl', 'goog.html.flash', 'goog.string.Const', 'goog.testing.jsunit'], {});
+-goog.addDependency('html/legacyconversions.js', ['goog.html.legacyconversions'], ['goog.html.SafeHtml', 'goog.html.SafeStyle', 'goog.html.SafeStyleSheet', 'goog.html.SafeUrl', 'goog.html.TrustedResourceUrl'], {});
+-goog.addDependency('html/legacyconversions_test.js', ['goog.html.legacyconversionsTest'], ['goog.html.SafeHtml', 'goog.html.SafeStyle', 'goog.html.SafeStyleSheet', 'goog.html.SafeUrl', 'goog.html.TrustedResourceUrl', 'goog.html.legacyconversions', 'goog.testing.jsunit'], {});
++goog.addDependency('html/legacyconversions.js', ['goog.html.legacyconversions'], ['goog.html.SafeHtml', 'goog.html.SafeScript', 'goog.html.SafeStyle', 'goog.html.SafeStyleSheet', 'goog.html.SafeUrl', 'goog.html.TrustedResourceUrl'], {});
++goog.addDependency('html/legacyconversions_test.js', ['goog.html.legacyconversionsTest'], ['goog.html.SafeHtml', 'goog.html.SafeScript', 'goog.html.SafeStyle', 'goog.html.SafeStyleSheet', 'goog.html.SafeUrl', 'goog.html.TrustedResourceUrl', 'goog.html.legacyconversions', 'goog.testing.jsunit'], {});
+ goog.addDependency('html/safehtml.js', ['goog.html.SafeHtml'], ['goog.array', 'goog.asserts', 'goog.dom.TagName', 'goog.dom.tags', 'goog.html.SafeScript', 'goog.html.SafeStyle', 'goog.html.SafeStyleSheet', 'goog.html.SafeUrl', 'goog.html.TrustedResourceUrl', 'goog.i18n.bidi.Dir', 'goog.i18n.bidi.DirectionalString', 'goog.labs.userAgent.browser', 'goog.object', 'goog.string', 'goog.string.Const', 'goog.string.TypedString'], {});
+ goog.addDependency('html/safehtml_test.js', ['goog.html.safeHtmlTest'], ['goog.html.SafeHtml', 'goog.html.SafeScript', 'goog.html.SafeStyle', 'goog.html.SafeStyleSheet', 'goog.html.SafeUrl', 'goog.html.TrustedResourceUrl', 'goog.html.testing', 'goog.i18n.bidi.Dir', 'goog.labs.userAgent.browser', 'goog.object', 'goog.string.Const', 'goog.testing.jsunit'], {});
+ goog.addDependency('html/safehtmlformatter.js', ['goog.html.SafeHtmlFormatter'], ['goog.asserts', 'goog.dom.tags', 'goog.html.SafeHtml', 'goog.string'], {});
+@@ -3882,7 +3882,7 @@
+ goog.addDependency('result/wait_test.js', ['goog.result.waitTest'], ['goog.Timer', 'goog.result', 'goog.result.SimpleResult', 'goog.testing.MockClock', 'goog.testing.jsunit', 'goog.testing.recordFunction'], {});
+ goog.addDependency('soy/data.js', ['goog.soy.data.SanitizedContent', 'goog.soy.data.SanitizedContentKind', 'goog.soy.data.SanitizedCss', 'goog.soy.data.SanitizedHtml', 'goog.soy.data.SanitizedHtmlAttribute', 'goog.soy.data.SanitizedJs', 'goog.soy.data.SanitizedTrustedResourceUri', 'goog.soy.data.SanitizedUri', 'goog.soy.data.UnsanitizedText'], ['goog.Uri', 'goog.asserts', 'goog.html.SafeHtml', 'goog.html.SafeScript', 'goog.html.SafeStyle', 'goog.html.SafeStyleSheet', 'goog.html.SafeUrl', 'goog.html.TrustedResourceUrl', 'goog.html.uncheckedconversions', 'goog.i18n.bidi.Dir', 'goog.string.Const'], {});
+ goog.addDependency('soy/data_test.js', ['goog.soy.dataTest'], ['goog.html.SafeHtml', 'goog.html.SafeStyleSheet', 'goog.html.SafeUrl', 'goog.soy.testHelper', 'goog.testing.jsunit'], {});
+-goog.addDependency('soy/renderer.js', ['goog.soy.InjectedDataSupplier', 'goog.soy.Renderer'], ['goog.asserts', 'goog.dom', 'goog.html.uncheckedconversions', 'goog.soy', 'goog.soy.data.SanitizedContent', 'goog.soy.data.SanitizedContentKind', 'goog.string.Const'], {});
++goog.addDependency('soy/renderer.js', ['goog.soy.InjectedDataSupplier', 'goog.soy.Renderer'], ['goog.asserts', 'goog.dom', 'goog.soy', 'goog.soy.data.SanitizedContent', 'goog.soy.data.SanitizedContentKind'], {});
+ goog.addDependency('soy/renderer_test.js', ['goog.soy.RendererTest'], ['goog.dom', 'goog.dom.NodeType', 'goog.dom.TagName', 'goog.html.SafeHtml', 'goog.i18n.bidi.Dir', 'goog.soy.Renderer', 'goog.soy.data.SanitizedContentKind', 'goog.soy.testHelper', 'goog.testing.jsunit', 'goog.testing.recordFunction'], {});
+ goog.addDependency('soy/soy.js', ['goog.soy'], ['goog.asserts', 'goog.dom', 'goog.dom.NodeType', 'goog.dom.TagName', 'goog.html.legacyconversions', 'goog.soy.data.SanitizedContent', 'goog.soy.data.SanitizedContentKind', 'goog.string'], {});
+ goog.addDependency('soy/soy_test.js', ['goog.soyTest'], ['goog.dom', 'goog.dom.NodeType', 'goog.dom.TagName', 'goog.functions', 'goog.soy', 'goog.soy.testHelper', 'goog.testing.PropertyReplacer', 'goog.testing.jsunit'], {});

@@ -1,0 +1,22 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/jexl3/internal/Scope.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/jexl3/internal/Scope.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/jexl3/internal/Scope.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/jexl3/internal/Scope.java
+@@ -397,11 +395,16 @@
+          * @return this frame
+          */
+         public Frame assign(Object... values) {
+-            if (stack != null && values != null && values.length > 0) {
++            if (stack != null) {
+                 int nparm = scope.getArgCount();
+                 Object[] copy = stack.clone();
+-                int ncopy = Math.min(nparm - curried, Math.min(nparm, values.length));
+-                System.arraycopy(values, 0, copy, curried, ncopy);
++                int ncopy = 0;
++                if (values != null && values.length > 0) {
++                    ncopy = Math.min(nparm - curried, Math.min(nparm, values.length));
++                    System.arraycopy(values, 0, copy, curried, ncopy);
++                }
++                Arrays.fill(copy, curried + ncopy, nparm, null);
+                 return new Frame(scope, copy, curried + ncopy);
+             }
+             return this;

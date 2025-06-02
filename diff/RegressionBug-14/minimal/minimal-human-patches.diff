@@ -1,0 +1,92 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/amihaiemil/eoyaml/ReadPlainScalar.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/amihaiemil/eoyaml/ReadPlainScalar.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/amihaiemil/eoyaml/ReadPlainScalar.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/amihaiemil/eoyaml/ReadPlainScalar.java
+@@ -70,12 +70,16 @@
+         final String value;
+         final String trimmed = this.scalar.trimmed();
+-        if(trimmed.contains(":") && !trimmed.endsWith(":")) {
+-            value = trimmed.substring(trimmed.indexOf(":") + 1).trim();
+-        } else if(trimmed.startsWith("-") && trimmed.length() > 1) {
++        if(this.escapedSequenceScalar(this.scalar)) {
+             value = trimmed.substring(trimmed.indexOf('-')+1).trim();
+         } else {
+-            value = trimmed;
++            if (trimmed.contains(":") && !trimmed.endsWith(":")) {
++                value = trimmed.substring(trimmed.indexOf(":") + 1).trim();
++            } else if (trimmed.startsWith("-") && trimmed.length() > 1) {
++                value = trimmed.substring(trimmed.indexOf('-') + 1).trim();
++            } else {
++                value = trimmed;
++            }
+         }
+         if("null".equals(value)) {
+             return null;
+@@ -125,4 +129,16 @@
+
+     * @param dashLine Line.
+     * @return True of false.
+     */
++    private boolean escapedSequenceScalar(final YamlLine dashLine) {
++        final String trimmed = dashLine.trimmed();
++        return trimmed.matches("^[ ]*\\-[ ]*\".*\"$")
++            || trimmed.matches("^[ ]*\\-[ ]*\'.*\'$");
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/amihaiemil/eoyaml/ReadYamlSequence.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/amihaiemil/eoyaml/ReadYamlSequence.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/amihaiemil/eoyaml/ReadYamlSequence.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/amihaiemil/eoyaml/ReadYamlSequence.java
+@@ -150,7 +150,7 @@ public Collection<YamlNode> values() {
+                         )
+                     );
+                 } else {
+-                    if(trimmed.matches("^.*\\-.*\\:.*$")) {
++                    if(this.mappingStartsAtDash(line)) {
+                         kids.add(
+                             new ReadYamlMapping(
+                                 new RtYamlLine("", line.number()-1),
+@@ -202,4 +202,16 @@
+      * @param dashLine Line.
+      * @return True of false.
+      */
++    private boolean mappingStartsAtDash(final YamlLine dashLine) {
++        final String trimmed = dashLine.trimmed();
++        final boolean escapedScalar = trimmed.matches("^[ ]*\\-[ ]*\".*\"$")
++            || trimmed.matches("^[ ]*\\-[ ]*\'.*\'$");
++        return trimmed.matches("^.*\\-.*\\:.*$") && !escapedScalar;
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/amihaiemil/eoyaml/RtYamlPrinter.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/amihaiemil/eoyaml/RtYamlPrinter.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/amihaiemil/eoyaml/RtYamlPrinter.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/amihaiemil/eoyaml/RtYamlPrinter.java
+@@ -346,7 +346,7 @@ static class Escaped extends BaseScalar {
+         /**
+          * Special chars that need escaping.
+          */
+-        private final String RESERVED = "#:->|$%&";
++        private final String RESERVED = "#:->|$%&{}[]";
+ 
+         /**
+          * Original unescaped scalar.
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/amihaiemil/eoyaml/SameIndentationLevel.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/amihaiemil/eoyaml/SameIndentationLevel.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/amihaiemil/eoyaml/SameIndentationLevel.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/amihaiemil/eoyaml/SameIndentationLevel.java
+@@ -77,7 +77,7 @@ public Iterator<YamlLine> iterator() {
+             final YamlLine first = iterator.next();
+             sameIndentation.add(first);
+             int firstIndentation = first.indentation();
+-            if(first.trimmed().matches("^[ ]*\\-.*\\:.+$")) {
++            if(this.mappingStartsAtDash(first)) {
+                 firstIndentation += 2;
+             }
+             while (iterator.hasNext()) {
+@@ -106,4 +106,17 @@ public YamlNode toYamlNode(
+      * @param dashLine Line.
+      * @return True of false.
+      */
++    private boolean mappingStartsAtDash(final YamlLine dashLine) {
++        final String trimmed = dashLine.trimmed();
++        final boolean escapedScalar = trimmed.matches("^[ ]*\\-[ ]*\".*\"$")
++            || trimmed.matches("^[ ]*\\-[ ]*\'.*\'$");
++        return trimmed.matches("^[ ]*\\-.*\\:.+$") && !escapedScalar;
++    }
+ }

@@ -1,0 +1,53 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/cactoos/collection/CollectionEnvelope.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/cactoos/collection/CollectionEnvelope.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/cactoos/collection/CollectionEnvelope.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/cactoos/collection/CollectionEnvelope.java
+@@ -27,19 +27,23 @@
+ import java.util.Iterator;
+ import org.cactoos.Scalar;
+ import org.cactoos.iterator.Immutable;
++import org.cactoos.scalar.And;
++import org.cactoos.scalar.Folded;
++import org.cactoos.scalar.InheritanceLevel;
++import org.cactoos.scalar.Or;
++import org.cactoos.scalar.SumOfIntScalar;
+ import org.cactoos.scalar.UncheckedScalar;
+ 
+ /**
+  * Base collection.
+  *
+  * <p>There is no thread-safety guarantee.</p>
+@@ -147,4 +151,48 @@
+         return this.col.value().toString();
+     }
+ 
++    @Override
++    public final boolean equals(final Object other) {
++        return new UncheckedScalar<>(
++            new And(
++                new Or(
++                    () -> new InheritanceLevel(
++                        other.getClass(), Collection.class
++                    ).value() > -1,
++                    () -> new InheritanceLevel(
++                        other.getClass(), CollectionEnvelope.class
++                    ).value() > -1
++                ),
++                () -> {
++                    final Collection<?> compared = (Collection<?>) other;
++                    return this.size() == compared.size();
++                },
++                () -> {
++                    final Iterable<?> compared = (Iterable<?>) other;
++                    final Iterator<?> iterator = compared.iterator();
++                    return new UncheckedScalar<>(
++                        new And(
++                            (X input) -> input.equals(iterator.next()),
++                            this
++                        )
++                    ).value();
++                }
++            )
++        ).value();
++    }
+
+

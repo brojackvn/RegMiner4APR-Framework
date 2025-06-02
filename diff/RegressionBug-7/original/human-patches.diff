@@ -1,0 +1,109 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/googlecode/aviator/code/OptimizeCodeGenerator.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/googlecode/aviator/code/OptimizeCodeGenerator.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/googlecode/aviator/code/OptimizeCodeGenerator.java	2024-09-08 01:36:08.337768134 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/googlecode/aviator/code/OptimizeCodeGenerator.java	2024-09-08 01:36:08.321768022 +1000
+@@ -42,6 +42,7 @@
+ import com.googlecode.aviator.lexer.token.Token.TokenType;
+ import com.googlecode.aviator.lexer.token.Variable;
+ import com.googlecode.aviator.parser.AviatorClassLoader;
++import com.googlecode.aviator.parser.ExpressionParser;
+ import com.googlecode.aviator.parser.Parser;
+ import com.googlecode.aviator.runtime.FunctionArgument;
+ import com.googlecode.aviator.runtime.LambdaFunctionBootstrap;
+@@ -236,32 +237,6 @@
+   }
+ 
+ 
+-  private boolean isLiteralToken(final Token<?> token) {
+-    switch (token.getType()) {
+-      case Variable:
+-        return token == Variable.TRUE || token == Variable.FALSE || token == Variable.NIL;
+-      case Char:
+-      case Number:
+-      case Pattern:
+-      case String:
+-        return true;
+-      default:
+-        return false;
+-    }
+-  }
+-
+-  private boolean isConstant(final Token<?> token) {
+-    switch (token.getType()) {
+-      case Number:
+-      case Pattern:
+-      case String:
+-        return true;
+-      default:
+-        return false;
+-    }
+-  }
+-
+-
+   /**
+    * Get token from executing result
+    *
+@@ -372,7 +347,7 @@
+     Set<Token<?>> constants = new HashSet<>();
+     for (Token<?> token : this.tokenList) {
+ 
+-      if (isConstant(token)) {
++      if (ExpressionParser.isConstant(token)) {
+         constants.add(token);
+       }
+ 
+@@ -424,7 +399,7 @@
+         exp = new LiteralExpression(this.instance, null, new ArrayList<String>(variables.keySet()));
+       } else {
+         final Token<?> lastToken = this.tokenList.get(0);
+-        if (isLiteralToken(lastToken)) {
++        if (ExpressionParser.isLiteralToken(lastToken)) {
+           exp = new LiteralExpression(this.instance,
+               getAviatorObjectFromToken(lastToken).getValue(null),
+               new ArrayList<String>(variables.keySet()));
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/googlecode/aviator/parser/ExpressionParser.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/googlecode/aviator/parser/ExpressionParser.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/googlecode/aviator/parser/ExpressionParser.java	2024-09-08 01:36:08.337768134 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/googlecode/aviator/parser/ExpressionParser.java	2024-09-08 01:36:08.321768022 +1000
+@@ -457,8 +457,12 @@
+       factor();
+     }
+ 
+-    // FIXME: it's a parser bug here
++
+     while (expectChar('[') || expectChar('(')) {
++      if (isConstant(this.prevToken)) {
++        break;
++      }
++
+       if (expectChar('[')) {
+         // (...)[index]
+         arrayAccess();
+@@ -893,4 +897,29 @@
+     }
+   }
+ 
++  public static boolean isConstant(final Token<?> token) {
++    switch (token.getType()) {
++      case Number:
++      case Pattern:
++      case String:
++        return true;
++      default:
++        return false;
++    }
++  }
++
++  public static boolean isLiteralToken(final Token<?> token) {
++    switch (token.getType()) {
++      case Variable:
++        return token == Variable.TRUE || token == Variable.FALSE || token == Variable.NIL;
++      case Char:
++      case Number:
++      case Pattern:
++      case String:
++        return true;
++      default:
++        return false;
++    }
++  }
++
+ }

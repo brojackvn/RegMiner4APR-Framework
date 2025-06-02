@@ -1,0 +1,16 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/adobe/epubcheck/ctc/css/EpubCSSCheckCSSHandler.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/adobe/epubcheck/ctc/css/EpubCSSCheckCSSHandler.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/adobe/epubcheck/ctc/css/EpubCSSCheckCSSHandler.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/adobe/epubcheck/ctc/css/EpubCSSCheckCSSHandler.java
+@@ -582,6 +582,14 @@
+               // report absolute font-size as ACC USAGE message
+               getReport().message(id, getCorrectedEPUBLocation(path, declaration.getLocation().getLine(), declaration.getLocation().getColumn(), declaration.toCssString()), construct.toCssString());
+               break;
++            case INTEGER:
++              if (!quantity.toCssString().equals("0"))
++              {
++                getReport().message(MessageId.CSS_020, getCorrectedEPUBLocation(path, declaration.getLocation().getLine(), declaration.getLocation().getColumn(), declaration.toCssString()), construct.toCssString());
++              }
++              break;
+             default:
+               // report unsupported font-size as ERROR message
+               getReport().message(MessageId.CSS_020, getCorrectedEPUBLocation(path, declaration.getLocation().getLine(), declaration.getLocation().getColumn(), declaration.toCssString()), construct.toCssString());

@@ -1,0 +1,239 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/deserializer/ASMDeserializerFactory.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/deserializer/ASMDeserializerFactory.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/deserializer/ASMDeserializerFactory.java	2024-09-22 13:08:51.253776185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/deserializer/ASMDeserializerFactory.java	2024-09-22 13:08:51.109774933 +1000
+@@ -9,6 +9,7 @@
+ import java.lang.reflect.ParameterizedType;
+ import java.lang.reflect.Type;
+ import java.math.BigDecimal;
++import java.math.BigInteger;
+ import java.util.ArrayList;
+ import java.util.Collection;
+ import java.util.Collections;
+@@ -858,6 +859,12 @@
+                 mw.visitFieldInsn(GETFIELD, context.className, fieldInfo.name + "_asm_prefix__", "[C");
+                 mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanFieldDecimal", "([C)Ljava/math/BigDecimal;");
+                 mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
++            } else if (fieldClass == BigInteger.class) {
++                mw.visitVarInsn(ALOAD, context.var("lexer"));
++                mw.visitVarInsn(ALOAD, 0);
++                mw.visitFieldInsn(GETFIELD, context.className, fieldInfo.name + "_asm_prefix__", "[C");
++                mw.visitMethodInsn(INVOKEVIRTUAL, JSONLexerBase, "scanFieldBigInteger", "([C)Ljava/math/BigInteger;");
++                mw.visitVarInsn(ASTORE, context.var(fieldInfo.name + "_asm"));
+             } else if (fieldClass == int[].class) {
+                 mw.visitVarInsn(ALOAD, context.var("lexer"));
+                 mw.visitVarInsn(ALOAD, 0);
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/deserializer/JavaBeanDeserializer.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/deserializer/JavaBeanDeserializer.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/deserializer/JavaBeanDeserializer.java	2024-09-22 13:08:51.253776185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/deserializer/JavaBeanDeserializer.java	2024-09-22 13:08:51.109774933 +1000
+@@ -2,6 +2,7 @@
+ 
+ import java.lang.reflect.*;
+ import java.math.BigDecimal;
++import java.math.BigInteger;
+ import java.util.Arrays;
+ import java.util.Collection;
+ import java.util.HashMap;
+@@ -502,6 +503,15 @@
+ 
+                         if (lexer.matchStat > 0) {
+                             matchField = true;
++                            valueParsed = true;
++                        } else if (lexer.matchStat == JSONLexer.NOT_MATCH_NAME) {
++                            continue;
++                        }
++                    } else if (fieldClass == BigInteger.class) {
++                        fieldValue = lexer.scanFieldBigInteger(name_chars);
++
++                        if (lexer.matchStat > 0) {
++                            matchField = true;
+                             valueParsed = true;
+                         } else if (lexer.matchStat == JSONLexer.NOT_MATCH_NAME) {
+                             continue;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/JSONLexerBase.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/JSONLexerBase.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/JSONLexerBase.java	2024-09-22 13:08:51.249776151 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/JSONLexerBase.java	2024-09-22 13:08:51.105774898 +1000
+@@ -3362,30 +3362,22 @@
+ 
+         BigDecimal value;
+         if (chLocal >= '0' && chLocal <= '9') {
+-            long intVal = chLocal - '0';
+-
+             for (;;) {
+                 chLocal = charAt(bp + (offset++));
+                 if (chLocal >= '0' && chLocal <= '9') {
+-                    intVal = intVal * 10 + (chLocal - '0');
+                     continue;
+                 } else {
+                     break;
+                 }
+             }
+ 
+-            int scale = 1;
+             boolean small = (chLocal == '.');
+             if (small) {
+                 chLocal = charAt(bp + (offset++));
+                 if (chLocal >= '0' && chLocal <= '9') {
+-                    intVal = intVal * 10 + (chLocal - '0');
+-                    scale = 1;
+                     for (;;) {
+                         chLocal = charAt(bp + (offset++));
+                         if (chLocal >= '0' && chLocal <= '9') {
+-                            intVal = intVal * 10 + (chLocal - '0');
+-                            scale++;
+                             continue;
+                         } else {
+                             break;
+@@ -3432,6 +3424,138 @@
+         } else if (chLocal == 'n' && charAt(bp + offset) == 'u' && charAt(bp + offset + 1) == 'l' && charAt(bp + offset + 2) == 'l') {
+             matchStat = VALUE_NULL;
+             value = null;
++            offset += 3;
++            chLocal = charAt(bp + offset++);
++
++            if (quote && chLocal == '"') {
++                chLocal = charAt(bp + offset++);
++            }
++
++            for (;;) {
++                if (chLocal == ',') {
++                    bp += offset;
++                    this.ch = charAt(bp);
++                    matchStat = VALUE_NULL;
++                    token = JSONToken.COMMA;
++                    return value;
++                } else if (chLocal == '}') {
++                    bp += offset;
++                    this.ch = charAt(bp);
++                    matchStat = VALUE_NULL;
++                    token = JSONToken.RBRACE;
++                    return value;
++                } else if (isWhitespace(chLocal)) {
++                    chLocal = charAt(bp + offset++);
++                    continue;
++                }
++                break;
++            }
++            matchStat = NOT_MATCH;
++            return null;
++        } else {
++            matchStat = NOT_MATCH;
++            return null;
++        }
++
++        if (chLocal == ',') {
++            bp += offset;
++            this.ch = this.charAt(bp);
++            matchStat = VALUE;
++            token = JSONToken.COMMA;
++            return value;
++        }
++
++        if (chLocal == '}') {
++            chLocal = charAt(bp + (offset++));
++            if (chLocal == ',') {
++                token = JSONToken.COMMA;
++                bp += offset;
++                this.ch = this.charAt(bp);
++            } else if (chLocal == ']') {
++                token = JSONToken.RBRACKET;
++                bp += offset;
++                this.ch = this.charAt(bp);
++            } else if (chLocal == '}') {
++                token = JSONToken.RBRACE;
++                bp += offset;
++                this.ch = this.charAt(bp);
++            } else if (chLocal == EOI) {
++                token = JSONToken.EOF;
++                bp += (offset - 1);
++                ch = EOI;
++            } else {
++                matchStat = NOT_MATCH;
++                return null;
++            }
++            matchStat = END;
++        } else {
++            matchStat = NOT_MATCH;
++            return null;
++        }
++
++        return value;
++    }
++
++    public BigInteger scanFieldBigInteger(char[] fieldName) {
++        matchStat = UNKNOWN;
++
++        if (!charArrayCompare(fieldName)) {
++            matchStat = NOT_MATCH_NAME;
++            return null;
++        }
++
++        int offset = fieldName.length;
++        char chLocal = charAt(bp + (offset++));
++        final boolean quote = chLocal == '"';
++        if (quote) {
++            chLocal = charAt(bp + (offset++));
++        }
++
++        boolean negative = chLocal == '-';
++        if (negative) {
++            chLocal = charAt(bp + (offset++));
++        }
++
++        BigInteger value;
++        if (chLocal >= '0' && chLocal <= '9') {
++            long intVal = chLocal - '0';
++            for (;;) {
++                chLocal = charAt(bp + (offset++));
++                if (chLocal >= '0' && chLocal <= '9') {
++                    intVal = intVal * 10 + (chLocal - '0');
++                    continue;
++                } else {
++                    break;
++                }
++            }
++
++            int start, count;
++            if (quote) {
++                if (chLocal != '"') {
++                    matchStat = NOT_MATCH;
++                    return null;
++                } else {
++                    chLocal = charAt(bp + (offset++));
++                }
++                start = bp + fieldName.length + 1;
++                count = bp + offset - start - 2;
++            } else {
++                start = bp + fieldName.length;
++                count = bp + offset - start - 1;
++            }
++
++            if (count < 20 || (negative && count < 21)) {
++                value = BigInteger.valueOf(negative ? -intVal : intVal);
++            } else {
++
++//            char[] chars = this.sub_chars(negative ? start + 1 : start, count);
++//            value = new BigInteger(chars, )
++                String strVal = this.subString(start, count);
++                value = new BigInteger(strVal);
++            }
++        } else if (chLocal == 'n' && charAt(bp + offset) == 'u' && charAt(bp + offset + 1) == 'l' && charAt(bp + offset + 2) == 'l') {
++            matchStat = VALUE_NULL;
++            value = null;
+             offset += 3;
+             chLocal = charAt(bp + offset++);
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/json/test/benchmark/basic/BigDecimalBenchmark.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic/BigDecimalBenchmark.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/alibaba/json/test/benchmark/basic/BigDecimalBenchmark.java	2024-09-22 13:08:51.297776568 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic/BigDecimalBenchmark.java	2024-09-22 13:08:51.157775350 +1000
+@@ -22,8 +22,8 @@
+ //        System.out.println(JSON.toJSONString(model));
+ 
+         for (int i = 0; i < 10; ++i) {
+-             perf(); // 8791 8437 7949 7771ll
+-//            perf2(); // 9908
++//             perf(); // 6806
++            perf2(); // 7181
+         }
+     }
+ 
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/alibaba/json/test/benchmark/basic: BigIntegerBenchmark.java

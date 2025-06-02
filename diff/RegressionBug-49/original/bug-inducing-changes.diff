@@ -1,0 +1,460 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Debugger.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Debugger.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Debugger.java	2024-09-15 17:42:51.845353170 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Debugger.java	2024-09-15 17:42:51.793352672 +1000
+@@ -67,6 +67,7 @@
+ import org.apache.commons.jexl3.parser.ASTIncrementNode;
+ import org.apache.commons.jexl3.parser.ASTIncrementPostfixNode;
+ import org.apache.commons.jexl3.parser.ASTIndirectNode;
++import org.apache.commons.jexl3.parser.ASTInitialization;
+ import org.apache.commons.jexl3.parser.ASTInitializedArrayConstructorNode;
+ import org.apache.commons.jexl3.parser.ASTInlinePropertyAssignment;
+ import org.apache.commons.jexl3.parser.ASTInlinePropertyArrayEntry;
+@@ -572,6 +573,11 @@
+     }
+ 
+     @Override
++    protected Object visit(ASTInitialization node, Object data) {
++        return infixChildren(node, " = ", false, data);
++    }
++
++    @Override
+     protected Object visit(ASTMultipleAssignment node, Object data) {
+         int num = node.jjtGetNumChildren();
+         boolean isVarDeclare = node.jjtGetChild(0) instanceof ASTExtVar;
+@@ -1488,6 +1494,10 @@
+ 
+     @Override
+     protected Object visit(ASTVar node, Object data) {
++        boolean isFinal = node.isFinal();
++        if (isFinal) {
++           builder.append("final ");
++        }
+         Class type = node.getType();
+         if (type == null) {
+            builder.append("var ");
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java	2024-09-15 17:42:51.845353170 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java	2024-09-15 17:42:51.793352672 +1000
+@@ -79,6 +79,7 @@
+ import org.apache.commons.jexl3.parser.ASTIncrementNode;
+ import org.apache.commons.jexl3.parser.ASTIncrementPostfixNode;
+ import org.apache.commons.jexl3.parser.ASTIndirectNode;
++import org.apache.commons.jexl3.parser.ASTInitialization;
+ import org.apache.commons.jexl3.parser.ASTInitializedArrayConstructorNode;
+ import org.apache.commons.jexl3.parser.ASTInlinePropertyAssignment;
+ import org.apache.commons.jexl3.parser.ASTInlinePropertyArrayEntry;
+@@ -763,18 +764,24 @@
+                 return null;
+             }
+         }
+-        if (val instanceof Pointer)
+-            return ((Pointer) val).get();
++        if (val instanceof GetPointer)
++            return ((GetPointer) val).get();
+ 
+         return operators.indirect(node, val);
+     }
+ 
+ 
+     /**
+-     * Declares pointer dereference operators
++     * Declares pointer dereference operator
+      */
+-    public interface Pointer {
++    public interface GetPointer {
+         public Object get();
++    }
++
++    /**
++     * Declares pointer dereference assignment operator
++     */
++    public interface SetPointer {
+         public void set(Object right);
+     }
+ 
+@@ -782,7 +789,7 @@
+      * Pointer to a local variable.
+      *
+      */
+-    public class VarPointer implements Pointer {
++    public class VarPointer implements GetPointer, SetPointer {
+ 
+         protected int symbol;
+ 
+@@ -802,10 +809,28 @@
+     }
+ 
+     /**
++     * Pointer to a final local variable.
++     *
++     */
++    public class FinalVarPointer implements GetPointer {
++
++        protected int symbol;
++
++        protected FinalVarPointer(int symbol) {
++            this.symbol = symbol;
++        }
++
++        @Override
++        public Object get() {
++            return frame.get(symbol);
++        }
++    }
++
++    /**
+      * Pointer to a context variable.
+      *
+      */
+-    public class ContextVarPointer implements Pointer {
++    public class ContextVarPointer implements GetPointer, SetPointer {
+ 
+         protected String name;
+ 
+@@ -828,7 +853,7 @@
+      * Pointer to a bean property.
+      *
+      */
+-    public class PropertyPointer implements Pointer {
++    public class PropertyPointer implements GetPointer, SetPointer {
+ 
+         protected JexlNode propertyNode;
+         protected Object object;
+@@ -855,7 +880,7 @@
+      * Pointer to an indexed element.
+      *
+      */
+-    public class ArrayPointer implements Pointer {
++    public class ArrayPointer implements GetPointer, SetPointer {
+ 
+         protected JexlNode propertyNode;
+         protected Object object;
+@@ -888,7 +913,7 @@
+             } else {
+                 int symbol = var.getSymbol();
+                 if (symbol >= 0) {
+-                    return new VarPointer(symbol);
++                    return var.isFinal() ? new FinalVarPointer(symbol) : new VarPointer(symbol);
+                 } else {
+                     return new ContextVarPointer(var.getName());
+                 }
+@@ -2342,6 +2367,13 @@
+     }
+ 
+     @Override
++    protected Object visit(ASTInitialization node, Object data) {
++        JexlNode left = node.jjtGetChild(0);
++        Object right = node.jjtGetChild(1).jjtAccept(this, data);
++        return executeAssign(node, left, right, null, data);
++    }
++
++    @Override
+     protected Object visit(ASTAssignment node, Object data) {
+         JexlNode left = node.jjtGetChild(0);
+         Object right = node.jjtGetChild(1).jjtAccept(this, data);
+@@ -2533,8 +2565,8 @@
+                 Object self = left.jjtGetChild(0).jjtAccept(this, data);
+                 if (self == null)
+                     throw new JexlException(left, "illegal assignment form *0");
+-                if (self instanceof Pointer) {
+-                    ((Pointer) self).set(right);
++                if (self instanceof SetPointer) {
++                    ((SetPointer) self).set(right);
+                 } else {
+                     Object result = operators.indirectAssign(node, self, right);
+                     if (result == JexlEngine.TRY_FAILED)
+@@ -2552,8 +2584,8 @@
+                     self = left.jjtGetChild(0).jjtAccept(this, data);
+                     if (self == null)
+                         throw new JexlException(left, "illegal assignment form *0");
+-                    if (self instanceof Pointer) {
+-                        ((Pointer) self).set(result);
++                    if (self instanceof SetPointer) {
++                        ((SetPointer) self).set(result);
+                     } else {
+                         result = operators.indirectAssign(node, self, result);
+                         if (result == JexlEngine.TRY_FAILED)
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Scope.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Scope.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Scope.java	2024-09-15 17:42:51.845353170 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Scope.java	2024-09-15 17:42:51.793352672 +1000
+@@ -20,6 +20,8 @@
+ import java.util.HashMap;
+ import java.util.LinkedHashMap;
+ import java.util.Map;
++import java.util.Set;
++import java.util.HashSet;
+ 
+ /**
+  * A script scope, stores the declaration of parameters and local variables as symbols.
+@@ -53,11 +55,14 @@
+      */
+     private Map<Integer, Integer> hoistedVariables = null;
+     /**
+-     * The map of named variable types.
++     * The map of variable types.
+      * Each variable may be associated with specific type
+      */
+     private Map<Integer, Class> variableTypes = null;
+-
++    /**
++     * The set of final variables.
++     */
++    private Set<Integer> finalVariables = null;
+     /**
+      * The empty string array.
+      */
+@@ -167,11 +172,20 @@
+ 
+     /**
+      * Returns the local variable type if any.
+-     * @param register the symbol index
++     * @param symbol the symbol index
+      * @return the variable class 
+      */
+-    public Class getVariableType(int register) {
+-        return variableTypes == null ? null : variableTypes.get(register);
++    public Class getVariableType(int symbol) {
++        return variableTypes == null ? null : variableTypes.get(symbol);
++    }
++
++    /**
++     * Returns if the local variable is declared final.
++     * @param symbol the symbol index
++     * @return true if final, false otherwise
++     */
++    public boolean isVariableFinal(int symbol) {
++        return finalVariables == null ? false : finalVariables.contains(symbol);
+     }
+ 
+     /**
+@@ -211,7 +225,7 @@
+      * @return the register index storing this variable
+      */
+     public Integer declareVariable(String name) {
+-        return declareVariable(name, null);
++        return declareVariable(name, null, false);
+     }
+ 
+     /**
+@@ -223,7 +237,7 @@
+      * @param name the variable class
+      * @return the register index storing this variable
+      */
+-    public Integer declareVariable(String name, Class type) {
++    public Integer declareVariable(String name, Class type, boolean isFinal) {
+         if (namedVariables == null) {
+             namedVariables = new LinkedHashMap<String, Integer>();
+         }
+@@ -238,6 +252,12 @@
+                 }
+                 variableTypes.put(register, type);
+             }
++            if (isFinal) {
++                if (finalVariables == null) {
++                    finalVariables = new HashSet<Integer>();
++                }
++                finalVariables.add(register);
++            }
+         }
+         return register;
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/ScriptVisitor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/ScriptVisitor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/ScriptVisitor.java	2024-09-15 17:42:51.845353170 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/ScriptVisitor.java	2024-09-15 17:42:51.793352672 +1000
+@@ -67,6 +67,7 @@
+ import org.apache.commons.jexl3.parser.ASTIncrementNode;
+ import org.apache.commons.jexl3.parser.ASTIncrementPostfixNode;
+ import org.apache.commons.jexl3.parser.ASTIndirectNode;
++import org.apache.commons.jexl3.parser.ASTInitialization;
+ import org.apache.commons.jexl3.parser.ASTInitializedArrayConstructorNode;
+ import org.apache.commons.jexl3.parser.ASTInlinePropertyAssignment;
+ import org.apache.commons.jexl3.parser.ASTInlinePropertyArrayEntry;
+@@ -329,6 +330,11 @@
+         return visitNode(node, data);
+     }
+ 
++    @Override
++    protected Object visit(ASTInitialization node, Object data) {
++        return visitNode(node, data);
++    }
++
+     @Override
+     protected Object visit(ASTVar node, Object data) {
+         return visitNode(node, data);
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/ASTIdentifier.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/ASTIdentifier.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/ASTIdentifier.java	2024-09-15 17:42:51.849353209 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/ASTIdentifier.java	2024-09-15 17:42:51.797352710 +1000
+@@ -22,6 +22,7 @@
+ public class ASTIdentifier extends JexlNode {
+     protected String name = null;
+     protected int symbol = -1;
++    protected boolean isFinal;
+ 
+     ASTIdentifier(int id) {
+         super(id);
+@@ -55,6 +56,14 @@
+     public String getName() {
+         return name;
+     }
++
++    public boolean isFinal() {
++        return isFinal;
++    }
++
++    void setFinal() {
++        isFinal = true;
++    }
+     
+     public String getNamespace() {
+         return null;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/FeatureController.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/FeatureController.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/FeatureController.java	2024-09-15 17:42:51.849353209 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/FeatureController.java	2024-09-15 17:42:51.797352710 +1000
+@@ -232,6 +232,11 @@
+     }
+ 
+     @Override
++    protected Object visit(ASTInitialization node, Object data) {
++        return controlSideEffect(node, data);
++    }
++
++    @Override
+     protected Object visit(ASTMultipleAssignment node, Object data) {
+         return controlSideEffect(node, data);
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/JexlNode.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/JexlNode.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/JexlNode.java	2024-09-15 17:42:51.849353209 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/JexlNode.java	2024-09-15 17:42:51.797352710 +1000
+@@ -146,7 +146,7 @@
+     public boolean isLeftValue() {
+         JexlNode walk = this;
+         do {
+-            if (walk instanceof ASTIdentifier
++            if (walk instanceof ASTIdentifier && !((ASTIdentifier) walk).isFinal()
+                 || walk instanceof ASTIdentifierAccess
+                 || walk instanceof ASTArrayAccess
+                 || walk instanceof ASTIndirectNode) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/JexlParser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/JexlParser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/JexlParser.java	2024-09-15 17:42:51.849353209 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/JexlParser.java	2024-09-15 17:42:51.797352710 +1000
+@@ -183,6 +183,21 @@
+         return image;
+     }
+ 
++    /**
++     * Checks whether a local variable is final.
++     * @param image      the identifier image
++     * @return true if final, false otherwise
++     */
++    protected boolean isFinalVariable(String image) {
++        if (frame != null) {
++            Integer register = frame.getSymbol(image);
++            if (register != null) {
++                return frame.isVariableFinal(register);
++            }
++        }
++        return false;
++    }
++
+     protected boolean allowVariable(String image) {
+         JexlFeatures features = getFeatures();
+         if (!features.supportsLocalVar()) {
+@@ -208,7 +223,7 @@
+         if (frame == null) {
+             frame = new Scope(null, (String[]) null);
+         }
+-        Integer register = frame.declareVariable(identifier, var.getType());
++        Integer register = frame.declareVariable(identifier, var.getType(), var.isFinal());
+         var.setSymbol(register.intValue(), identifier);
+     }
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/Parser.jjt ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/Parser.jjt
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/Parser.jjt	2024-09-15 17:42:51.849353209 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/Parser.jjt	2024-09-15 17:42:51.797352710 +1000
+@@ -147,6 +147,7 @@
+     | < SYNCHRONIZED : "synchronized" >
+     | < NEW : "new" > { pushQ(); } /* Lexical state is now QUALIFIED */
+     | < VAR : "var" >
++    | < FINAL : "final" >
+     | < EMPTY : "empty" > { popDot(); } /* Revert state to default if was DOT_ID. */
+     | < SIZE : "size" > { popDot(); } /* Revert state to default if was DOT_ID. */
+     | < THIS : "this" >
+@@ -614,7 +615,9 @@
+ 
+ void Var() #void : {}
+ {
+-    DeclareLocalVar() (LOOKAHEAD(1) <assign> Expression() #Assignment(2))?
++    LOOKAHEAD(<FINAL>) DeclareLocalVar() (<assign> Expression() #Initialization(2))
++    |
++    DeclareLocalVar() (LOOKAHEAD(1) <assign> Expression() #Initialization(2))?
+ }
+ 
+ void DeclareVar() #Var :
+@@ -630,6 +633,7 @@
+     Token t;
+ }
+ {
++    ( LOOKAHEAD(1) <FINAL> { jjtThis.setFinal(); } )?
+     ( <VAR> 
+     | <INT> { jjtThis.setType(Integer.TYPE); }
+     | <LONG> { jjtThis.setType(Long.TYPE); }
+@@ -1008,7 +1012,7 @@
+     Token t;
+ }
+ {
+-    t=<IDENTIFIER> { jjtThis.setSymbol(top? checkVariable(jjtThis, t.image) : t.image); }
++    t=<IDENTIFIER> { jjtThis.setSymbol(top? checkVariable(jjtThis, t.image) : t.image); if (top && isFinalVariable(t.image)) jjtThis.setFinal(); }
+ |
+     t=<REGISTER> { jjtThis.setSymbol(t.image); }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/ParserVisitor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/ParserVisitor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/ParserVisitor.java	2024-09-15 17:42:51.849353209 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/ParserVisitor.java	2024-09-15 17:42:51.797352710 +1000
+@@ -96,6 +96,8 @@
+ 
+     protected abstract Object visit(ASTAssignment node, Object data);
+ 
++    protected abstract Object visit(ASTInitialization node, Object data);
++
+     protected abstract Object visit(ASTVar node, Object data);
+ 
+     protected abstract Object visit(ASTExtVar node, Object data);
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/site/xdoc/reference/syntax.xml ./RegMiner4APR-Regression-Bugs/BIC/src/site/xdoc/reference/syntax.xml
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/site/xdoc/reference/syntax.xml	2024-09-15 17:42:51.849353209 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/site/xdoc/reference/syntax.xml	2024-09-15 17:42:51.797352710 +1000
+@@ -82,7 +82,7 @@
+                         </ul>
+                         <p>
+                             <strong>N.B.</strong> the following keywords are reserved, and cannot be used as an identifier or the property name when using the dot operator:
+-                            <code>or and eq ne lt gt le ge in div mod not this null true false instanceof new var do while break continue remove function return try catch finally throw synchronized switch case default byte short int long char boolean float double</code>
++                            <code>or and eq ne lt gt le ge in div mod not this null true false instanceof new var final do while break continue remove function return try catch finally throw synchronized switch case default byte short int long char boolean float double</code>
+                             For example, the following is invalid:
+                             <code>my.new.dotted.var1 // invalid ('new' is keyword)</code>
+                             In such cases, quoted identifiers or the [ ] operator can be used, for example:
+@@ -153,19 +153,22 @@
+                 </tr>
+                 <tr>
+                     <td>Local variables</td>
+-                    <td>Can be defined untyped using the <code>var</code> keyword or strongly typed specifying one of java primitive types :
++                    <td>Can be defined untyped using the <code>var</code> keyword or strongly typed specifying one of java primitive types:
+                         <code>boolean char byte short int long float double</code> 
+                         The local variable name should be a valid identifier.
+                         <ul>
+                             <li>Basic declaration: <code>var x;</code> or <code>int x;</code></li>
+-                            <li>Declaration with assignment: <code>var theAnswer = 42;</code> or <code>int theAnswer = 42;</code></li>
++                            <li>Declaration with initialization: <code>var theAnswer = 42;</code> or <code>int theAnswer = 42;</code></li>
+                             <li>Invalid declaration: <code>var x.y;</code></li>
+                         </ul>
+-                        Their scope is either the entire script scope or the function definition block;
++                        Variable scope is either the entire script scope or the function definition block;
+                         Local variables take precedence in resolution over contextual variables.
+-                        The values assigned to the strongly typed variables are implicitly cast to the defined type.
++                        The values assigned to the strongly typed variables are implicitly cast to the defined type in non-strict arithmetic mode.
+                         Primitive type variables are non-null, so it is impossible to declare a primitive type variable without non-null initialization in the strict arithmetic mode.
+                         When scripts are created with named parameters, those behave as local variables.
++                        <p>Variables can be defined as final using <code>final var x = 42</code>, 
++                           it is impossible to declare a final variable without initialization.
++                        </p>
+                         <p>Variable names are <strong>case-sensitive</strong>, e.g. <code>var1</code> and <code>Var1</code> are different variables.
+                         </p>
+                         <p>

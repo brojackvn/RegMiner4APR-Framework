@@ -1,0 +1,12 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/serializer/DateCodec.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/serializer/DateCodec.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/serializer/DateCodec.java	2024-09-29 18:53:38.652764116 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/serializer/DateCodec.java	2024-09-29 18:53:32.492699769 +1000
+@@ -156,7 +156,7 @@
+             if (nanos > 0) {
+                 buf = "0000-00-00 00:00:00.000000000".toCharArray();
+                 int nanoSize = IOUtils.stringSize(nanos);
+-                IOUtils.getChars(nanos, 30 - (9 - nanoSize), buf);
++                IOUtils.getChars(nanos, 29 - (9 - nanoSize), buf);
+                 IOUtils.getChars(second, 19, buf);
+                 IOUtils.getChars(minute, 16, buf);
+                 IOUtils.getChars(hour, 13, buf);

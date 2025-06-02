@@ -1,0 +1,23 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/input/BomInput.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/input/BomInput.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/input/BomInput.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/input/BomInput.java
+@@ -117,25 +120,23 @@
+ 			// Ensures that if the original input stream returned a byte, it will be consumed.
+ 			// In case of exceptions, bytes produced prior to the exception will still be returned.
+ 			// Once the last byte has been consumed, the original exception will be thrown.
+-			if (--bytesRead == 0 && exception != null) {
++			if (++consumed == bytesRead && exception != null) {
+ 				throw exception;
+ 			}
+ 			return out;
+ 		}
+-		return input.read();
++		if (consumed == bytesRead) {
++			consumed++;
++			return -1;
++		}
+
++		throw new BytesProcessedNotification(input, encoding);
+ 	}
+ 
+ 	/**

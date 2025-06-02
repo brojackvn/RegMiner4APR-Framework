@@ -1,0 +1,25 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/blade/mvc/handler/RequestInvoker.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/blade/mvc/handler/RequestInvoker.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/blade/mvc/handler/RequestInvoker.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/blade/mvc/handler/RequestInvoker.java
+@@ -2,6 +2,7 @@
+ 
+ import com.blade.Blade;
+ import com.blade.exception.BladeException;
++import com.blade.exception.InternalErrorException;
+ import com.blade.ioc.Ioc;
+ import com.blade.kit.BladeKit;
+ import com.blade.kit.ReflectKit;
+@@ -123,7 +124,13 @@
+ 
+         Object returnParam;
+         if (len > 0) {
++            if (len == 1) {
+                 returnParam = ReflectKit.invokeMethod(target, hookMethod, routeSignature);
++            } else if (len == 2) {
++                returnParam = ReflectKit.invokeMethod(target, hookMethod, routeSignature.request(), routeSignature.response());
++            } else {
++                throw new InternalErrorException("Bad web hook structure");
++            }
+         } else {
+             returnParam = ReflectKit.invokeMethod(target, hookMethod);
+         }

@@ -1,0 +1,34 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/cactoos/func/RepeatedFunc.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/cactoos/func/RepeatedFunc.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/cactoos/func/RepeatedFunc.java	2024-09-21 19:16:59.605961603 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/cactoos/func/RepeatedFunc.java	2024-09-21 19:16:59.073956574 +1000
+@@ -24,13 +24,14 @@
+ package org.cactoos.func;
+ 
+ import org.cactoos.Func;
++import org.cactoos.text.FormattedText;
+ 
+ /**
+  * Func that repeats its calculation a few times before
+  * returning the last result.
+  *
+  * @author Yegor Bugayenko (yegor256@gmail.com)
+- * @version $Id: 37f6adca59bbd2a77e9c94b7be948b3ef00b0f80 $
++ * @version $Id: 5b2d55a4abf9c2552e8f8afe44964cca691d088b $
+  * @param <X> Type of input
+  * @param <Y> Type of output
+  * @since 0.6
+@@ -67,6 +68,14 @@
+         for (int idx = 0; idx < this.times; ++idx) {
+             result = this.func.apply(input);
+         }
++        if (result == null) {
++            throw new IllegalArgumentException(
++                new FormattedText(
++                    "Repeat counter is equal or less than zero: %d",
++                    this.times
++                ).asString()
++            );
++        }
+         return result;
+     }
+ 

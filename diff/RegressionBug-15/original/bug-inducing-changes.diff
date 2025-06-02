@@ -1,0 +1,241 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/FirstCommentFound.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/FirstCommentFound.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/FirstCommentFound.java	2024-09-08 01:36:09.509776343 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/FirstCommentFound.java	2024-09-08 01:36:09.477776118 +1000
+@@ -37,11 +37,13 @@
+  * iteration when a non-comment line is found. In essence, this reads the lines
+  * of the first comment from a given YamlLines, if it exists.
+  * @author Mihai Andronache (amihaiemil@gmail.com)
+- * @version $Id: 1bc4940cae4d1e97412ca752713960c6963b7f2e $
++ * @version $Id: 0929a694a74fe52647a310a8361ade46a2a04e23 $
+  * @since 4.2.0
+  */
+ final class FirstCommentFound implements YamlLines {
+ 
++    boolean enteredComments = false;
++
+     /**
+      * Lines where we look for the comment.
+      */
+@@ -115,12 +117,18 @@
+         final List<YamlLine> comment = new ArrayList<>();
+         while (iterator.hasNext()) {
+             final YamlLine line = iterator.next();
+-            if(!"---".equals(line.trimmed()) && !line.comment().isEmpty()) {
+-                if(line.trimmed().startsWith("#")) {
+-                    comment.add(line);
+-                }
+-            } else {
++            boolean hasComment = !line.comment().isEmpty();
++            if (enteredComments && !hasComment) {
+                 break;
++            } else {
++                if (hasComment) {
++                    enteredComments = true;
++                    if (!"---".equals(line.trimmed())) {
++                        if (line.trimmed().startsWith("#")) {
++                            comment.add(line);
++                        }
++                    }
++                }
+             }
+         }
+         iterator = comment.iterator();
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/ReadComment.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/ReadComment.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/ReadComment.java	2024-09-08 01:36:09.509776343 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/ReadComment.java	2024-09-08 01:36:09.477776118 +1000
+@@ -32,20 +32,26 @@
+ /**
+  * A comment which has been read from somewhere.
+  * @author Mihai Andronache (amihaiemil@gmail.com)
+- * @version $Id: bdbbb73dc6ac502d5a79dd24a03a3f4a6e0e09e6 $
++ * @version $Id: e25777cf6badda42c7ffc782c52a4b71b81f272c $
+  * @since  4.2.0
+  */
+ final class ReadComment implements Comment {
+ 
+     /**
+-     * Lines of this comment.
++     * Node to which this comment refers.
+      */
+-    private final YamlLines lines;
++    private final YamlNode node;
+ 
+     /**
+-     * Node to which this comment refers.
++     * Calculated line number
+      */
+-    private final YamlNode node;
++    private final int lineNumber;
++
++    /**
++     * Calculated comment
++     */
++    private final String comment;
++
+ 
+     /**
+      * Constructor.
+@@ -53,8 +59,9 @@
+      * @param node Node to which it refers.
+      */
+     ReadComment(final YamlLines lines, final YamlNode node) {
+-        this.lines = lines;
+         this.node = node;
++        this.lineNumber = calculateLineNumber(lines);
++        this.comment = calculateComments(lines).toString().trim();
+     }
+ 
+     @Override
+@@ -64,22 +71,30 @@
+ 
+     @Override
+     public int number() {
+-        Iterator<YamlLine> iterator = lines.iterator();
+-        int lineNumber = UNKNOWN_LINE_NUMBER;
+-        if (iterator.hasNext()) {
+-            lineNumber = iterator.next().number();
+-        }
+-        return lineNumber;
++        return this.lineNumber;
+     }
+ 
+     @Override
+     public String value() {
+-        final StringBuilder comment = new StringBuilder();
+-        for(final YamlLine line : this.lines) {
+-            comment
+-                .append(line.comment().trim())
+-                .append(System.lineSeparator());
++        return this.comment;
++    }
++
++    private StringBuilder calculateComments(YamlLines lines) {
++        final StringBuilder tmpComment = new StringBuilder();
++        for(final YamlLine line : lines) {
++            tmpComment
++                    .append(line.comment().trim())
++                    .append(System.lineSeparator());
++        }
++        return tmpComment;
++    }
++
++    private int calculateLineNumber(YamlLines lines) {
++        int tmpLineNumber = UNKNOWN_LINE_NUMBER;
++        Iterator<YamlLine> iterator = lines.iterator();
++        if (iterator.hasNext()) {
++            tmpLineNumber = iterator.next().number();
+         }
+-        return comment.toString().trim();
++        return tmpLineNumber;
+     }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/ReflectedYamlMapping.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/ReflectedYamlMapping.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/ReflectedYamlMapping.java	2024-09-08 01:36:09.509776343 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/ReflectedYamlMapping.java	2024-09-08 01:36:09.481776146 +1000
+@@ -36,7 +36,7 @@
+  * YamlMapping reflected from a Java Bean.
+  * @checkstyle BooleanExpressionComplexity (300 lines)
+  * @author Mihai Andronache (amihaiemil@gmail.com)
+- * @version $Id: 2b90c22b9311caaf41cfe633d1d9ddbce33b6b78 $
++ * @version $Id: b5e39fe9dfb024fc2545a147f0776d70b701ef5f $
+  * @since 4.3.3
+  */
+ final class ReflectedYamlMapping extends BaseYamlMapping {
+@@ -121,7 +121,7 @@
+ 
+             @Override
+             public int number() {
+-                return -1;
++                return UNKNOWN_LINE_NUMBER;
+             }
+         };
+     }
+@@ -217,7 +217,7 @@
+ 
+                 @Override
+                 public int number() {
+-                    return -1;
++                    return UNKNOWN_LINE_NUMBER;
+                 }
+             };
+         }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/ReflectedYamlScalar.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/ReflectedYamlScalar.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/ReflectedYamlScalar.java	2024-09-08 01:36:09.509776343 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/ReflectedYamlScalar.java	2024-09-08 01:36:09.481776146 +1000
+@@ -30,7 +30,7 @@
+ /**
+  * YAML Scalar reflected from an Object.
+  * @author Mihai Andronache (amihaiemil@gmail.com)
+- * @version $Id: bcaf7339f606a6966477d71b99ebc2b87440ffb9 $
++ * @version $Id: 004476804546c912c1826393350a9765dda828bb $
+  * @since 4.3.3
+  */
+ final class ReflectedYamlScalar extends BaseScalar {
+@@ -74,7 +74,7 @@
+ 
+             @Override
+             public int number() {
+-                return -1;
++                return UNKNOWN_LINE_NUMBER;
+             }
+         };
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/ReflectedYamlSequence.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/ReflectedYamlSequence.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/ReflectedYamlSequence.java	2024-09-08 01:36:09.509776343 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/ReflectedYamlSequence.java	2024-09-08 01:36:09.481776146 +1000
+@@ -35,7 +35,7 @@
+ /**
+  * YamlSequence reflected from a Collection or an array of Object.
+  * @author Mihai Andronache (amihaiemil@gmail.com)
+- * @version $Id: 27d6d9eddca6a5b2ae71796b6699ed13348baa77 $
++ * @version $Id: 1f568df6d4a9427336998d37a7b4b82a6ff7b70c $
+  * @since 4.3.3
+  */
+ final class ReflectedYamlSequence extends BaseYamlSequence {
+@@ -87,7 +87,7 @@
+ 
+             @Override
+             public int number() {
+-                return -1;
++                return UNKNOWN_LINE_NUMBER;
+             }
+         };
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/RtYamlPrinter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/RtYamlPrinter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/RtYamlPrinter.java	2024-09-08 01:36:09.513776370 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/RtYamlPrinter.java	2024-09-08 01:36:09.481776146 +1000
+@@ -39,7 +39,7 @@
+  * @checkstyle ExecutableStatementCount (400 lines)
+  * @checkstyle CyclomaticComplexity (400 lines)
+  * @author Mihai Andronache (amihaiemil@gmail.com)
+- * @version $Id: 95febf6e800e61eaa473c5d719e53ce66ae89d24 $
++ * @version $Id: 61114df19bc531058eeadfc30dee09cf87e735d2 $
+  * @since 4.3.1
+  */
+ final class RtYamlPrinter implements YamlPrinter {
+@@ -312,12 +312,14 @@
+         if(node != null && node.comment() != null) {
+             boolean unknownLineNumber = lastComment == null
+                     || lastComment.number() == UNKNOWN_LINE_NUMBER;
+-            boolean newLineNumber = lastComment == null
+-                    || lastComment.number() != node.comment().number();
++            boolean newLineNumber = lastComment != null
++                    && lastComment.number() != node.comment().number();
++            System.err.println("Last comment is " + lastComment);
+             if (unknownLineNumber || newLineNumber) {
+                 Comment tmpComment = node.comment();
+                 final String com = tmpComment.value();
+                 if (com.trim().length() != 0) {
++                    System.err.println(tmpComment.getClass() + " Adding comment: " + tmpComment.number() + " [" + com.trim() + "]");
+                     String[] lines = com.split(System.lineSeparator());
+                     for (final String line : lines) {
+                         this.writer
+@@ -363,7 +365,7 @@
+     /**
+      * A scalar which escapes its value.
+      * @author Mihai Andronache (amihaiemil@gmail.com)
+-     * @version $Id: 95febf6e800e61eaa473c5d719e53ce66ae89d24 $
++     * @version $Id: 61114df19bc531058eeadfc30dee09cf87e735d2 $
+      * @since 4.3.1
+      */
+     static class Escaped extends BaseScalar {

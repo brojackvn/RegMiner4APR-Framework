@@ -1,0 +1,10 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/ParserOutput.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/ParserOutput.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/ParserOutput.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/ParserOutput.java
+@@ -399,5 +399,6 @@
+ 		this.currentRecord = 0;
+ 		this.column = 0;
+ 		this.headers = null;
++		this.headerStrings = null;
+ 	}
+ }

@@ -1,0 +1,12 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/net/lingala/zip4j/io/inputstream/ZipInputStream.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/net/lingala/zip4j/io/inputstream/ZipInputStream.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/net/lingala/zip4j/io/inputstream/ZipInputStream.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/net/lingala/zip4j/io/inputstream/ZipInputStream.java
+@@ -303,7 +302,10 @@
+     }
+     
+     private void readUntilEndOfEntry() throws IOException {
+-    if (localFileHeader.isDirectory() || localFileHeader.getCompressedSize() == 0) {
++    if (!localFileHeader.isDataDescriptorExists() && (localFileHeader.isDirectory() || localFileHeader.getCompressedSize() == 0)) {
+       return;
+     }
+ 

@@ -1,0 +1,12 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/msgs/restricted/RenderOnlySoyMsgBundleImpl.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/msgs/restricted/RenderOnlySoyMsgBundleImpl.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/msgs/restricted/RenderOnlySoyMsgBundleImpl.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/msgs/restricted/RenderOnlySoyMsgBundleImpl.java
+@@ -142,7 +142,7 @@
+ 
+     // This creates the mask. Basically, take the high-bit and fill in the bits below it.
+     int maskHigh = Integer.highestOneBit(Iterables.size(msgs));
+-    this.bucketMask = (maskHigh | (maskHigh - 1)) >>> BUCKET_SHIFT;
++    this.bucketMask = maskHigh == 0 ? 0 : (maskHigh | (maskHigh - 1)) >>> BUCKET_SHIFT;
+     int numBuckets = this.bucketMask + 1;
+ 
+     // Sorts by bucket (low bits within the mask) and breaks ties with the full ID.

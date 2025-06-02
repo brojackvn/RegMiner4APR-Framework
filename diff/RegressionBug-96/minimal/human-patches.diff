@@ -1,0 +1,11 @@
+diff -r -U 3 RegressionBug-96/BUGGY/src/main/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorOutputStream.java RegressionBug-96/BFC/src/main/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorOutputStream.java
+--- RegressionBug-96/BUGGY/src/main/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorOutputStream.java
++++ RegressionBug-96/BFC/src/main/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorOutputStream.java
+@@ -560,7 +558,6 @@
+                 endBlock();
+                 endCompression();
+             } finally {
+-                this.out = null;
+                 this.blockSorter = null;
+                 this.data = null;
+             }

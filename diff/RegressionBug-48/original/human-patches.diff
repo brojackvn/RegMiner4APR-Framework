@@ -1,0 +1,14 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/jexl3/internal/InterpreterBase.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/jexl3/internal/InterpreterBase.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/jexl3/internal/InterpreterBase.java	2024-09-13 20:37:03.529830726 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/jexl3/internal/InterpreterBase.java	2024-09-13 20:37:03.289828432 +1000
+@@ -292,9 +292,7 @@
+         if (value == null
+             && !(identifier.jjtGetParent() instanceof ASTReference)
+             && !(context.has(name))) {
+-                return isSafe()
+-                    ? null
+-                    : unsolvableVariable(identifier, name, true); // undefined
++                return unsolvableVariable(identifier, name, true); // undefined
+         }
+         return value;
+     }

@@ -1,0 +1,266 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/AllYamlLines.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/AllYamlLines.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/AllYamlLines.java	2024-09-08 01:36:09.397775558 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/AllYamlLines.java	2024-09-08 01:36:09.369775361 +1000
+@@ -39,7 +39,7 @@
+  * @checkstyle ExecutableStatementCount (400 lines)
+  * @checkstyle CyclomaticComplexity (400 lines)
+  * @author Mihai Andronache (amihaiemil@gmail.com)
+- * @version $Id: df669a6055a91be7a4d589bde21c0fde30b0e7dd $
++ * @version $Id: 6fc2bf3ec3c927089892eed93dc38b6932a97556 $
+  * @since 1.0.0
+  */
+ final class AllYamlLines implements YamlLines {
+@@ -110,10 +110,10 @@
+             line -> line.trimmed().startsWith("%"),
+             line -> line.trimmed().startsWith("!!")
+         ).iterator().next();
+-        if(first.trimmed().startsWith("-")) {
+-            node = new ReadYamlSequence(prev, this);
+-        } else if (first.trimmed().contains(":")){
++        if(first.trimmed().contains(":")) {
+             node = new ReadYamlMapping(prev, this);
++        } else if (first.trimmed().startsWith("-")){
++            node = new ReadYamlSequence(prev, this);
+         } else if(this.original().size() == 1) {
+             node = new ReadPlainScalar(this, first);
+         } else {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/ReadPlainScalar.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/ReadPlainScalar.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/ReadPlainScalar.java	2024-09-08 01:36:09.401775585 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/ReadPlainScalar.java	2024-09-08 01:36:09.369775361 +1000
+@@ -30,7 +30,7 @@
+ /**
+  * A plain scalar value read from somewhere.
+  * @author Mihai Andronace (amihaiemil@gmail.com)
+- * @version $Id: 32cf294fe5b46877dbd29ce3c0882145413e75c5 $
++ * @version $Id: 255238e9d81df409e196491168fa2d951b5d3ec5 $
+  * @since 3.1.3
+  */
+ final class ReadPlainScalar extends BaseScalar {
+@@ -70,10 +70,10 @@
+     public String value() {
+         final String value;
+         final String trimmed = this.scalar.trimmed();
+-        if(trimmed.startsWith("-") && trimmed.length() > 1) {
+-            value = trimmed.substring(trimmed.indexOf('-')+1).trim();
+-        } else if(trimmed.contains(":") && !trimmed.endsWith(":")) {
++        if(trimmed.contains(":") && !trimmed.endsWith(":")) {
+             value = trimmed.substring(trimmed.indexOf(":") + 1).trim();
++        } else if(trimmed.startsWith("-") && trimmed.length() > 1) {
++            value = trimmed.substring(trimmed.indexOf('-')+1).trim();
+         } else {
+             value = trimmed;
+         }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/ReadYamlMapping.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/ReadYamlMapping.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/ReadYamlMapping.java	2024-09-08 01:36:09.401775585 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/ReadYamlMapping.java	2024-09-08 01:36:09.373775390 +1000
+@@ -36,7 +36,7 @@
+  * to be a plain YAML mapping.
+  * @checkstyle CyclomaticComplexity (300 lines)
+  * @author Mihai Andronache (amihaiemil@gmail.com)
+- * @version $Id: cedd536337768b51e0b5116e265157e3fbfe49b8 $
++ * @version $Id: 167472151407b5de6d57b8ef7a90532dcb1b4dc2 $
+  * @since 1.0.0
+  */
+ final class ReadYamlMapping extends BaseYamlMapping {
+@@ -119,8 +119,15 @@
+                         + "[" + line.trimmed() + "]."
+                     );
+                 }
+-                final String key = trimmed.substring(
+-                        0, trimmed.indexOf(":")).trim();
++                final String key;
++                if(trimmed.startsWith("-")) {
++                    key = trimmed.substring(
++                        1, trimmed.indexOf(":")
++                    ).trim();
++                } else {
++                    key = trimmed.substring(
++                        0, trimmed.indexOf(":")
++                    ).trim();                }
+                 if(!key.isEmpty()) {
+                     keys.add(new PlainStringScalar(key));
+                 }
+@@ -196,7 +203,8 @@
+                     || trimmed.matches("^" + tryKey + "\\:[ ]*\\|$")
+                 ) {
+                     value = this.significant.toYamlNode(line);
+-                } else if(trimmed.startsWith(tryKey + ":")
++                } else if((trimmed.startsWith(tryKey + ":")
++                    || trimmed.startsWith("- " + tryKey + ":"))
+                     && trimmed.length() > 1
+                 ) {
+                     value = new ReadPlainScalar(this.all, line);
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/ReadYamlSequence.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/ReadYamlSequence.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/ReadYamlSequence.java	2024-09-08 01:36:09.401775585 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/ReadYamlSequence.java	2024-09-08 01:36:09.373775390 +1000
+@@ -32,7 +32,7 @@
+ /**
+  * YamlSequence read from somewhere.
+  * @author Mihai Andronache (amihaiemil@gmail.com)
+- * @version $Id: a4e83dc65c8070c9d4c3f485c1ff6afaccb2a561 $
++ * @version $Id: accf8cafe9f154a207df467cb73757cce0e2c176 $
+  * @since 1.0.0
+  */
+ final class ReadYamlSequence extends BaseYamlSequence {
+@@ -101,6 +101,7 @@
+         final boolean foldedSequence = this.previous.trimmed().matches(
+             "^.*\\|.*\\-$"
+         );
++        YamlLine prev = new YamlLine.NullYamlLine();
+         for(final YamlLine line : this.significant) {
+             final String trimmed = line.trimmed();
+             if(foldedSequence || trimmed.startsWith("-")) {
+@@ -110,9 +111,14 @@
+                 ) {
+                     kids.add(this.significant.toYamlNode(line));
+                 } else {
+-                    kids.add(new ReadPlainScalar(this.all, line));
++                    if(trimmed.matches("^.*\\-.*\\:.*$")) {
++                        kids.add(this.significant.toYamlNode(prev));
++                    } else {
++                        kids.add(new ReadPlainScalar(this.all, line));
++                    }
+                 }
+             }
++            prev = line;
+         }
+         return kids;
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/SameIndentationLevel.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/SameIndentationLevel.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/SameIndentationLevel.java	2024-09-08 01:36:09.401775585 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/SameIndentationLevel.java	2024-09-08 01:36:09.373775390 +1000
+@@ -43,7 +43,7 @@
+  *  ); //Iterates only over the lines which have the same indentation.
+  * </pre>
+  * @author Mihai Andronache (amihaiemil@gmail.com)
+- * @version $Id: 497093c75e0f577cb28e792adf105da5019b8c17 $
++ * @version $Id: 6516901db4d5b9fd9fe5944baca71400e4004fdf $
+  * @since 3.0.2
+  */
+ final class SameIndentationLevel implements YamlLines {
+@@ -76,11 +76,15 @@
+             final List<YamlLine> sameIndentation = new ArrayList<>();
+             final YamlLine first = iterator.next();
+             sameIndentation.add(first);
++            int firstIndentation = first.indentation();
++            if(first.trimmed().matches("^[ ]*\\-.*\\:.*$")) {
++                firstIndentation += 2;
++            }
+             while (iterator.hasNext()) {
+                 YamlLine current = iterator.next();
+-                if(current.indentation() == first.indentation()) {
++                if(current.indentation() == firstIndentation) {
+                     sameIndentation.add(current);
+-                } else if (current.indentation() < first.indentation()) {
++                } else if (current.indentation() < firstIndentation) {
+                     break;
+                 }
+             }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/WellIndented.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/WellIndented.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/WellIndented.java	2024-09-08 01:36:09.401775585 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/WellIndented.java	2024-09-08 01:36:09.373775390 +1000
+@@ -63,7 +63,7 @@
+  * </pre>
+  *
+  * @author Mihai Andronache (amihaiemil@gmail.com)
+- * @version $Id: 899e783590dd159f3a0366f012e1b0c68f03fe79 $
++ * @version $Id: 6a5fad304d6f6557c0576d9e3cfafee05548ff00 $
+  * @since 3.1.2
+  *
+  */
+@@ -102,7 +102,7 @@
+                 YamlLine line = iterator.next();
+                 if(!(previous instanceof YamlLine.NullYamlLine)) {
+                     int prevIndent = previous.indentation();
+-                    if(previous.trimmed().matches("^[ ]*\\-.*\\:$")) {
++                    if(previous.trimmed().matches("^[ ]*\\-.*\\:.*$")) {
+                         prevIndent += 2;
+                     }
+                     int lineIndent = line.indentation();
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/amihaiemil/eoyaml/ReadYamlSequenceTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/amihaiemil/eoyaml/ReadYamlSequenceTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/amihaiemil/eoyaml/ReadYamlSequenceTest.java	2024-09-08 01:36:09.409775642 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/amihaiemil/eoyaml/ReadYamlSequenceTest.java	2024-09-08 01:36:09.377775418 +1000
+@@ -40,7 +40,7 @@
+ /**
+  * Unit tests for {@link ReadYamlSequence}.
+  * @author Mihai Andronache (amihaiemil@gmail.com)
+- * @version $Id: 0651f548ed5a60122182a2af4b2bda5194dcbff3 $
++ * @version $Id: 140c3e2b0aff4832f482d7022ea88cda88111772 $
+  * @since 1.0.0
+  *
+  */
+@@ -48,6 +48,7 @@
+ 
+     /**
+      * ReadYamlSequence can return the YamlMapping from a given index.
++     * The YamlMapping starts after the dash line.
+      */
+     @Test
+     public void returnsYamlMappingFromIndex(){
+@@ -71,6 +72,66 @@
+         );
+     }
+ 
++    /**
++     * ReadYamlSequence can return the YamlMapping which starts right
++     * at the dash line. The YamlMapping has a scalar key and another mapping
++     * as value of this key.
++     */
++    @Test
++    public void returnsYamlMappingWithMappingValueStartingAtDash(){
++        final List<YamlLine> lines = new ArrayList<>();
++        lines.add(new RtYamlLine("- scalar0", 0));
++        lines.add(new RtYamlLine("- scalar1", 1));
++        lines.add(new RtYamlLine("- alfa:", 2));
++        lines.add(new RtYamlLine("    key: value", 3));
++        lines.add(new RtYamlLine("    key2: value2", 4));
++        lines.add(new RtYamlLine("- scalar2", 1));
++        final YamlSequence sequence = new ReadYamlSequence(
++            new AllYamlLines(lines)
++        );
++        System.out.println(sequence);
++        final YamlMapping alfa = sequence.yamlMapping(2);
++        MatcherAssert.assertThat(alfa, Matchers.notNullValue());
++        MatcherAssert.assertThat(alfa, Matchers.instanceOf(YamlMapping.class));
++        MatcherAssert.assertThat(
++            alfa.yamlMapping("alfa").string("key"), Matchers.equalTo("value")
++        );
++        MatcherAssert.assertThat(
++            alfa.yamlMapping("alfa").string("key2"), Matchers.equalTo("value2")
++        );
++    }
++
++    /**
++     * ReadYamlSequence can return the YamlMapping which starts right
++     * at the dash line.
++     */
++    @Test
++    public void returnsYamlMappingWithScalarValuesStartingAtDash(){
++        final List<YamlLine> lines = new ArrayList<>();
++        lines.add(new RtYamlLine("- scalar0", 0));
++        lines.add(new RtYamlLine("- scalar1", 1));
++        lines.add(new RtYamlLine("- alfa: beta", 2));
++        lines.add(new RtYamlLine("  teta: gama", 3));
++        lines.add(new RtYamlLine("  omega: value", 4));
++        lines.add(new RtYamlLine("- scalar2", 1));
++        final YamlSequence sequence = new ReadYamlSequence(
++                new AllYamlLines(lines)
++        );
++        System.out.println(sequence);
++        final YamlMapping dashMap = sequence.yamlMapping(2);
++        MatcherAssert.assertThat(dashMap, Matchers.notNullValue());
++        MatcherAssert.assertThat(dashMap, Matchers.instanceOf(YamlMapping.class));
++        MatcherAssert.assertThat(
++            dashMap.string("alfa"), Matchers.equalTo("beta")
++        );
++        MatcherAssert.assertThat(
++            dashMap.string("teta"), Matchers.equalTo("gama")
++        );
++        MatcherAssert.assertThat(
++            dashMap.string("omega"), Matchers.equalTo("value")
++        );
++    }
++
+     /**
+      * ReadYamlSequence can return the YamlSequence from a given index.
+      */

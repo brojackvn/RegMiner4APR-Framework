@@ -1,0 +1,624 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/backbones/BackboneGeneration.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/backbones/BackboneGeneration.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/backbones/BackboneGeneration.java	2024-09-08 01:36:07.729763876 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/backbones/BackboneGeneration.java	2024-09-08 01:36:07.637763232 +1000
+@@ -61,8 +61,8 @@
+      * @param formulas  the given collection of formulas
+      * @param variables the given collection of relevant variables for the backbone computation
+      * @param type      the type of backbone variables that should be computed
+-     * @param handler   the handler
+-     * @return the backbone or {@code null} if the formula is UNSAT
++     * @param handler   an optional handler for the backbone computation's SAT solver
++     * @return the backbone or {@code null} if the formula is UNSAT or the computation was aborted by the handler
+      */
+     public static Backbone compute(final Collection<Formula> formulas, final Collection<Variable> variables, final BackboneType type, final SATHandler handler) {
+         if (formulas == null || formulas.isEmpty()) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/explanations/mus/MUSAlgorithm.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/explanations/mus/MUSAlgorithm.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/explanations/mus/MUSAlgorithm.java	2024-09-08 01:36:07.729763876 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/explanations/mus/MUSAlgorithm.java	2024-09-08 01:36:07.641763260 +1000
+@@ -36,7 +36,7 @@
+ 
+ /**
+  * Abstract super class for MUS computation algorithms.
+- * @version 1.3
++ * @version 2.1.0
+  * @since 1.1
+  */
+ abstract class MUSAlgorithm {
+@@ -47,8 +47,7 @@
+      * @param f            the formula factory
+      * @param config       the MUS configuration
+      * @param <T>          the type of the MUSes propositions
+-     * @return the MUS
++     * @return the MUS or null if the MUS computation was configured with a handler and this handler aborted the computation
+      */
+-    public abstract <T extends Proposition> UNSATCore<T> computeMUS(final List<T> propositions, final FormulaFactory f,
+-                                                                    final MUSConfig config);
++    public abstract <T extends Proposition> UNSATCore<T> computeMUS(final List<T> propositions, final FormulaFactory f, final MUSConfig config);
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/explanations/smus/SmusComputation.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/explanations/smus/SmusComputation.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/explanations/smus/SmusComputation.java	2024-09-08 01:36:07.729763876 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/explanations/smus/SmusComputation.java	2024-09-08 01:36:07.641763260 +1000
+@@ -80,7 +80,7 @@
+      * @param propositions          the propositions
+      * @param additionalConstraints the additional constraints
+      * @param f                     the formula factory
+-     * @return the SMUS or {@code null} if the given propositions are satisfiable
++     * @return the SMUS or {@code null} if the given propositions are satisfiable or the handler aborted the computation
+      */
+     public static <P extends Proposition> List<P> computeSmus(final List<P> propositions, final List<Formula> additionalConstraints, final FormulaFactory f) {
+         return computeSmus(propositions, additionalConstraints, f, null);
+@@ -96,7 +96,7 @@
+      * @param additionalConstraints the additional constraints
+      * @param f                     the formula factory
+      * @param handler               the handler, can be {@code null}
+-     * @return the SMUS or {@code null} if the given propositions are satisfiable
++     * @return the SMUS or {@code null} if the given propositions are satisfiable or the handler aborted the computation
+      */
+     public static <P extends Proposition> List<P> computeSmus(final List<P> propositions, final List<Formula> additionalConstraints, final FormulaFactory f,
+                                                               final OptimizationHandler handler) {
+@@ -110,16 +110,13 @@
+             growSolver.add(f.equivalence(selector, proposition.formula()));
+         }
+         final boolean sat = growSolver.sat(satHandler(handler), propositionMapping.keySet()) == Tristate.TRUE;
+-        if (aborted(handler)) {
++        if (sat || aborted(handler)) {
+             return null;
+         }
+-        if (sat) {
+-            throw new IllegalArgumentException("Cannot compute a smallest MUS for a satisfiable formula set.");
+-        }
+         final SATSolver hSolver = MiniSat.miniSat(f);
+         while (true) {
+             final SortedSet<Variable> h = minimumHs(hSolver, propositionMapping.keySet(), handler);
+-            if (aborted(handler)) {
++            if (h == null || aborted(handler)) {
+                 return null;
+             }
+             final SortedSet<Variable> c = grow(growSolver, h, propositionMapping.keySet(), handler);
+@@ -138,7 +135,7 @@
+      * @param formulas              the formulas
+      * @param additionalConstraints the additional constraints
+      * @param f                     the formula factory
+-     * @return the SMUS or {@code null} if the given formulas are satisfiable
++     * @return the SMUS or {@code null} if the given propositions are satisfiable or the handler aborted the computation
+      */
+     public static List<Formula> computeSmusForFormulas(final List<Formula> formulas, final List<Formula> additionalConstraints, final FormulaFactory f) {
+         return computeSmusForFormulas(formulas, additionalConstraints, f, null);
+@@ -150,7 +147,7 @@
+      * @param additionalConstraints the additional constraints
+      * @param f                     the formula factory
+      * @param handler               the SMUS handler, can be {@code null}
+-     * @return the SMUS or {@code null} if the given formulas are satisfiable
++     * @return the SMUS or {@code null} if the given propositions are satisfiable or the handler aborted the computation
+      */
+     public static List<Formula> computeSmusForFormulas(final List<Formula> formulas, final List<Formula> additionalConstraints, final FormulaFactory f,
+                                                        final OptimizationHandler handler) {
+@@ -180,7 +177,7 @@
+             final List<Variable> maximumSatisfiableSet = maxModel.positiveVariables();
+             growSolver.loadState(solverState);
+             final SortedSet<Variable> minimumCorrectionSet = new TreeSet<>(variables);
+-            minimumCorrectionSet.removeAll(maximumSatisfiableSet);
++            maximumSatisfiableSet.forEach(minimumCorrectionSet::remove);
+             return minimumCorrectionSet;
+         }
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/handlers/BDDHandler.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/handlers/BDDHandler.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/handlers/BDDHandler.java	2024-09-08 01:36:07.733763904 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/handlers/BDDHandler.java	2024-09-08 01:36:07.641763260 +1000
+@@ -36,7 +36,8 @@
+ public interface BDDHandler extends Handler {
+ 
+     /**
+-     * This method is called every a new reference is added, i.e the method {@link org.logicng.knowledgecompilation.bdds.jbuddy.BDDKernel#addRef(int, BDDHandler)} is called.
++     * This method is called every a new reference is added, i.e the method
++     * {@link org.logicng.knowledgecompilation.bdds.jbuddy.BDDKernel#addRef(int, BDDHandler)} is called.
+      * @return {@code true} if the BDD generation should be continued, otherwise {@code false}
+      */
+     default boolean newRefAdded() {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/handlers/ComputationHandler.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/handlers/ComputationHandler.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/handlers/ComputationHandler.java	2024-09-08 01:36:07.733763904 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/handlers/ComputationHandler.java	2024-09-08 01:36:07.641763260 +1000
+@@ -30,7 +30,7 @@
+ 
+ /**
+  * A computation handler.
+- * @version 2.1.0
++ * @version 1.6.2
+  * @since 1.6.2
+  */
+ public abstract class ComputationHandler implements Handler {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/handlers/NumberOfModelsHandler.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/handlers/NumberOfModelsHandler.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/handlers/NumberOfModelsHandler.java	2024-09-08 01:36:07.733763904 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/handlers/NumberOfModelsHandler.java	2024-09-08 01:36:07.641763260 +1000
+@@ -35,7 +35,7 @@
+  * @version 2.1.0
+  * @since 1.0
+  */
+-public final class NumberOfModelsHandler extends ComputationHandler implements ModelEnumerationHandler {
++public class NumberOfModelsHandler extends ComputationHandler implements ModelEnumerationHandler {
+ 
+     private final int bound;
+     private int count;
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/handlers/NumberOfNodesBDDHandler.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/handlers/NumberOfNodesBDDHandler.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/handlers/NumberOfNodesBDDHandler.java	2024-09-08 01:36:07.733763904 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/handlers/NumberOfNodesBDDHandler.java	2024-09-08 01:36:07.641763260 +1000
+@@ -33,7 +33,7 @@
+  * @version 1.6.2
+  * @since 1.6.2
+  */
+-public final class NumberOfNodesBDDHandler extends ComputationHandler implements BDDHandler {
++public class NumberOfNodesBDDHandler extends ComputationHandler implements BDDHandler {
+ 
+     private final int bound;
+     private int count;
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/handlers/TimeoutBDDHandler.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/handlers/TimeoutBDDHandler.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/handlers/TimeoutBDDHandler.java	2024-09-08 01:36:07.733763904 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/handlers/TimeoutBDDHandler.java	2024-09-08 01:36:07.641763260 +1000
+@@ -38,14 +38,15 @@
+     /**
+      * Constructs a new timeout handler with a given timeout and a timeout type. The interpretation of the timeout depends on the timeout type:
+      * <ul>
+-     *     <li>{@link TimerType#SINGLE_TIMEOUT}: The timeout is started when {@link Handler#started()} is called. Further calls to {@link Handler#started()} have no effect on
+-     *     the timeout. Thus, the timeout can only be started once.</li>
++     *     <li>{@link TimerType#SINGLE_TIMEOUT}: The timeout is started when {@link Handler#started()} is called.
++     *     Further calls to {@link Handler#started()} have no effect on the timeout.  Thus, the timeout can only be started once.</li>
+      *     <li>{@link TimerType#RESTARTING_TIMEOUT}: The timeout is restarted when {@link Handler#started()} is called.</li>
+-     *     <li>{@link TimerType#FIXED_END}: Timeout which is interpreted as fixed point in time (in milliseconds) at which the computation should be aborted. The method
+-     *     {@link Handler#started()} must still be called, but does not have an effect on the timeout.</li>
++     *     <li>{@link TimerType#FIXED_END}: Timeout which is interpreted as fixed point in time (in milliseconds)
++     *     at which the computation should be aborted. The method {@link Handler#started()} must still be called,
++     *     but does not have an effect on the timeout.</li>
+      * </ul>
+-     * Note that it might take a few milliseconds more until the build process is actually canceled, since the handler depends on the BDD factory's call to
+-     * {@link org.logicng.knowledgecompilation.bdds.jbuddy.BDDKernel#addRef(int, BDDHandler)}.
++     * Note that it might take a few milliseconds more until the build process is actually canceled, since the
++     * handler depends on the BDD factory's call to {@link org.logicng.knowledgecompilation.bdds.jbuddy.BDDKernel#addRef(int, BDDHandler)}.
+      * @param timeout the timeout in milliseconds, its meaning is defined by the timeout type
+      * @param type    the type of the timer, must not be {@code null}
+      */
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/handlers/TimeoutHandler.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/handlers/TimeoutHandler.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/handlers/TimeoutHandler.java	2024-09-08 01:36:07.733763904 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/handlers/TimeoutHandler.java	2024-09-08 01:36:07.641763260 +1000
+@@ -40,13 +40,15 @@
+     protected long designatedEnd;
+ 
+     /**
+-     * Constructs a new abstract timeout handler with a given timeout and a timeout type. The interpretation of the timeout depends on the timeout type:
++     * Constructs a new abstract timeout handler with a given timeout and a timeout type.
++     * The interpretation of the timeout depends on the timeout type:
+      * <ul>
+-     *     <li>{@link TimerType#SINGLE_TIMEOUT}: The timeout is started when {@link Handler#started()} is called. Further calls to {@link Handler#started()} have no effect on
+-     *     the timeout. Thus, the timeout can only be started once.</li>
++     *     <li>{@link TimerType#SINGLE_TIMEOUT}: The timeout is started when {@link Handler#started()} is called.
++     *     Further calls to {@link Handler#started()} have no effect on the timeout. Thus, the timeout can only be started once.</li>
+      *     <li>{@link TimerType#RESTARTING_TIMEOUT}: The timeout is restarted when {@link Handler#started()} is called.</li>
+-     *     <li>{@link TimerType#FIXED_END}: Timeout which is interpreted as fixed point in time (in milliseconds) at which the computation should be aborted. The method
+-     *     {@link Handler#started()} must still be called, but does not have an effect on the timeout.</li>
++     *     <li>{@link TimerType#FIXED_END}: Timeout which is interpreted as fixed point in time (in milliseconds)
++     *     at which the computation should be aborted. The method {@link Handler#started()} must still be called,
++     *     but does not have an effect on the timeout.</li>
+      * </ul>
+      * Note that it might take a few milliseconds more until the computation is actually canceled, since the cancellation depends on the next call to the handler.
+      * @param timeout the timeout in milliseconds, its meaning is defined by the timeout type
+@@ -59,8 +61,9 @@
+     }
+ 
+     /**
+-     * Constructs a new abstract timeout handler with a given timeout and uses the timeout type {@link TimerType#SINGLE_TIMEOUT}.
+-     * Thus, the timeout is started when {@link Handler#started()} is called and further calls to {@link Handler#started()} have no effect on the timeout.
++     * Constructs a new abstract timeout handler with a given timeout and uses the
++     * timeout type {@link TimerType#SINGLE_TIMEOUT}.  Thus, the timeout is started when {@link Handler#started()}
++     * is called and further calls to {@link Handler#started()} have no effect on the timeout.
+      * @param timeout the timeout in milliseconds
+      */
+     public TimeoutHandler(final long timeout) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/handlers/TimeoutMaxSATHandler.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/handlers/TimeoutMaxSATHandler.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/handlers/TimeoutMaxSATHandler.java	2024-09-08 01:36:07.733763904 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/handlers/TimeoutMaxSATHandler.java	2024-09-08 01:36:07.641763260 +1000
+@@ -42,16 +42,18 @@
+     private int currentUb;
+ 
+     /**
+-     * Constructs a new timeout handler with a given timeout and a timeout type. The interpretation of the timeout depends on the timeout type:
++     * Constructs a new timeout handler with a given timeout and a timeout type.
++     * The interpretation of the timeout depends on the timeout type:
+      * <ul>
+-     *     <li>{@link TimerType#SINGLE_TIMEOUT}: The timeout is started when {@link Handler#started()} is called. Further calls to {@link Handler#started()} have no effect on
+-     *     the timeout. Thus, the timeout can only be started once.</li>
++     *     <li>{@link TimerType#SINGLE_TIMEOUT}: The timeout is started when {@link Handler#started()} is called.
++     *     Further calls to {@link Handler#started()} have no effect on the timeout. Thus, the timeout can only be started once.</li>
+      *     <li>{@link TimerType#RESTARTING_TIMEOUT}: The timeout is restarted when {@link Handler#started()} is called.</li>
+-     *     <li>{@link TimerType#FIXED_END}: Timeout which is interpreted as fixed point in time (in milliseconds) at which the computation should be aborted. The method
+-     *     {@link Handler#started()} must still be called, but does not have an effect on the timeout.</li>
++     *     <li>{@link TimerType#FIXED_END}: Timeout which is interpreted as fixed point in time (in milliseconds)
++     *     at which the computation should be aborted. The method {@link Handler#started()} must still be called,
++     *     but does not have an effect on the timeout.</li>
+      * </ul>
+-     * Note that it might take a few milliseconds more until the solver is actually canceled, since the handler depends on the solvers call to {@code foundApproximation()} or
+-     * {@link SATHandler#detectedConflict()}.
++     * Note that it might take a few milliseconds more until the solver is actually canceled, since the handler depends
++     * on the solvers call to {@code foundApproximation()} or {@link SATHandler#detectedConflict()}.
+      * @param timeout the timeout in milliseconds, its meaning is defined by the timeout type
+      * @param type    the type of the timer, must not be {@code null}
+      */
+@@ -63,7 +65,8 @@
+ 
+     /**
+      * Constructs a new timeout handler with a given timeout and uses the timeout type {@link TimerType#SINGLE_TIMEOUT}.
+-     * Thus, the timeout is started when {@link Handler#started()} is called and further calls to {@link Handler#started()} have no effect on the timeout.
++     * Thus, the timeout is started when {@link Handler#started()} is called and
++     * further calls to {@link Handler#started()} have no effect on the timeout.
+      * @param timeout the timeout in milliseconds
+      */
+     public TimeoutMaxSATHandler(final long timeout) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/handlers/TimeoutModelEnumerationHandler.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/handlers/TimeoutModelEnumerationHandler.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/handlers/TimeoutModelEnumerationHandler.java	2024-09-08 01:36:07.733763904 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/handlers/TimeoutModelEnumerationHandler.java	2024-09-08 01:36:07.641763260 +1000
+@@ -40,16 +40,18 @@
+     private TimeoutSATHandler satHandler;
+ 
+     /**
+-     * Constructs a new timeout handler with a given timeout and a timeout type. The interpretation of the timeout depends on the timeout type:
++     * Constructs a new timeout handler with a given timeout and a timeout type.
++     * The interpretation of the timeout depends on the timeout type:
+      * <ul>
+-     *     <li>{@link TimerType#SINGLE_TIMEOUT}: The timeout is started when {@link Handler#started()} is called. Further calls to {@link Handler#started()} have no effect on
+-     *     the timeout. Thus, the timeout can only be started once.</li>
++     *     <li>{@link TimerType#SINGLE_TIMEOUT}: The timeout is started when {@link Handler#started()} is called.
++     *     Further calls to {@link Handler#started()} have no effect on the timeout. Thus, the timeout can only be started once.</li>
+      *     <li>{@link TimerType#RESTARTING_TIMEOUT}: The timeout is restarted when {@link Handler#started()} is called.</li>
+-     *     <li>{@link TimerType#FIXED_END}: Timeout which is interpreted as fixed point in time (in milliseconds) at which the computation should be aborted. The method
+-     *     {@link Handler#started()} must still be called, but does not have an effect on the timeout.</li>
++     *     <li>{@link TimerType#FIXED_END}: Timeout which is interpreted as fixed point in time (in milliseconds)
++     *     at which the computation should be aborted. The method {@link Handler#started()} must still be called,
++     *     but does not have an effect on the timeout.</li>
+      * </ul>
+-     * Note that it might take a few milliseconds more until the computation is actually canceled, since the handler depends on the next found model.
+-     * {@link SATHandler#detectedConflict()}.
++     * Note that it might take a few milliseconds more until the computation is actually canceled,
++     * since the handler depends on the next found model.
+      * @param timeout the timeout in milliseconds, its meaning is defined by the timeout type
+      * @param type    the type of the timer, must not be {@code null}
+      */
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/handlers/TimeoutOptimizationHandler.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/handlers/TimeoutOptimizationHandler.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/handlers/TimeoutOptimizationHandler.java	2024-09-08 01:36:07.733763904 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/handlers/TimeoutOptimizationHandler.java	2024-09-08 01:36:07.641763260 +1000
+@@ -43,16 +43,18 @@
+     private Supplier<Assignment> lastModelProvider;
+ 
+     /**
+-     * Constructs a new timeout handler with a given timeout and a timeout type. The interpretation of the timeout depends on the timeout type:
++     * Constructs a new timeout handler with a given timeout and a timeout type.
++     * The interpretation of the timeout depends on the timeout type:
+      * <ul>
+-     *     <li>{@link TimerType#SINGLE_TIMEOUT}: The timeout is started when {@link Handler#started()} is called. Further calls to {@link Handler#started()} have no effect on
+-     *     the timeout. Thus, the timeout can only be started once.</li>
++     *     <li>{@link TimerType#SINGLE_TIMEOUT}: The timeout is started when {@link Handler#started()} is called.
++     *     Further calls to {@link Handler#started()} have no effect on the timeout. Thus, the timeout can only be started once.</li>
+      *     <li>{@link TimerType#RESTARTING_TIMEOUT}: The timeout is restarted when {@link Handler#started()} is called.</li>
+-     *     <li>{@link TimerType#FIXED_END}: Timeout which is interpreted as fixed point in time (in milliseconds) at which the computation should be aborted. The method
+-     *     {@link Handler#started()} must still be called, but does not have an effect on the timeout.</li>
++     *     <li>{@link TimerType#FIXED_END}: Timeout which is interpreted as fixed point in time (in milliseconds)
++     *     at which the computation should be aborted. The method {@link Handler#started()} must still be called,
++     *     but does not have an effect on the timeout.</li>
+      * </ul>
+-     * Note that it might take a few milliseconds more until the computation is actually canceled, since the handler depends on the next found model.
+-     * {@link SATHandler#detectedConflict()}.
++     * Note that it might take a few milliseconds more until the computation is actually canceled, since the handler
++     * depends on the next found model.
+      * @param timeout the timeout in milliseconds, its meaning is defined by the timeout type
+      * @param type    the type of the timer, must not be {@code null}
+      */
+@@ -62,7 +64,8 @@
+ 
+     /**
+      * Constructs a new timeout handler with a given timeout and uses the timeout type {@link TimerType#SINGLE_TIMEOUT}.
+-     * Thus, the timeout is started when {@link Handler#started()} is called and further calls to {@link Handler#started()} have no effect on the timeout.
++     * Thus, the timeout is started when {@link Handler#started()} is called and further
++     * calls to {@link Handler#started()} have no effect on the timeout.
+      * @param timeout the timeout in milliseconds
+      */
+     public TimeoutOptimizationHandler(final long timeout) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/handlers/TimeoutSATHandler.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/handlers/TimeoutSATHandler.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/handlers/TimeoutSATHandler.java	2024-09-08 01:36:07.733763904 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/handlers/TimeoutSATHandler.java	2024-09-08 01:36:07.641763260 +1000
+@@ -36,16 +36,18 @@
+ public class TimeoutSATHandler extends TimeoutHandler implements SATHandler {
+ 
+     /**
+-     * Constructs a new timeout handler with a given timeout and a timeout type. The interpretation of the timeout depends on the timeout type:
++     * Constructs a new timeout handler with a given timeout and a timeout type.
++     * The interpretation of the timeout depends on the timeout type:
+      * <ul>
+-     *     <li>{@link TimerType#SINGLE_TIMEOUT}: The timeout is started when {@link Handler#started()} is called. Further calls to {@link Handler#started()} have no effect on
+-     *     the timeout. Thus, the timeout can only be started once.</li>
++     *     <li>{@link TimerType#SINGLE_TIMEOUT}: The timeout is started when {@link Handler#started()} is called.
++     *     Further calls to {@link Handler#started()} have no effect on the timeout. Thus, the timeout can only be started once.</li>
+      *     <li>{@link TimerType#RESTARTING_TIMEOUT}: The timeout is restarted when {@link Handler#started()} is called.</li>
+-     *     <li>{@link TimerType#FIXED_END}: Timeout which is interpreted as fixed point in time (in milliseconds) at which the computation should be aborted. The method
+-     *     {@link Handler#started()} must still be called, but does not have an effect on the timeout.</li>
++     *     <li>{@link TimerType#FIXED_END}: Timeout which is interpreted as fixed point in time (in milliseconds)
++     *     at which the computation should be aborted. The method {@link Handler#started()} must still be called,
++     *     but does not have an effect on the timeout.</li>
+      * </ul>
+-     * Note that it might take a few milliseconds more until the sat solver is actually canceled, since the handler depends on the solvers call to {@code detectedConflict()}.
+-     * {@link SATHandler#detectedConflict()}.
++     * Note that it might take a few milliseconds more until the sat solver is actually canceled, since the handler
++     * depends on the solvers call to {@link SATHandler#detectedConflict()}.
+      * @param timeout the timeout in milliseconds, its meaning is defined by the timeout type
+      * @param type    the type of the timer, must not be {@code null}
+      */
+@@ -55,7 +57,8 @@
+ 
+     /**
+      * Constructs a new timeout handler with a given timeout and uses the timeout type {@link TimerType#SINGLE_TIMEOUT}.
+-     * Thus, the timeout is started when {@link Handler#started()} is called and further calls to {@link Handler#started()} have no effect on the timeout.
++     * Thus, the timeout is started when {@link Handler#started()} is called and further
++     * calls to {@link Handler#started()} have no effect on the timeout.
+      * @param timeout the timeout in milliseconds
+      */
+     public TimeoutSATHandler(final long timeout) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/primecomputation/NaivePrimeReduction.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/primecomputation/NaivePrimeReduction.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/primecomputation/NaivePrimeReduction.java	2024-09-08 01:36:07.733763904 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/primecomputation/NaivePrimeReduction.java	2024-09-08 01:36:07.645763288 +1000
+@@ -85,8 +85,8 @@
+      * Computes a prime implicant from the given implicant for the given formula.
+      * Assumption: Given implicant is a satisfying assignment for the formula
+      * @param implicant the implicant
+-     * @param handler   the SAT handler
+-     * @return a prime implicant
++     * @param handler   a SAT handler for the underlying SAT Solver
++     * @return a prime implicant or null if the computation was aborted by the handler
+      */
+     public SortedSet<Literal> reduceImplicant(final SortedSet<Literal> implicant, final SATHandler handler) {
+         start(handler);
+@@ -120,8 +120,8 @@
+      * Assumption: Given implicate is a falsifying assignment for the formula, i.e. a satisfying assignment for the
+      * negated formula
+      * @param implicate the implicate
+-     * @param handler   the SAT handler
+-     * @return a prime implicate
++     * @param handler   a SAT handler for the underlying SAT Solver
++     * @return a prime implicate of null if the computation was aborted by the handler
+      */
+     public SortedSet<Literal> reduceImplicate(final SortedSet<Literal> implicate, final SATHandler handler) {
+         start(handler);
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/primecomputation/PrimeCompiler.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/primecomputation/PrimeCompiler.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/primecomputation/PrimeCompiler.java	2024-09-08 01:36:07.733763904 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/primecomputation/PrimeCompiler.java	2024-09-08 01:36:07.645763288 +1000
+@@ -118,19 +118,21 @@
+      * The coverage type specifies if the implicants or the implicates will
+      * be complete, the other one will still be a cover of the given formula.
+      * <p>
+-     * The prime compiler can be called with an {@link OptimizationHandler}. The given handler instance will be used for every subsequent
+-     * {@link org.logicng.solvers.functions.OptimizationFunction} call and the handler's SAT handler is used for every subsequent SAT call.
++     * The prime compiler can be called with an {@link OptimizationHandler}.
++     * The given handler instance will be used for every subsequent
++     * {@link org.logicng.solvers.functions.OptimizationFunction} call and
++     * the handler's SAT handler is used for every subsequent SAT call.
+      * @param formula the formula
+      * @param type    the coverage type
+-     * @param handler the handler, can be {@code null}
+-     * @return the prime result
++     * @param handler an optimization handler, can be {@code null}
++     * @return the prime result or null if the computation was aborted by the handler
+      */
+     public PrimeResult compute(final Formula formula, final PrimeResult.CoverageType type, final OptimizationHandler handler) {
+         start(handler);
+         final boolean completeImplicants = type == PrimeResult.CoverageType.IMPLICANTS_COMPLETE;
+         final Formula formulaForComputation = completeImplicants ? formula : formula.negate();
+         final Pair<List<SortedSet<Literal>>, List<SortedSet<Literal>>> result = computeGeneric(formulaForComputation, handler);
+-        if (aborted(handler)) {
++        if (result == null || aborted(handler)) {
+             return null;
+         }
+         return new PrimeResult(
+@@ -166,7 +168,7 @@
+             }
+             if (fSat == Tristate.FALSE) {
+                 final SortedSet<Literal> primeImplicant = this.computeWithMaximization ? primeReduction.reduceImplicant(fModel.literals(), satHandler(handler)) : fModel.literals();
+-                if (aborted(handler)) {
++                if (primeImplicant == null || aborted(handler)) {
+                     return null;
+                 }
+                 primeImplicants.add(primeImplicant);
+@@ -181,7 +183,7 @@
+                     implicate.add(lit.negate());
+                 }
+                 final SortedSet<Literal> primeImplicate = primeReduction.reduceImplicate(implicate, satHandler(handler));
+-                if (aborted(handler)) {
++                if (primeImplicate == null || aborted(handler)) {
+                     return null;
+                 }
+                 primeImplicates.add(primeImplicate);
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/functions/ModelEnumerationFunction.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/functions/ModelEnumerationFunction.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/functions/ModelEnumerationFunction.java	2024-09-08 01:36:07.733763904 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/functions/ModelEnumerationFunction.java	2024-09-08 01:36:07.645763288 +1000
+@@ -56,7 +56,7 @@
+  * A solver function for enumerating models on the solver.
+  * <p>
+  * Model enumeration functions are instantiated via their builder {@link #builder()}.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 2.0.0
+  */
+ public final class ModelEnumerationFunction implements SolverFunction<List<Assignment>> {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/maxsat/algorithms/IncWBO.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/maxsat/algorithms/IncWBO.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/maxsat/algorithms/IncWBO.java	2024-09-08 01:36:07.733763904 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/maxsat/algorithms/IncWBO.java	2024-09-08 01:36:07.645763288 +1000
+@@ -72,7 +72,7 @@
+ 
+ /**
+  * Incremental WBO solver.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 1.0
+  */
+ public class IncWBO extends WBO {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/maxsat/algorithms/LinearSU.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/maxsat/algorithms/LinearSU.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/maxsat/algorithms/LinearSU.java	2024-09-08 01:36:07.733763904 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/maxsat/algorithms/LinearSU.java	2024-09-08 01:36:07.645763288 +1000
+@@ -66,7 +66,7 @@
+ 
+ /**
+  * Linear search solver with Boolean Multilevel Optimization (BMO)
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 1.0
+  */
+ public class LinearSU extends MaxSAT {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/maxsat/algorithms/LinearUS.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/maxsat/algorithms/LinearUS.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/maxsat/algorithms/LinearUS.java	2024-09-08 01:36:07.733763904 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/maxsat/algorithms/LinearUS.java	2024-09-08 01:36:07.645763288 +1000
+@@ -62,7 +62,7 @@
+ 
+ /**
+  * Linear search solver.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 1.0
+  */
+ public class LinearUS extends MaxSAT {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/maxsat/algorithms/MSU3.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/maxsat/algorithms/MSU3.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/maxsat/algorithms/MSU3.java	2024-09-08 01:36:07.733763904 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/maxsat/algorithms/MSU3.java	2024-09-08 01:36:07.645763288 +1000
+@@ -68,7 +68,7 @@
+ 
+ /**
+  * Non-incremental MSU3 solver.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 1.0
+  */
+ public class MSU3 extends MaxSAT {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/maxsat/algorithms/WBO.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/maxsat/algorithms/WBO.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/maxsat/algorithms/WBO.java	2024-09-08 01:36:07.733763904 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/maxsat/algorithms/WBO.java	2024-09-08 01:36:07.649763316 +1000
+@@ -75,7 +75,7 @@
+ 
+ /**
+  * Weighted Boolean Optimization solver.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 1.0
+  */
+ public class WBO extends MaxSAT {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/maxsat/algorithms/WMSU3.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/maxsat/algorithms/WMSU3.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/maxsat/algorithms/WMSU3.java	2024-09-08 01:36:07.733763904 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/maxsat/algorithms/WMSU3.java	2024-09-08 01:36:07.649763316 +1000
+@@ -70,7 +70,7 @@
+ 
+ /**
+  * The weighted MSU3 algorithm.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 1.0
+  */
+ public class WMSU3 extends MaxSAT {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/MaxSATSolver.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/MaxSATSolver.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/MaxSATSolver.java	2024-09-08 01:36:07.733763904 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/MaxSATSolver.java	2024-09-08 01:36:07.645763288 +1000
+@@ -53,7 +53,7 @@
+ 
+ /**
+  * A wrapper for the OpenWBO solver.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 1.0
+  */
+ public class MaxSATSolver {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/sat/GlucoseSyrup.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/sat/GlucoseSyrup.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/sat/GlucoseSyrup.java	2024-09-08 01:36:07.737763932 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/sat/GlucoseSyrup.java	2024-09-08 01:36:07.649763316 +1000
+@@ -94,7 +94,7 @@
+ 
+ /**
+  * Glucose 4.0 solver.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 1.0
+  */
+ public class GlucoseSyrup extends MiniSatStyleSolver {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/sat/MiniCard.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/sat/MiniCard.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/sat/MiniCard.java	2024-09-08 01:36:07.737763932 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/sat/MiniCard.java	2024-09-08 01:36:07.649763316 +1000
+@@ -65,7 +65,7 @@
+ 
+ /**
+  * A cardinality solver based on MiniCard.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 1.0
+  */
+ public class MiniCard extends MiniSatStyleSolver {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/sat/MiniSat2Solver.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/sat/MiniSat2Solver.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/solvers/sat/MiniSat2Solver.java	2024-09-08 01:36:07.737763932 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/solvers/sat/MiniSat2Solver.java	2024-09-08 01:36:07.649763316 +1000
+@@ -65,7 +65,7 @@
+  * Therefore clause deletion and simplifications are deactivated in this mode.  This mode is most efficient on small
+  * to mid-size industrial formulas (up to 50,000 variables, 100,000 clauses).  Whenever you have lots of small formulas
+  * to solve or need the ability to add and delete formulas from the solver, we recommend to consider this mode.
+- * @version 2.0.0
++ * @version 2.1.0
+  * @since 1.0
+  */
+ public class MiniSat2Solver extends MiniSatStyleSolver {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/transformations/cnf/CNFFactorization.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/transformations/cnf/CNFFactorization.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/transformations/cnf/CNFFactorization.java	2024-09-08 01:36:07.737763932 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/transformations/cnf/CNFFactorization.java	2024-09-08 01:36:07.649763316 +1000
+@@ -43,7 +43,7 @@
+ 
+ /**
+  * Transformation of a formula in CNF by factorization.
+- * @version 1.1
++ * @version 2.1.0
+  * @since 1.0
+  */
+ public final class CNFFactorization implements FormulaTransformation {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/transformations/dnf/DNFFactorization.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/transformations/dnf/DNFFactorization.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/transformations/dnf/DNFFactorization.java	2024-09-08 01:36:07.737763932 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/transformations/dnf/DNFFactorization.java	2024-09-08 01:36:07.649763316 +1000
+@@ -43,7 +43,7 @@
+ 
+ /**
+  * Transformation of a formula in DNF by factorization.
+- * @version 1.1
++ * @version 2.1.0
+  * @since 1.0
+  */
+ public final class DNFFactorization implements FormulaTransformation {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/transformations/simplification/AdvancedSimplifier.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/transformations/simplification/AdvancedSimplifier.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/logicng/transformations/simplification/AdvancedSimplifier.java	2024-09-08 01:36:07.737763932 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/logicng/transformations/simplification/AdvancedSimplifier.java	2024-09-08 01:36:07.649763316 +1000
+@@ -100,8 +100,8 @@
+     public Formula apply(final Formula formula, final boolean cache) {
+         start(this.handler);
+         final FormulaFactory f = formula.factory();
+-        final Backbone backbone = BackboneGeneration.compute(Collections.singletonList(formula), formula.variables(), BackboneType.POSITIVE_AND_NEGATIVE, satHandler(handler));
+-        if (aborted(handler)) {
++        final Backbone backbone = BackboneGeneration.compute(Collections.singletonList(formula), formula.variables(), BackboneType.POSITIVE_AND_NEGATIVE, satHandler(this.handler));
++        if (backbone == null || aborted(this.handler)) {
+             return null;
+         }
+         if (!backbone.isSat()) {
+@@ -109,17 +109,16 @@
+         }
+         final SortedSet<Literal> backboneLiterals = backbone.getCompleteBackbone();
+         final Formula restrictedFormula = formula.restrict(new Assignment(backboneLiterals));
+-        final PrimeResult primeResult = PrimeCompiler.getWithMinimization().compute(restrictedFormula, PrimeResult.CoverageType.IMPLICANTS_COMPLETE, handler);
+-        if (aborted(this.handler)) {
++        final PrimeResult primeResult = PrimeCompiler.getWithMinimization().compute(restrictedFormula, PrimeResult.CoverageType.IMPLICANTS_COMPLETE, this.handler);
++        if (primeResult == null || aborted(this.handler)) {
+             return null;
+         }
+         final List<SortedSet<Literal>> primeImplicants = primeResult.getPrimeImplicants();
+         final List<Formula> minimizedPIs = SmusComputation.computeSmusForFormulas(negateAllLiterals(primeImplicants, f),
+                 Collections.singletonList(restrictedFormula), f, this.handler);
+-        if (aborted(this.handler)) {
++        if (minimizedPIs == null || aborted(this.handler)) {
+             return null;
+         }
+-        assert minimizedPIs != null : "The conjunction of a satisfiable formula and its negated prime implications is always a contradiction";
+         final Formula minDnf = f.or(negateAllLiteralsInFormulas(minimizedPIs, f).stream().map(f::and).collect(Collectors.toList()));
+         final Formula fullFactor = minDnf.transform(new FactorOutSimplifier(this.ratingFunction));
+         return f.and(f.and(backboneLiterals), fullFactor).transform(new NegationSimplifier());

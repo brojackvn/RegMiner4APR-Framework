@@ -1,0 +1,32 @@
+diff -r -U 3 /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-99/WORKING/src/main/java/org/apache/commons/io/FileUtils.java /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-99/BIC/src/main/java/org/apache/commons/io/FileUtils.java
+--- /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-99/WORKING/src/main/java/org/apache/commons/io/FileUtils.java	2025-03-24 17:00:39.191759877 +1100
++++ /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-99/BIC/src/main/java/org/apache/commons/io/FileUtils.java	2025-03-24 17:00:36.539743358 +1100
+@@ -825,7 +835,7 @@
+      * @see #copyFileToDirectory(File, File, boolean)
+      * @since 2.8.0
+      */
+-    public static void copyFile(final File srcFile, final File destFile, final boolean preserveFileDate, final CopyOption... copyOptions) throws IOException {
++    public static void copyFile(final File srcFile, final File destFile, final boolean preserveFileDate, CopyOption... copyOptions) throws IOException {
+         Objects.requireNonNull(destFile, "destination");
+         checkFileExists(srcFile, "srcFile");
+         requireCanonicalPathsNotEquals(srcFile, destFile);
+@@ -834,10 +844,18 @@
+             checkFileExists(destFile, "destFile");
+             requireCanWrite(destFile, "destFile");
+         }
+
++        final boolean isSymLink = Files.isSymbolicLink(srcFile.toPath());
++        if (isSymLink && !Arrays.asList(copyOptions).contains(LinkOption.NOFOLLOW_LINKS)) {
++            final List<CopyOption> list = new ArrayList<CopyOption>(Arrays.asList(copyOptions));
++            list.add(LinkOption.NOFOLLOW_LINKS);
++            copyOptions = list.toArray(new CopyOption[0]);
++        }
+
+         Files.copy(srcFile.toPath(), destFile.toPath(), copyOptions);
+ 
+         // On Windows, the last modified time is copied by default.
+-        if (preserveFileDate && !setTimes(srcFile, destFile)) {
++        if (preserveFileDate && !isSymLink && !setTimes(srcFile, destFile)) {
+             throw new IOException("Cannot set the file time.");
+         }
+     }

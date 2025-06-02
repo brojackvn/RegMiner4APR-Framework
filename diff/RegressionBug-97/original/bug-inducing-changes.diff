@@ -1,0 +1,45 @@
+diff -r -U 3 /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/WORKING/src/main/java/io/github/classgraph/ClasspathElementDir.java /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BIC/src/main/java/io/github/classgraph/ClasspathElementDir.java
+--- /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/WORKING/src/main/java/io/github/classgraph/ClasspathElementDir.java	2025-03-24 17:00:04.655544776 +1100
++++ /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BIC/src/main/java/io/github/classgraph/ClasspathElementDir.java	2025-03-24 17:00:04.603544452 +1100
+@@ -420,6 +420,15 @@
+                     }
+                 }
+             }
++        } else if (scanSpec.enableClassInfo && dirRelativePath.equals("/")) {
++            // Always check for module descriptor in package root, even if package root isn't in whitelist
++            for (final File fileInDir : filesInDir) {
++                if (fileInDir.getName().equals("module-info.class") && fileInDir.isFile()) {
++                    final Resource resource = newResource(classpathEltDir, "module-info.class", fileInDir);
++                    addWhitelistedResource(resource, parentMatchStatus, subLog);
++                    fileToLastModified.put(fileInDir, fileInDir.lastModified());
++                }
++            }
+         }
+         // Recurse into subdirectories
+         for (final File fileInDir : filesInDir) {
+diff -r -U 3 /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/WORKING/src/main/java/io/github/classgraph/ClasspathElementModule.java /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BIC/src/main/java/io/github/classgraph/ClasspathElementModule.java
+--- /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/WORKING/src/main/java/io/github/classgraph/ClasspathElementModule.java	2025-03-24 17:00:04.655544776 +1100
++++ /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BIC/src/main/java/io/github/classgraph/ClasspathElementModule.java	2025-03-24 17:00:04.607544477 +1100
+@@ -345,7 +345,8 @@
+                 if (parentMatchStatus == ScanSpecPathMatch.HAS_WHITELISTED_PATH_PREFIX
+                         || parentMatchStatus == ScanSpecPathMatch.AT_WHITELISTED_PATH
+                         || (parentMatchStatus == ScanSpecPathMatch.AT_WHITELISTED_CLASS_PACKAGE
+-                                && scanSpec.classfileIsSpecificallyWhitelisted(relativePath))) {
++                                && scanSpec.classfileIsSpecificallyWhitelisted(relativePath))
++                        || (scanSpec.enableClassInfo && relativePath.equals("module-info.class"))) {
+                     // Add whitelisted resource
+                     final Resource resource = newResource(relativePath);
+                     addWhitelistedResource(resource, parentMatchStatus, subLog);
+diff -r -U 3 /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/WORKING/src/main/java/io/github/classgraph/ClasspathElementZip.java /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BIC/src/main/java/io/github/classgraph/ClasspathElementZip.java
+--- /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/WORKING/src/main/java/io/github/classgraph/ClasspathElementZip.java	2025-03-24 17:00:04.655544776 +1100
++++ /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BIC/src/main/java/io/github/classgraph/ClasspathElementZip.java	2025-03-24 17:00:04.603544452 +1100
+@@ -446,7 +446,8 @@
+             if (parentMatchStatus == ScanSpecPathMatch.HAS_WHITELISTED_PATH_PREFIX
+                     || parentMatchStatus == ScanSpecPathMatch.AT_WHITELISTED_PATH
+                     || (parentMatchStatus == ScanSpecPathMatch.AT_WHITELISTED_CLASS_PACKAGE
+-                            && scanSpec.classfileIsSpecificallyWhitelisted(relativePath))) {
++                            && scanSpec.classfileIsSpecificallyWhitelisted(relativePath))
++                    || (scanSpec.enableClassInfo && relativePath.equals("module-info.class"))) {
+                 // Resource is whitelisted
+                 addWhitelistedResource(resource, parentMatchStatus, subLog);
+             }

@@ -1,0 +1,34 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/springframework/hateoas/UriTemplate.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/springframework/hateoas/UriTemplate.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/springframework/hateoas/UriTemplate.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/springframework/hateoas/UriTemplate.java
+@@ -52,6 +60,7 @@
+ 	private final TemplateVariables variables;
+ 	private String toString;
+ 	private String baseUri;
++	private transient UriBuilderFactory factory;
+ 
+ 	/**
+ 	 * Creates a new {@link UriTemplate} using the given template string.
+@@ -93,6 +102,7 @@
+ 
+ 		this.variables = variables.isEmpty() ? TemplateVariables.NONE : new TemplateVariables(variables);
+ 		this.baseUri = template.substring(0, baseUriEndIndex);
++		this.factory = createFactory(baseUri);
+ 	}
+ 
+ 	/**
+@@ -314,13 +329,32 @@
+	 * @param baseUri must not be {@literal null} or empty.
+	 * @return
+	 */
++	private static UriBuilderFactory createFactory(String baseUri) {
++		EncodingMode mode = UriUtils.decode(baseUri, StandardCharsets.UTF_8).length() < baseUri.length() //
++				? EncodingMode.VALUES_ONLY //
++				: EncodingMode.TEMPLATE_AND_VALUES;
++		DefaultUriBuilderFactory factory = new DefaultUriBuilderFactory();
++		factory.setEncodingMode(mode);
++		return factory;
++	}
+
+	/**
+ 	 * Appends the value for the given {@link TemplateVariable} to the given {@link UriComponentsBuilder}.

@@ -1,0 +1,11 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvParser.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvParser.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvParser.java	2024-09-08 01:36:14.625812172 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvParser.java	2024-09-08 01:36:14.601812004 +1000
+@@ -137,6 +137,7 @@
+ 						String value = input.getQuotedString(quote, quoteEscape, escapeEscape, maxColumnLength, delimiter, newLine, keepQuotes, keepEscape, trimQuotedLeading, trimQuotedTrailing);
+ 						if (value != null) {
+ 							output.valueParsed(value == "" ? emptyValue : value);
++							input.enableNormalizeLineEndings(true);
+ 							try {
+ 								ch = input.nextChar();
+ 								if (ch == delimiter) {

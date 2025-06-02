@@ -1,0 +1,81 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/AbstractWriter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/AbstractWriter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/AbstractWriter.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/AbstractWriter.java
+@@ -232,7 +232,8 @@
+ 			if (headers != null && headers.length > 0) {
+ 				indexesToWrite = selector.getFieldIndexes(headers);
+ 				if (columnReorderingEnabled) { //column reordering enabled?
+-					outputRow = new Object[indexesToWrite.length];
++					int size = ArgumentUtils.removeAll(indexesToWrite, -1).length;
++					outputRow = new Object[size];
+ 				} else {
+ 					outputRow = new Object[headers.length];
+ 				}
+@@ -257,13 +258,16 @@
+ 				}
+ 				indexesToWrite = selector.getFieldIndexes(new NormalizedString[rowLength]); //generates a dummy header array - only the indexes matter so we are good
+ 				if (columnReorderingEnabled) { //column reordering enabled?
+-					outputRow = new Object[indexesToWrite.length];
++					int size = ArgumentUtils.removeAll(indexesToWrite, -1).length;
++					outputRow = new Object[size];
+ 				} else {
+ 					outputRow = new Object[rowLength];
+ 				}
+ 			} else {
+ 				throw new IllegalStateException("Cannot select fields by name with no headers defined");
+ 			}
+
++			indexesToWrite = ArgumentUtils.removeAll(indexesToWrite, -1);
+ 		} else {
+ 			outputRow = null;
+ 			indexesToWrite = null;
+@@ -488,9 +492,22 @@
+ 	 *
+ 	 * @param records the records to transformed by a {@link RowWriterProcessor} and then written to the output
+ 	 */
++	public final <T extends Record> void processRecords(T[] records) {
++		for (T record : records) {
++			processRecord(record);
++		}
++	}
+
+	/**
+ 	 * Processes the data given for an individual record with the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}, then writes it.
+@@ -806,23 +883,29 @@
+ 	 */
+ 	private <T> void fillOutputRow(T[] row) {
+ 		if (columnReorderingEnabled) {
+-			for (int i = 0; i < indexesToWrite.length; i++) {
+-				if (indexesToWrite[i] < row.length) {
+-					outputRow[i] = row[indexesToWrite[i]];
+-				} else {
+-					outputRow[i] = null;
++			if (row.length > indexesToWrite.length) {
++				for (int i = 0; i < indexesToWrite.length; i++) {
++					outputRow[indexesToWrite[i]] = row[indexesToWrite[i]];
++				}
++			} else {
++				for (int i = 0, j = 0; i < indexesToWrite.length && j < outputRow.length; i++) {
++					outputRow[j++] = row[indexesToWrite[i]];
+ 				}
+ 			}
+ 		} else {
+ 			if (row.length > outputRow.length) {
+-				outputRow = row;
+-			} else if (row.length > indexesToWrite.length) {
++				outputRow = Arrays.copyOf(outputRow, row.length);
++			}
++
++			if (row.length > indexesToWrite.length) {
+ 				for (int i = 0; i < indexesToWrite.length; i++) {
+ 					outputRow[indexesToWrite[i]] = row[indexesToWrite[i]];
+ 				}
+ 			} else {
+ 				for (int i = 0; i < indexesToWrite.length && i < row.length; i++) {
+-					outputRow[indexesToWrite[i]] = row[i];
++					if (indexesToWrite[i] != -1) {
++						outputRow[indexesToWrite[i]] = row[i];
++					}
+ 				}
+ 			}
+ 		}

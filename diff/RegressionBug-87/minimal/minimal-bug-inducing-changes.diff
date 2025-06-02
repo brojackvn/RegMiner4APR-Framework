@@ -1,0 +1,96 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/base/internal/BaseUtils.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/base/internal/BaseUtils.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/base/internal/BaseUtils.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/base/internal/BaseUtils.java
+@@ -16,11 +16,7 @@
+ 
+ package com.google.template.soy.base.internal;
+ 
+-import static java.nio.charset.StandardCharsets.UTF_8;
+-import com.google.common.base.Preconditions;
+ import com.google.common.collect.Sets;
+-import com.google.common.hash.Hashing;
+ import java.io.File;
+ import java.util.Set;
+ import java.util.regex.Pattern;
+@@ -264,19 +260,4 @@
+           .append(HEX_DIGITS[codePoint & 0xF]);
+     }
+   }
+
+-  public static String computePartialSha1AsHexString(String strToHash, int numBits) {
+-    Preconditions.checkArgument(numBits > 0 && numBits <= 160 && numBits % 8 == 0);
+-    int numBytes = numBits / 8;
+-    return Hashing.sha1().hashString(strToHash, UTF_8).toString().substring(0, numBytes * 2);
+-  }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/jssrc/internal/ExtractMsgVariablesVisitor.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/jssrc/internal/ExtractMsgVariablesVisitor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/jssrc/internal/ExtractMsgVariablesVisitor.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/jssrc/internal/ExtractMsgVariablesVisitor.java
+@@ -18,11 +18,13 @@
+ 
+ import com.google.template.soy.base.internal.IdGenerator;
+ import com.google.template.soy.data.SanitizedContent.ContentKind;
++import com.google.template.soy.msgs.internal.MsgUtils;
+ import com.google.template.soy.passes.BuildAllDependeesMapVisitor;
+ import com.google.template.soy.soytree.AbstractSoyNodeVisitor;
+ import com.google.template.soy.soytree.HtmlAttributeNode;
+ import com.google.template.soy.soytree.LetContentNode;
+ import com.google.template.soy.soytree.MsgFallbackGroupNode;
++import com.google.template.soy.soytree.MsgNode;
+ import com.google.template.soy.soytree.SoyFileSetNode;
+ import com.google.template.soy.soytree.SoyNode;
+ import com.google.template.soy.soytree.SoyNode.BlockNode;
+@@ -55,6 +55,8 @@
+ 
+   private Map<SoyNode, List<SoyNode>> allDependeesMap;
+ 
++  private int counter;
+
+   @Override
+   public Void exec(SoyNode node) {
+     msgFbGrpNodes = new ArrayList<>();
+@@ -67,7 +69,7 @@
+ 
+   @Override
+   protected void visitSoyFileSetNode(SoyFileSetNode node) {
++    counter = 0;
+     // We find all the MsgFallbackGroupNodes before replacing them because we don't want the
+     // modifications to interfere with the traversal.
+ 
+@@ -105,7 +107,13 @@
+ 
+   protected void wrapMsgFallbackGroupNodeHelper(
+       MsgFallbackGroupNode msgFbGrpNode, IdGenerator nodeIdGen) {
+-    String varName = "msg_" + nodeIdGen.genId();
++    String varName = "msg_" + ++counter;
++    for (MsgNode msg : msgFbGrpNode.getChildren()) {
++      varName += "_" + MsgUtils.computeMsgIdForDualFormat(msg);
++    }
+ 
+     // Find the actual content kind that this node prints in.
+     RenderUnitNode container = msgFbGrpNode.getNearestAncestor(RenderUnitNode.class);
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soytree/TemplateDelegateNodeBuilder.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soytree/TemplateDelegateNodeBuilder.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soytree/TemplateDelegateNodeBuilder.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soytree/TemplateDelegateNodeBuilder.java
+@@ -223,26 +223,20 @@
+     String delPackageAndDelTemplateStr =
+-        (soyFileHeaderInfo.delPackageName == null ? "" : soyFileHeaderInfo.delPackageName)
+-            + "~"
+-            + delTemplateName
+-            + "~"
++        (soyFileHeaderInfo.delPackageName == null
++                ? ""
++                : soyFileHeaderInfo.delPackageName.replace('.', '_'))
++            + "_"
++            + delTemplateName.replace('.', '_')
++            + "_"
+             + delTemplateVariant;
+-    String collisionPreventionStr =
+-        BaseUtils.computePartialSha1AsHexString(delPackageAndDelTemplateStr, 32);
+ 
+     // Generate the actual internal-use template name.
+-    String generatedPartialTemplateName = ".__deltemplate_s" + id + "_" + collisionPreventionStr;
++    String generatedPartialTemplateName = ".__deltemplate_" + delPackageAndDelTemplateStr;
+     String generatedTemplateName = soyFileHeaderInfo.namespace + generatedPartialTemplateName;
+     setTemplateNames(generatedTemplateName, nameLocation, generatedPartialTemplateName);
+   }

@@ -1,0 +1,14 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/JSONPath.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/JSONPath.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/JSONPath.java	2024-09-08 01:36:16.573825815 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/JSONPath.java	2024-09-08 01:36:16.429824807 +1000
+@@ -1566,6 +1566,10 @@
+             }
+             
+             String text = path.substring(start, end);
++
++            if (text.indexOf("\\@") != -1) {
++                text = text.replaceAll("\\\\@", "@");
++            }
+             
+             if (text.indexOf("\\.") != -1) {
+                 String propName;

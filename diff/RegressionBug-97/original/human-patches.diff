@@ -1,0 +1,122 @@
+diff -r -U 3 /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BUGGY/src/main/java/io/github/classgraph/ClasspathElementDir.java /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BFC/src/main/java/io/github/classgraph/ClasspathElementDir.java
+--- /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BUGGY/src/main/java/io/github/classgraph/ClasspathElementDir.java	2025-03-24 17:00:04.551544128 +1100
++++ /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BFC/src/main/java/io/github/classgraph/ClasspathElementDir.java	2025-03-24 17:00:04.499543805 +1100
+@@ -396,7 +396,7 @@
+                                     && scanSpec.classfileIsSpecificallyWhitelisted(fileInDirRelativePath))) {
+                         // Resource is whitelisted
+                         final Resource resource = newResource(fileInDirRelativePath, fileInDir);
+-                        addWhitelistedResource(resource, parentMatchStatus, subLog);
++                        addWhitelistedResource(resource, parentMatchStatus, /* isClassfileOnly = */ false, subLog);
+ 
+                         // Save last modified time  
+                         fileToLastModified.put(fileInDir, fileInDir.lastModified());
+@@ -412,7 +412,7 @@
+             for (final File fileInDir : filesInDir) {
+                 if (fileInDir.getName().equals("module-info.class") && fileInDir.isFile()) {
+                     final Resource resource = newResource("module-info.class", fileInDir);
+-                    addWhitelistedResource(resource, parentMatchStatus, subLog);
++                    addWhitelistedResource(resource, parentMatchStatus, /* isClassfileOnly = */ true, subLog);
+                     fileToLastModified.put(fileInDir, fileInDir.lastModified());
+                 }
+             }
+diff -r -U 3 /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BUGGY/src/main/java/io/github/classgraph/ClasspathElement.java /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BFC/src/main/java/io/github/classgraph/ClasspathElement.java
+--- /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BUGGY/src/main/java/io/github/classgraph/ClasspathElement.java	2025-03-24 17:00:04.555544153 +1100
++++ /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BFC/src/main/java/io/github/classgraph/ClasspathElement.java	2025-03-24 17:00:04.499543805 +1100
+@@ -235,11 +235,14 @@
+      *            the resource
+      * @param parentMatchStatus
+      *            the parent match status
++     * @param isClassfileOnly
++     *            if true, only add the resource to the list of classfile resources, not to the list of
++     *            non-classfile resources
+      * @param log
+      *            the log
+      */
+     protected void addWhitelistedResource(final Resource resource, final ScanSpecPathMatch parentMatchStatus,
+-            final LogNode log) {
++            final boolean isClassfileOnly, final LogNode log) {
+         final String path = resource.getPath();
+         final boolean isClassFile = FileUtils.isClassfile(path);
+         boolean isWhitelisted = false;
+@@ -255,8 +258,10 @@
+             isWhitelisted = true;
+         }
+ 
+-        // Add resource to whitelistedResources, whether for a classfile or non-classfile resource
+-        whitelistedResources.add(resource);
++        if (!isClassfileOnly) {
++            // Add resource to whitelistedResources, whether for a classfile or non-classfile resource
++            whitelistedResources.add(resource);
++        }
+ 
+         // Write to log if enabled, and as long as classfile scanning is not disabled, and this is not
+         // a blacklisted classfile
+diff -r -U 3 /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BUGGY/src/main/java/io/github/classgraph/ClasspathElementModule.java /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BFC/src/main/java/io/github/classgraph/ClasspathElementModule.java
+--- /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BUGGY/src/main/java/io/github/classgraph/ClasspathElementModule.java	2025-03-24 17:00:04.555544153 +1100
++++ /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BFC/src/main/java/io/github/classgraph/ClasspathElementModule.java	2025-03-24 17:00:04.499543805 +1100
+@@ -316,16 +316,22 @@
+                 }
+ 
+                 // Found non-blacklisted relative path
+-                if (allResourcePaths.add(relativePath)
+-                        // If resource is whitelisted
+-                        && (parentMatchStatus == ScanSpecPathMatch.HAS_WHITELISTED_PATH_PREFIX
+-                                || parentMatchStatus == ScanSpecPathMatch.AT_WHITELISTED_PATH
+-                                || (parentMatchStatus == ScanSpecPathMatch.AT_WHITELISTED_CLASS_PACKAGE
+-                                        && scanSpec.classfileIsSpecificallyWhitelisted(relativePath))
+-                                || (scanSpec.enableClassInfo && relativePath.equals("module-info.class")))) {
+-                    // Add whitelisted resource
+-                    final Resource resource = newResource(relativePath);
+-                    addWhitelistedResource(resource, parentMatchStatus, subLog);
++                if (allResourcePaths.add(relativePath)) {
++                    // If resource is whitelisted
++                    if (parentMatchStatus == ScanSpecPathMatch.HAS_WHITELISTED_PATH_PREFIX
++                            || parentMatchStatus == ScanSpecPathMatch.AT_WHITELISTED_PATH
++                            || (parentMatchStatus == ScanSpecPathMatch.AT_WHITELISTED_CLASS_PACKAGE
++                                    && scanSpec.classfileIsSpecificallyWhitelisted(relativePath))) {
++                        // Add whitelisted resource
++                        addWhitelistedResource(newResource(relativePath), parentMatchStatus,
++                                /* isClassfileOnly = */ false, subLog);
++                    } else if (scanSpec.enableClassInfo && relativePath.equals("module-info.class")) {
++                        // Add module descriptor as a whitelisted classfile resource, so that it is scanned,
++                        // but don't add it to the list of resources in the ScanResult, since it is not
++                        // in a whitelisted package (#352)
++                        addWhitelistedResource(newResource(relativePath), parentMatchStatus,
++                                /* isClassfileOnly = */ true, subLog);
++                    }
+                 }
+             }
+ 
+diff -r -U 3 /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BUGGY/src/main/java/io/github/classgraph/ClasspathElementZip.java /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BFC/src/main/java/io/github/classgraph/ClasspathElementZip.java
+--- /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BUGGY/src/main/java/io/github/classgraph/ClasspathElementZip.java	2025-03-24 17:00:04.551544128 +1100
++++ /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-97/BFC/src/main/java/io/github/classgraph/ClasspathElementZip.java	2025-03-24 17:00:04.499543805 +1100
+@@ -504,15 +504,20 @@
+ 
+             // Add the ZipEntry path as a Resource
+             final Resource resource = newResource(zipEntry, relativePath);
+-            if (relativePathToResource.putIfAbsent(relativePath, resource) == null
+-                    // If resource is whitelisted
+-                    && (parentMatchStatus == ScanSpecPathMatch.HAS_WHITELISTED_PATH_PREFIX
+-                            || parentMatchStatus == ScanSpecPathMatch.AT_WHITELISTED_PATH
+-                            || (parentMatchStatus == ScanSpecPathMatch.AT_WHITELISTED_CLASS_PACKAGE
+-                                    && scanSpec.classfileIsSpecificallyWhitelisted(relativePath))
+-                            || (scanSpec.enableClassInfo && relativePath.equals("module-info.class")))) {
+-                // Resource is whitelisted
+-                addWhitelistedResource(resource, parentMatchStatus, subLog);
++            if (relativePathToResource.putIfAbsent(relativePath, resource) == null) {
++                // If resource is whitelisted
++                if (parentMatchStatus == ScanSpecPathMatch.HAS_WHITELISTED_PATH_PREFIX
++                        || parentMatchStatus == ScanSpecPathMatch.AT_WHITELISTED_PATH
++                        || (parentMatchStatus == ScanSpecPathMatch.AT_WHITELISTED_CLASS_PACKAGE
++                                && scanSpec.classfileIsSpecificallyWhitelisted(relativePath))) {
++                    // Resource is whitelisted
++                    addWhitelistedResource(resource, parentMatchStatus, /* isClassfileOnly = */ false, subLog);
++                } else if (scanSpec.enableClassInfo && relativePath.equals("module-info.class")) {
++                    // Add module descriptor as a whitelisted classfile resource, so that it is scanned,
++                    // but don't add it to the list of resources in the ScanResult, since it is not
++                    // in a whitelisted package (#352)
++                    addWhitelistedResource(resource, parentMatchStatus, /* isClassfileOnly = */ true, subLog);
++                }
+             }
+         }
+ 

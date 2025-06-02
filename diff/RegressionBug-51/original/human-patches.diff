@@ -1,0 +1,29 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/jexl3/internal/TemplateDebugger.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/jexl3/internal/TemplateDebugger.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/jexl3/internal/TemplateDebugger.java	2024-09-16 00:45:20.356161272 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/jexl3/internal/TemplateDebugger.java	2024-09-16 00:45:20.304160787 +1000
+@@ -104,9 +104,9 @@
+ 
+     @Override
+     protected Object visit(ASTBlock node, Object data) {
+-        // if not really a template, use super impl
++        // if not really a template, must use super impl
+         if (exprs == null) {
+-            return super.visit(node, data);
++            return super.visit((ASTBlock) node, data);
+         }
+         // open the block
+         builder.append('{');
+@@ -138,8 +138,13 @@
+ 
+     @Override
+     protected Object acceptStatement(JexlNode child, Object data) {
++        // if not really a template, must use super impl
++        if (exprs == null) {
++            return super.acceptStatement(child, data);
++        }
+         TemplateExpression te = getPrintStatement(child);
+         if (te != null) {
++            // if statement is a jexl:print(...), may need to prepend '\n'
+             newJxltLine();
+             return visit(te, data);
+         } else {

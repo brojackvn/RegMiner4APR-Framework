@@ -1,0 +1,1232 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/helper/DataUtil.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/helper/DataUtil.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/helper/DataUtil.java	2024-09-08 01:36:20.265851673 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/helper/DataUtil.java	2024-09-08 01:36:20.253851589 +1000
+@@ -1,15 +1,19 @@
+ package org.jsoup.helper;
+ 
++import org.jsoup.internal.ConstrainableInputStream;
+ import org.jsoup.nodes.Document;
+ import org.jsoup.nodes.Element;
+ import org.jsoup.nodes.XmlDeclaration;
+ import org.jsoup.parser.Parser;
+ import org.jsoup.select.Elements;
+ 
++import java.io.BufferedReader;
+ import java.io.ByteArrayOutputStream;
+ import java.io.File;
++import java.io.FileInputStream;
+ import java.io.IOException;
+ import java.io.InputStream;
++import java.io.InputStreamReader;
+ import java.io.OutputStream;
+ import java.io.RandomAccessFile;
+ import java.nio.ByteBuffer;
+@@ -25,9 +29,10 @@
+  *
+  */
+ public final class DataUtil {
+-    private static final Pattern charsetPattern = Pattern.compile("(?i)\\bcharset=\\s*(?:\"|')?([^\\s,;\"']*)");
++    private static final Pattern charsetPattern = Pattern.compile("(?i)\\bcharset=\\s*(?:[\"'])?([^\\s,;\"']*)");
+     static final String defaultCharset = "UTF-8"; // used if not found in header or meta charset
+-    private static final int bufferSize = 60000;
++    private static final int firstReadBufferSize = 1024 * 5;
++    static final int bufferSize = 1024 * 32;
+     private static final char[] mimeBoundaryChars =
+             "-_1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".toCharArray();
+     static final int boundaryLength = 32;
+@@ -43,8 +48,7 @@
+      * @throws IOException on IO error
+      */
+     public static Document load(File in, String charsetName, String baseUri) throws IOException {
+-        ByteBuffer byteData = readFileToByteBuffer(in);
+-        return parseByteData(byteData, charsetName, baseUri, Parser.htmlParser());
++        return parseInputStream(new FileInputStream(in), charsetName, baseUri, Parser.htmlParser());
+     }
+ 
+     /**
+@@ -56,8 +60,7 @@
+      * @throws IOException on IO error
+      */
+     public static Document load(InputStream in, String charsetName, String baseUri) throws IOException {
+-        ByteBuffer byteData = readToByteBuffer(in);
+-        return parseByteData(byteData, charsetName, baseUri, Parser.htmlParser());
++        return parseInputStream(in, charsetName, baseUri, Parser.htmlParser());
+     }
+ 
+     /**
+@@ -70,8 +73,7 @@
+      * @throws IOException on IO error
+      */
+     public static Document load(InputStream in, String charsetName, String baseUri, Parser parser) throws IOException {
+-        ByteBuffer byteData = readToByteBuffer(in);
+-        return parseByteData(byteData, charsetName, baseUri, parser);
++        return parseInputStream(in, charsetName, baseUri, parser);
+     }
+ 
+     /**
+@@ -88,57 +90,70 @@
+         }
+     }
+ 
+-    // reads bytes first into a buffer, then decodes with the appropriate charset. done this way to support
+-    // switching the chartset midstream when a meta http-equiv tag defines the charset.
+-    // todo - this is getting gnarly. needs a rewrite.
+-    static Document parseByteData(ByteBuffer byteData, String charsetName, String baseUri, Parser parser) {
+-        String docData;
++    static Document parseInputStream(InputStream input, String charsetName, String baseUri, Parser parser) throws IOException  {
++        if (input == null) // empty body
++            return new Document(baseUri);
++
++        if (!(input instanceof ConstrainableInputStream))
++            input = new ConstrainableInputStream(input, bufferSize, 0);
++
+         Document doc = null;
++        boolean fullyRead = false;
++
++        // read the start of the stream and look for a BOM or meta charset
++        input.mark(firstReadBufferSize);
++        ByteBuffer firstBytes = readToByteBuffer(input, firstReadBufferSize - 1); // -1 because we read one more to see if completed
++        fullyRead = input.read() == -1;
++        input.reset();
+ 
+         // look for BOM - overrides any other header or input
+-        charsetName = detectCharsetFromBom(byteData, charsetName);
++        BomCharset bomCharset = detectCharsetFromBom(firstBytes, charsetName);
++        if (bomCharset != null) {
++            charsetName = bomCharset.charset;
++            input.skip(bomCharset.offset);
++        }
+ 
+         if (charsetName == null) { // determine from meta. safe first parse as UTF-8
+-            // look for <meta http-equiv="Content-Type" content="text/html;charset=gb2312"> or HTML5 <meta charset="gb2312">
+-            docData = Charset.forName(defaultCharset).decode(byteData).toString();
++            String docData = Charset.forName(defaultCharset).decode(firstBytes).toString();
+             doc = parser.parseInput(docData, baseUri);
++
++            // look for <meta http-equiv="Content-Type" content="text/html;charset=gb2312"> or HTML5 <meta charset="gb2312">
+             Elements metaElements = doc.select("meta[http-equiv=content-type], meta[charset]");
+             String foundCharset = null; // if not found, will keep utf-8 as best attempt
+             for (Element meta : metaElements) {
+-                if (meta.hasAttr("http-equiv")) {
++                if (meta.hasAttr("http-equiv"))
+                     foundCharset = getCharsetFromContentType(meta.attr("content"));
+-                }
+-                if (foundCharset == null && meta.hasAttr("charset")) {
++                if (foundCharset == null && meta.hasAttr("charset"))
+                     foundCharset = meta.attr("charset");
+-                }
+-                if (foundCharset != null) {
++                if (foundCharset != null)
+                     break;
+-                }
+             }
+ 
+             // look for <?xml encoding='ISO-8859-1'?>
+             if (foundCharset == null && doc.childNodeSize() > 0 && doc.childNode(0) instanceof XmlDeclaration) {
+                 XmlDeclaration prolog = (XmlDeclaration) doc.childNode(0);
+-                if (prolog.name().equals("xml")) {
++                if (prolog.name().equals("xml"))
+                     foundCharset = prolog.attr("encoding");
+-                }
+             }
+             foundCharset = validateCharset(foundCharset);
+             if (foundCharset != null && !foundCharset.equalsIgnoreCase(defaultCharset)) { // need to re-decode. (case insensitive check here to match how validate works)
+                 foundCharset = foundCharset.trim().replaceAll("[\"']", "");
+                 charsetName = foundCharset;
+-                byteData.rewind();
+-                docData = Charset.forName(foundCharset).decode(byteData).toString();
++                doc = null;
++            } else if (!fullyRead) {
+                 doc = null;
+             }
+         } else { // specified by content type header (or by user on file load)
+             Validate.notEmpty(charsetName, "Must set charset arg to character set of file to parse. Set to null to attempt to detect from HTML");
+-            docData = Charset.forName(charsetName).decode(byteData).toString();
+         }
+         if (doc == null) {
+-            doc = parser.parseInput(docData, baseUri);
++            if (charsetName == null)
++                charsetName = defaultCharset;
++            BufferedReader reader = new BufferedReader(new InputStreamReader(input, charsetName), bufferSize);
++            doc = parser.parseInput(reader, baseUri);
+             doc.outputSettings().charset(charsetName);
+         }
++        input.close();
+         return doc;
+     }
+ 
+@@ -153,16 +168,17 @@
+     public static ByteBuffer readToByteBuffer(InputStream inStream, int maxSize) throws IOException {
+         Validate.isTrue(maxSize >= 0, "maxSize must be 0 (unlimited) or larger");
+         final boolean capped = maxSize > 0;
+-        byte[] buffer = new byte[capped && maxSize < bufferSize ? maxSize : bufferSize];
+-        ByteArrayOutputStream outStream = new ByteArrayOutputStream(capped ? maxSize : bufferSize);
++        final byte[] buffer = new byte[capped && maxSize < bufferSize ? maxSize : bufferSize];
++        final ByteArrayOutputStream outStream = new ByteArrayOutputStream(capped ? maxSize : bufferSize);
++
+         int read;
+         int remaining = maxSize;
+ 
+-        while (!Thread.interrupted()) {
++        while (true) {
+             read = inStream.read(buffer);
+             if (read == -1) break;
+             if (capped) {
+-                if (read > remaining) {
++                if (read >= remaining) {
+                     outStream.write(buffer, 0, remaining);
+                     break;
+                 }
+@@ -170,7 +186,6 @@
+             }
+             outStream.write(buffer, 0, read);
+         }
+-
+         return ByteBuffer.wrap(outStream.toByteArray());
+     }
+ 
+@@ -237,7 +252,7 @@
+         return mime.toString();
+     }
+ 
+-    private static String detectCharsetFromBom(ByteBuffer byteData, String charsetName) {
++    private static BomCharset detectCharsetFromBom(final ByteBuffer byteData, final String charsetName) {
+         byteData.mark();
+         byte[] bom = new byte[4];
+         if (byteData.remaining() >= bom.length) {
+@@ -246,14 +261,24 @@
+         }
+         if (bom[0] == 0x00 && bom[1] == 0x00 && bom[2] == (byte) 0xFE && bom[3] == (byte) 0xFF || // BE
+             bom[0] == (byte) 0xFF && bom[1] == (byte) 0xFE && bom[2] == 0x00 && bom[3] == 0x00) { // LE
+-            charsetName = "UTF-32"; // and I hope it's on your system
++            return new BomCharset("UTF-32", 0); // and I hope it's on your system
+         } else if (bom[0] == (byte) 0xFE && bom[1] == (byte) 0xFF || // BE
+             bom[0] == (byte) 0xFF && bom[1] == (byte) 0xFE) {
+-            charsetName = "UTF-16"; // in all Javas
++            return new BomCharset("UTF-16", 0); // in all Javas
+         } else if (bom[0] == (byte) 0xEF && bom[1] == (byte) 0xBB && bom[2] == (byte) 0xBF) {
+-            charsetName = "UTF-8"; // in all Javas
+-            byteData.position(3); // 16 and 32 decoders consume the BOM to determine be/le; utf-8 should be consumed here
++            return new BomCharset("UTF-8", 3); // in all Javas
++            // 16 and 32 decoders consume the BOM to determine be/le; utf-8 should be consumed here
++        }
++        return null;
++    }
++
++    private static class BomCharset {
++        private final String charset;
++        private final int offset;
++
++        public BomCharset(String charset, int offset) {
++            this.charset = charset;
++            this.offset = offset;
+         }
+-        return charsetName;
+     }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/helper/HttpConnection.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/helper/HttpConnection.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/helper/HttpConnection.java	2024-09-08 01:36:20.265851673 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/helper/HttpConnection.java	2024-09-08 01:36:20.253851589 +1000
+@@ -1,20 +1,46 @@
+ package org.jsoup.helper;
+ 
+-import org.jsoup.*;
++import org.jsoup.Connection;
++import org.jsoup.HttpStatusException;
++import org.jsoup.UncheckedIOException;
++import org.jsoup.UnsupportedMimeTypeException;
++import org.jsoup.internal.ConstrainableInputStream;
+ import org.jsoup.nodes.Document;
+ import org.jsoup.parser.Parser;
+ import org.jsoup.parser.TokenQueue;
+ 
+-import javax.net.ssl.*;
+-import java.io.*;
+-import java.net.*;
++import javax.net.ssl.HostnameVerifier;
++import javax.net.ssl.HttpsURLConnection;
++import javax.net.ssl.SSLContext;
++import javax.net.ssl.SSLSession;
++import javax.net.ssl.SSLSocketFactory;
++import javax.net.ssl.TrustManager;
++import javax.net.ssl.X509TrustManager;
++import java.io.BufferedWriter;
++import java.io.ByteArrayInputStream;
++import java.io.IOException;
++import java.io.InputStream;
++import java.io.OutputStream;
++import java.io.OutputStreamWriter;
++import java.io.UnsupportedEncodingException;
++import java.net.HttpURLConnection;
++import java.net.InetSocketAddress;
++import java.net.MalformedURLException;
++import java.net.Proxy;
++import java.net.URI;
++import java.net.URL;
++import java.net.URLEncoder;
+ import java.nio.ByteBuffer;
+ import java.nio.charset.Charset;
+ import java.nio.charset.IllegalCharsetNameException;
+ import java.security.KeyManagementException;
+ import java.security.NoSuchAlgorithmException;
+ import java.security.cert.X509Certificate;
+-import java.util.*;
++import java.util.ArrayList;
++import java.util.Collection;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
+ import java.util.regex.Pattern;
+ import java.util.zip.GZIPInputStream;
+ 
+@@ -26,7 +52,7 @@
+  * @see org.jsoup.Jsoup#connect(String)
+  */
+ public class HttpConnection implements Connection {
+-    public static final String  CONTENT_ENCODING = "Content-Encoding";
++    public static final String CONTENT_ENCODING = "Content-Encoding";
+     /**
+      * Many users would get caught by not setting a user-agent and therefore getting different responses on their desktop
+      * vs in jsoup, which would otherwise default to {@code Java}. So by default, use a desktop UA.
+@@ -65,10 +91,12 @@
+         }
+ 	}
+ 
+-	private static URL encodeUrl(URL u) {
++    static URL encodeUrl(URL u) {
+         try {
+             //  odd way to encode urls, but it works!
+-            final URI uri = new URI(u.toExternalForm());
++            String urlS = u.toExternalForm(); // URL external form may have spaces which is illegal in new URL() (odd asymmetry)
++            urlS = urlS.replaceAll(" ", "%20");
++            final URI uri = new URI(urlS);
+             return new URL(uri.toASCIIString());
+         } catch (Exception e) {
+             return u;
+@@ -601,9 +629,11 @@
+         private int statusCode;
+         private String statusMessage;
+         private ByteBuffer byteData;
++        private InputStream bodyStream;
+         private String charset;
+         private String contentType;
+         private boolean executed = false;
++        private boolean inputStreamRead = false;
+         private int numRedirects = 0;
+         private Connection.Request req;
+ 
+@@ -701,23 +731,19 @@
+ 
+                 res.charset = DataUtil.getCharsetFromContentType(res.contentType); // may be null, readInputStream deals with it
+                 if (conn.getContentLength() != 0 && req.method() != HEAD) { // -1 means unknown, chunked. sun throws an IO exception on 500 response with no content when trying to read body
+-                    InputStream bodyStream = null;
+-                    try {
+-                        bodyStream = conn.getErrorStream() != null ? conn.getErrorStream() : conn.getInputStream();
+-                        if (res.hasHeaderWithValue(CONTENT_ENCODING, "gzip"))
+-                            bodyStream = new GZIPInputStream(bodyStream);
+-
+-                        res.byteData = DataUtil.readToByteBuffer(bodyStream, req.maxBodySize());
+-                    } finally {
+-                        if (bodyStream != null) bodyStream.close();
+-                    }
++                    res.bodyStream = null;
++                    res.bodyStream = conn.getErrorStream() != null ? conn.getErrorStream() : conn.getInputStream();
++                    if (res.hasHeaderWithValue(CONTENT_ENCODING, "gzip"))
++                        res.bodyStream = new GZIPInputStream(res.bodyStream);
++                    res.bodyStream = new ConstrainableInputStream(res.bodyStream, DataUtil.bufferSize, req.maxBodySize());
+                 } else {
+                     res.byteData = DataUtil.emptyByteBuffer();
+                 }
+-            } finally {
++            } catch (IOException e){
+                 // per Java's documentation, this is not necessary, and precludes keepalives. However in practise,
+                 // connection errors will not be released quickly enough and can cause a too many open files error.
+                 conn.disconnect();
++                throw e;
+             }
+ 
+             res.executed = true;
+@@ -747,14 +773,32 @@
+ 
+         public Document parse() throws IOException {
+             Validate.isTrue(executed, "Request must be executed (with .execute(), .get(), or .post() before parsing response");
+-            Document doc = DataUtil.parseByteData(byteData, charset, url.toExternalForm(), req.parser());
+-            byteData.rewind();
++            if (byteData != null) { // bytes have been read in to the buffer, parse that
++                bodyStream = new ByteArrayInputStream(byteData.array());
++                inputStreamRead = false; // ok to reparse if in bytes
++            }
++            Validate.isFalse(inputStreamRead, "Input stream already read and parsed, cannot re-read.");
++            Document doc = DataUtil.parseInputStream(bodyStream, charset, url.toExternalForm(), req.parser());
+             charset = doc.outputSettings().charset().name(); // update charset from meta-equiv, possibly
++            // todo - disconnect here?
++            inputStreamRead = true;
+             return doc;
+         }
+ 
+-        public String body() {
++        private void prepareByteData() {
+             Validate.isTrue(executed, "Request must be executed (with .execute(), .get(), or .post() before getting response body");
++            if (byteData == null) {
++                Validate.isFalse(inputStreamRead, "Request has already been read (with .parse())");
++                try {
++                    byteData = DataUtil.readToByteBuffer(bodyStream, req.maxBodySize());
++                } catch (IOException e) {
++                    throw new UncheckedIOException(e);
++                }
++            }
++        }
++
++        public String body() {
++            prepareByteData();
+             // charset gets set from header on execute, and from meta-equiv on parse. parse may not have happened yet
+             String body;
+             if (charset == null)
+@@ -766,7 +810,7 @@
+         }
+ 
+         public byte[] bodyAsBytes() {
+-            Validate.isTrue(executed, "Request must be executed (with .execute(), .get(), or .post() before getting response body");
++            prepareByteData();
+             return byteData.array();
+         }
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/helper/W3CDom.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/helper/W3CDom.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/helper/W3CDom.java	2024-09-08 01:36:20.265851673 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/helper/W3CDom.java	2024-09-08 01:36:20.253851589 +1000
+@@ -120,7 +120,7 @@
+             for (Attribute attribute : source.attributes()) {
+                 // valid xml attribute names are: ^[a-zA-Z_:][-a-zA-Z0-9_:.]
+                 String key = attribute.getKey().replaceAll("[^-a-zA-Z0-9_:.]", "");
+-                if (key.matches("[a-zA-Z_:]{1}[-a-zA-Z0-9_:.]*"))
++                if (key.matches("[a-zA-Z_:][-a-zA-Z0-9_:.]*"))
+                     el.setAttribute(key, attribute.getValue());
+             }
+         }
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/internal: ConstrainableInputStream.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Entities.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Entities.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Entities.java	2024-09-08 01:36:20.265851673 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Entities.java	2024-09-08 01:36:20.253851589 +1000
+@@ -1,14 +1,15 @@
+ package org.jsoup.nodes;
+ 
+ import org.jsoup.SerializationException;
+-import org.jsoup.helper.DataUtil;
+ import org.jsoup.helper.StringUtil;
++import org.jsoup.helper.Validate;
+ import org.jsoup.parser.CharacterReader;
+ import org.jsoup.parser.Parser;
+ 
++import java.io.BufferedReader;
+ import java.io.IOException;
+ import java.io.InputStream;
+-import java.nio.ByteBuffer;
++import java.io.InputStreamReader;
+ import java.nio.charset.Charset;
+ import java.nio.charset.CharsetEncoder;
+ import java.util.Arrays;
+@@ -26,6 +27,7 @@
+     private static final int empty = -1;
+     private static final String emptyName = "";
+     static final int codepointRadix = 36;
++    private static final Charset ASCII = Charset.forName("ascii");
+ 
+     public enum EscapeMode {
+         /**
+@@ -301,48 +303,42 @@
+             throw new IllegalStateException("Could not read resource " + file + ". Make sure you copy resources for " + Entities.class.getCanonicalName());
+ 
+         int i = 0;
+-        try {
+-            ByteBuffer bytes = DataUtil.readToByteBuffer(stream, 0);
+-            String contents = Charset.forName("ascii").decode(bytes).toString();
+-            CharacterReader reader = new CharacterReader(contents);
++        BufferedReader input = new BufferedReader(new InputStreamReader(stream, ASCII));
++        CharacterReader reader = new CharacterReader(input);
+ 
+-            while (!reader.isEmpty()) {
+-                // NotNestedLessLess=10913,824;1887
++        while (!reader.isEmpty()) {
++            // NotNestedLessLess=10913,824;1887
+ 
+-                final String name = reader.consumeTo('=');
+-                reader.advance();
+-                final int cp1 = Integer.parseInt(reader.consumeToAny(codeDelims), codepointRadix);
+-                final char codeDelim = reader.current();
+-                reader.advance();
+-                final int cp2;
+-                if (codeDelim == ',') {
+-                    cp2 = Integer.parseInt(reader.consumeTo(';'), codepointRadix);
+-                    reader.advance();
+-                } else {
+-                    cp2 = empty;
+-                }
+-                String indexS = reader.consumeTo('\n');
+-                // default git checkout on windows will add a \r there, so remove
+-                if (indexS.charAt(indexS.length() - 1) == '\r') {
+-                    indexS = indexS.substring(0, indexS.length() - 1);
+-                }
+-                final int index = Integer.parseInt(indexS, codepointRadix);
++            final String name = reader.consumeTo('=');
++            reader.advance();
++            final int cp1 = Integer.parseInt(reader.consumeToAny(codeDelims), codepointRadix);
++            final char codeDelim = reader.current();
++            reader.advance();
++            final int cp2;
++            if (codeDelim == ',') {
++                cp2 = Integer.parseInt(reader.consumeTo(';'), codepointRadix);
+                 reader.advance();
++            } else {
++                cp2 = empty;
++            }
++            String indexS = reader.consumeTo('\n');
++            // default git checkout on windows will add a \r there, so remove
++            if (indexS.charAt(indexS.length() - 1) == '\r') {
++                indexS = indexS.substring(0, indexS.length() - 1);
++            }
++            final int index = Integer.parseInt(indexS, codepointRadix);
++            reader.advance();
+ 
+-                e.nameKeys[i] = name;
+-                e.codeVals[i] = cp1;
+-                e.codeKeys[index] = cp1;
+-                e.nameVals[index] = name;
+-
+-                if (cp2 != empty) {
+-                    multipoints.put(name, new String(new int[]{cp1, cp2}, 0, 2));
+-                }
+-                i++;
+-
++            e.nameKeys[i] = name;
++            e.codeVals[i] = cp1;
++            e.codeKeys[index] = cp1;
++            e.nameVals[index] = name;
+ 
++            if (cp2 != empty) {
++                multipoints.put(name, new String(new int[]{cp1, cp2}, 0, 2));
+             }
+-        } catch (IOException err) {
+-            throw new IllegalStateException("Error reading resource " + file);
++            i++;
+         }
++        Validate.isTrue(i == size, "Unexpected count of entities loaded for " + file);
+     }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/CharacterReader.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/CharacterReader.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/CharacterReader.java	2024-09-08 01:36:20.265851673 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/CharacterReader.java	2024-09-08 01:36:20.253851589 +1000
+@@ -1,7 +1,11 @@
+ package org.jsoup.parser;
+ 
++import org.jsoup.UncheckedIOException;
+ import org.jsoup.helper.Validate;
+ 
++import java.io.IOException;
++import java.io.Reader;
++import java.io.StringReader;
+ import java.util.Arrays;
+ import java.util.Locale;
+ 
+@@ -10,18 +14,51 @@
+  */
+ public final class CharacterReader {
+     static final char EOF = (char) -1;
+-    private static final int maxCacheLen = 12;
+-
+-    private final char[] input;
+-    private final int length;
+-    private int pos = 0;
+-    private int mark = 0;
++    private static final int maxStringCacheLen = 12;
++    private static final int maxBufferLen = 1024 * 32;
++    private static final int readAheadLimit = (int) (maxBufferLen * 0.75);
++
++    private final char[] charBuf;
++    private final Reader reader;
++    private int bufLength;
++    private int bufSplitPoint;
++    private int bufPos;
++    private int readerPos;
++    private int bufMark;
+     private final String[] stringCache = new String[512]; // holds reused strings in this doc, to lessen garbage
+ 
+-    public CharacterReader(String input) {
++    public CharacterReader(Reader input, int sz) {
+         Validate.notNull(input);
+-        this.input = input.toCharArray();
+-        this.length = this.input.length;
++        Validate.isTrue(input.markSupported());
++        reader = input;
++        charBuf = new char[sz > maxBufferLen ? maxBufferLen : sz];
++        bufferUp();
++    }
++
++    public CharacterReader(Reader input) {
++        this(input, maxBufferLen);
++    }
++
++    public CharacterReader(String input) {
++        this(new StringReader(input), input.length());
++    }
++
++    private void bufferUp() {
++        if (bufPos < bufSplitPoint)
++            return;
++
++        try {
++            readerPos += bufPos;
++            reader.skip(bufPos);
++            reader.mark(maxBufferLen);
++            bufLength = reader.read(charBuf);
++            reader.reset();
++            bufPos = 0;
++            bufMark = 0;
++            bufSplitPoint = bufLength > readAheadLimit ? readAheadLimit : bufLength;
++        } catch (IOException e) {
++            throw new UncheckedIOException(e);
++        }
+     }
+ 
+     /**
+@@ -29,7 +66,7 @@
+      * @return current position
+      */
+     public int pos() {
+-        return pos;
++        return readerPos + bufPos;
+     }
+ 
+     /**
+@@ -37,7 +74,7 @@
+      * @return true if nothing left to read.
+      */
+     public boolean isEmpty() {
+-        return pos >= length;
++        return bufPos >= bufLength;
+     }
+ 
+     /**
+@@ -45,36 +82,34 @@
+      * @return char
+      */
+     public char current() {
+-        return pos >= length ? EOF : input[pos];
++        bufferUp();
++        return isEmpty() ? EOF : charBuf[bufPos];
+     }
+ 
+     char consume() {
+-        char val = pos >= length ? EOF : input[pos];
+-        pos++;
++        bufferUp();
++        char val = isEmpty() ? EOF : charBuf[bufPos];
++        bufPos++;
+         return val;
+     }
+ 
+     void unconsume() {
+-        pos--;
++        bufPos--;
+     }
+ 
+     /**
+      * Moves the current position by one.
+      */
+     public void advance() {
+-        pos++;
++        bufPos++;
+     }
+ 
+     void mark() {
+-        mark = pos;
++        bufMark = bufPos;
+     }
+ 
+     void rewindToMark() {
+-        pos = mark;
+-    }
+-
+-    String consumeAsString() {
+-        return new String(input, pos++, 1);
++        bufPos = bufMark;
+     }
+ 
+     /**
+@@ -84,9 +119,10 @@
+      */
+     int nextIndexOf(char c) {
+         // doesn't handle scanning for surrogates
+-        for (int i = pos; i < length; i++) {
+-            if (c == input[i])
+-                return i - pos;
++        bufferUp();
++        for (int i = bufPos; i < bufLength; i++) {
++            if (c == charBuf[i])
++                return i - bufPos;
+         }
+         return -1;
+     }
+@@ -98,18 +134,19 @@
+      * @return offset between current position and next instance of target. -1 if not found.
+      */
+     int nextIndexOf(CharSequence seq) {
++        bufferUp();
+         // doesn't handle scanning for surrogates
+         char startChar = seq.charAt(0);
+-        for (int offset = pos; offset < length; offset++) {
++        for (int offset = bufPos; offset < bufLength; offset++) {
+             // scan to first instance of startchar:
+-            if (startChar != input[offset])
+-                while(++offset < length && startChar != input[offset]) { /* empty */ }
++            if (startChar != charBuf[offset])
++                while(++offset < bufLength && startChar != charBuf[offset]) { /* empty */ }
+             int i = offset + 1;
+             int last = i + seq.length()-1;
+-            if (offset < length && last <= length) {
+-                for (int j = 1; i < last && seq.charAt(j) == input[i]; i++, j++) { /* empty */ }
++            if (offset < bufLength && last <= bufLength) {
++                for (int j = 1; i < last && seq.charAt(j) == charBuf[i]; i++, j++) { /* empty */ }
+                 if (i == last) // found full sequence
+-                    return offset - pos;
++                    return offset - bufPos;
+             }
+         }
+         return -1;
+@@ -123,8 +160,8 @@
+     public String consumeTo(char c) {
+         int offset = nextIndexOf(c);
+         if (offset != -1) {
+-            String consumed = cacheString(pos, offset);
+-            pos += offset;
++            String consumed = cacheString(charBuf, stringCache, bufPos, offset);
++            bufPos += offset;
+             return consumed;
+         } else {
+             return consumeToEnd();
+@@ -134,8 +171,8 @@
+     String consumeTo(String seq) {
+         int offset = nextIndexOf(seq);
+         if (offset != -1) {
+-            String consumed = cacheString(pos, offset);
+-            pos += offset;
++            String consumed = cacheString(charBuf, stringCache, bufPos, offset);
++            bufPos += offset;
+             return consumed;
+         } else {
+             return consumeToEnd();
+@@ -148,154 +185,165 @@
+      * @return characters read up to the matched delimiter.
+      */
+     public String consumeToAny(final char... chars) {
+-        final int start = pos;
+-        final int remaining = length;
+-        final char[] val = input;
++        bufferUp();
++        final int start = bufPos;
++        final int remaining = bufLength;
++        final char[] val = charBuf;
+ 
+-        OUTER: while (pos < remaining) {
++        OUTER: while (bufPos < remaining) {
+             for (char c : chars) {
+-                if (val[pos] == c)
++                if (val[bufPos] == c)
+                     break OUTER;
+             }
+-            pos++;
++            bufPos++;
+         }
+ 
+-        return pos > start ? cacheString(start, pos-start) : "";
++        return bufPos > start ? cacheString(charBuf, stringCache, start, bufPos -start) : "";
+     }
+ 
+     String consumeToAnySorted(final char... chars) {
+-        final int start = pos;
+-        final int remaining = length;
+-        final char[] val = input;
++        bufferUp();
++        final int start = bufPos;
++        final int remaining = bufLength;
++        final char[] val = charBuf;
+ 
+-        while (pos < remaining) {
+-            if (Arrays.binarySearch(chars, val[pos]) >= 0)
++        while (bufPos < remaining) {
++            if (Arrays.binarySearch(chars, val[bufPos]) >= 0)
+                 break;
+-            pos++;
++            bufPos++;
+         }
+ 
+-        return pos > start ? cacheString(start, pos-start) : "";
++        return bufPos > start ? cacheString(charBuf, stringCache, start, bufPos -start) : "";
+     }
+ 
+     String consumeData() {
+         // &, <, null
+-        final int start = pos;
+-        final int remaining = length;
+-        final char[] val = input;
++        bufferUp();
++        final int start = bufPos;
++        final int remaining = bufLength;
++        final char[] val = charBuf;
+ 
+-        while (pos < remaining) {
+-            final char c = val[pos];
++        while (bufPos < remaining) {
++            final char c = val[bufPos];
+             if (c == '&'|| c ==  '<' || c ==  TokeniserState.nullChar)
+                 break;
+-            pos++;
++            bufPos++;
+         }
+ 
+-        return pos > start ? cacheString(start, pos-start) : "";
++        return bufPos > start ? cacheString(charBuf, stringCache, start, bufPos -start) : "";
+     }
+ 
+     String consumeTagName() {
+         // '\t', '\n', '\r', '\f', ' ', '/', '>', nullChar
+-        final int start = pos;
+-        final int remaining = length;
+-        final char[] val = input;
++        bufferUp();
++        final int start = bufPos;
++        final int remaining = bufLength;
++        final char[] val = charBuf;
+ 
+-        while (pos < remaining) {
+-            final char c = val[pos];
++        while (bufPos < remaining) {
++            final char c = val[bufPos];
+             if (c == '\t'|| c ==  '\n'|| c ==  '\r'|| c ==  '\f'|| c ==  ' '|| c ==  '/'|| c ==  '>'|| c ==  TokeniserState.nullChar)
+                 break;
+-            pos++;
++            bufPos++;
+         }
+ 
+-        return pos > start ? cacheString(start, pos-start) : "";
++        return bufPos > start ? cacheString(charBuf, stringCache, start, bufPos -start) : "";
+     }
+ 
+     String consumeToEnd() {
+-        String data = cacheString(pos, length-pos);
+-        pos = length;
++        bufferUp();
++        String data = cacheString(charBuf, stringCache, bufPos, bufLength - bufPos);
++        bufPos = bufLength;
+         return data;
+     }
+ 
+     String consumeLetterSequence() {
+-        int start = pos;
+-        while (pos < length) {
+-            char c = input[pos];
++        bufferUp();
++        int start = bufPos;
++        while (bufPos < bufLength) {
++            char c = charBuf[bufPos];
+             if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || Character.isLetter(c))
+-                pos++;
++                bufPos++;
+             else
+                 break;
+         }
+ 
+-        return cacheString(start, pos - start);
++        return cacheString(charBuf, stringCache, start, bufPos - start);
+     }
+ 
+     String consumeLetterThenDigitSequence() {
+-        int start = pos;
+-        while (pos < length) {
+-            char c = input[pos];
++        bufferUp();
++        int start = bufPos;
++        while (bufPos < bufLength) {
++            char c = charBuf[bufPos];
+             if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || Character.isLetter(c))
+-                pos++;
++                bufPos++;
+             else
+                 break;
+         }
+         while (!isEmpty()) {
+-            char c = input[pos];
++            char c = charBuf[bufPos];
+             if (c >= '0' && c <= '9')
+-                pos++;
++                bufPos++;
+             else
+                 break;
+         }
+ 
+-        return cacheString(start, pos - start);
++        return cacheString(charBuf, stringCache, start, bufPos - start);
+     }
+ 
+     String consumeHexSequence() {
+-        int start = pos;
+-        while (pos < length) {
+-            char c = input[pos];
++        bufferUp();
++        int start = bufPos;
++        while (bufPos < bufLength) {
++            char c = charBuf[bufPos];
+             if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f'))
+-                pos++;
++                bufPos++;
+             else
+                 break;
+         }
+-        return cacheString(start, pos - start);
++        return cacheString(charBuf, stringCache, start, bufPos - start);
+     }
+ 
+     String consumeDigitSequence() {
+-        int start = pos;
+-        while (pos < length) {
+-            char c = input[pos];
++        bufferUp();
++        int start = bufPos;
++        while (bufPos < bufLength) {
++            char c = charBuf[bufPos];
+             if (c >= '0' && c <= '9')
+-                pos++;
++                bufPos++;
+             else
+                 break;
+         }
+-        return cacheString(start, pos - start);
++        return cacheString(charBuf, stringCache, start, bufPos - start);
+     }
+ 
+     boolean matches(char c) {
+-        return !isEmpty() && input[pos] == c;
++        return !isEmpty() && charBuf[bufPos] == c;
+ 
+     }
+ 
+     boolean matches(String seq) {
++        bufferUp();
+         int scanLength = seq.length();
+-        if (scanLength > length - pos)
++        if (scanLength > bufLength - bufPos)
+             return false;
+ 
+         for (int offset = 0; offset < scanLength; offset++)
+-            if (seq.charAt(offset) != input[pos+offset])
++            if (seq.charAt(offset) != charBuf[bufPos +offset])
+                 return false;
+         return true;
+     }
+ 
+     boolean matchesIgnoreCase(String seq) {
++        bufferUp();
+         int scanLength = seq.length();
+-        if (scanLength > length - pos)
++        if (scanLength > bufLength - bufPos)
+             return false;
+ 
+         for (int offset = 0; offset < scanLength; offset++) {
+             char upScan = Character.toUpperCase(seq.charAt(offset));
+-            char upTarget = Character.toUpperCase(input[pos + offset]);
++            char upTarget = Character.toUpperCase(charBuf[bufPos + offset]);
+             if (upScan != upTarget)
+                 return false;
+         }
+@@ -306,7 +354,8 @@
+         if (isEmpty())
+             return false;
+ 
+-        char c = input[pos];
++        bufferUp();
++        char c = charBuf[bufPos];
+         for (char seek : seq) {
+             if (seek == c)
+                 return true;
+@@ -315,26 +364,28 @@
+     }
+ 
+     boolean matchesAnySorted(char[] seq) {
+-        return !isEmpty() && Arrays.binarySearch(seq, input[pos]) >= 0;
++        bufferUp();
++        return !isEmpty() && Arrays.binarySearch(seq, charBuf[bufPos]) >= 0;
+     }
+ 
+     boolean matchesLetter() {
+         if (isEmpty())
+             return false;
+-        char c = input[pos];
++        char c = charBuf[bufPos];
+         return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || Character.isLetter(c);
+     }
+ 
+     boolean matchesDigit() {
+         if (isEmpty())
+             return false;
+-        char c = input[pos];
++        char c = charBuf[bufPos];
+         return (c >= '0' && c <= '9');
+     }
+ 
+     boolean matchConsume(String seq) {
++        bufferUp();
+         if (matches(seq)) {
+-            pos += seq.length();
++            bufPos += seq.length();
+             return true;
+         } else {
+             return false;
+@@ -343,7 +394,7 @@
+ 
+     boolean matchConsumeIgnoreCase(String seq) {
+         if (matchesIgnoreCase(seq)) {
+-            pos += seq.length();
++            bufPos += seq.length();
+             return true;
+         } else {
+             return false;
+@@ -359,7 +410,7 @@
+ 
+     @Override
+     public String toString() {
+-        return new String(input, pos, length - pos);
++        return new String(charBuf, bufPos, bufLength - bufPos);
+     }
+ 
+     /**
+@@ -369,34 +420,31 @@
+      * That saves both having to create objects as hash keys, and running through the entry list, at the expense of
+      * some more duplicates.
+      */
+-    private String cacheString(final int start, final int count) {
+-        final char[] val = input;
+-        final String[] cache = stringCache;
+-
++    private static String cacheString(final char[] charBuf, final String[] stringCache, final int start, final int count) {
+         // limit (no cache):
+-        if (count > maxCacheLen)
+-            return new String(val, start, count);
++        if (count > maxStringCacheLen)
++            return new String(charBuf, start, count);
+ 
+         // calculate hash:
+         int hash = 0;
+         int offset = start;
+         for (int i = 0; i < count; i++) {
+-            hash = 31 * hash + val[offset++];
++            hash = 31 * hash + charBuf[offset++];
+         }
+ 
+         // get from cache
+-        final int index = hash & cache.length - 1;
+-        String cached = cache[index];
++        final int index = hash & stringCache.length - 1;
++        String cached = stringCache[index];
+ 
+         if (cached == null) { // miss, add
+-            cached = new String(val, start, count);
+-            cache[index] = cached;
++            cached = new String(charBuf, start, count);
++            stringCache[index] = cached;
+         } else { // hashcode hit, check equality
+-            if (rangeEquals(start, count, cached)) { // hit
++            if (rangeEquals(charBuf, start, count, cached)) { // hit
+                 return cached;
+             } else { // hashcode conflict
+-                cached = new String(val, start, count);
+-                cache[index] = cached; // update the cache, as recently used strings are more likely to show up again
++                cached = new String(charBuf, start, count);
++                stringCache[index] = cached; // update the cache, as recently used strings are more likely to show up again
+             }
+         }
+         return cached;
+@@ -405,17 +453,21 @@
+     /**
+      * Check if the value of the provided range equals the string.
+      */
+-    boolean rangeEquals(final int start, int count, final String cached) {
++    static boolean rangeEquals(final char[] charBuf, final int start, int count, final String cached) {
+         if (count == cached.length()) {
+-            char one[] = input;
+             int i = start;
+             int j = 0;
+             while (count-- != 0) {
+-                if (one[i++] != cached.charAt(j++))
++                if (charBuf[i++] != cached.charAt(j++))
+                     return false;
+             }
+             return true;
+         }
+         return false;
+     }
++
++    // just used for testing
++    boolean rangeEquals(final int start, final int count, final String cached) {
++        return rangeEquals(charBuf, start, count, cached);
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/HtmlTreeBuilder.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/HtmlTreeBuilder.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/HtmlTreeBuilder.java	2024-09-08 01:36:20.265851673 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/HtmlTreeBuilder.java	2024-09-08 01:36:20.253851589 +1000
+@@ -11,6 +11,8 @@
+ import org.jsoup.nodes.TextNode;
+ import org.jsoup.select.Elements;
+ 
++import java.io.Reader;
++import java.io.StringReader;
+ import java.util.ArrayList;
+ import java.util.List;
+ 
+@@ -56,7 +58,7 @@
+     }
+ 
+     @Override
+-    protected void initialiseParse(String input, String baseUri, ParseErrorList errors, ParseSettings settings) {
++    protected void initialiseParse(Reader input, String baseUri, ParseErrorList errors, ParseSettings settings) {
+         super.initialiseParse(input, baseUri, errors, settings);
+ 
+         // this is a bit mucky. todo - probably just create new parser objects to ensure all reset.
+@@ -77,7 +79,7 @@
+     List<Node> parseFragment(String inputFragment, Element context, String baseUri, ParseErrorList errors, ParseSettings settings) {
+         // context may be null
+         state = HtmlTreeBuilderState.Initial;
+-        initialiseParse(inputFragment, baseUri, errors, settings);
++        initialiseParse(new StringReader(inputFragment), baseUri, errors, settings);
+         contextElement = context;
+         fragmentParsing = true;
+         Element root = null;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/Parser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/Parser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/Parser.java	2024-09-08 01:36:20.269851701 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/Parser.java	2024-09-08 01:36:20.253851589 +1000
+@@ -4,6 +4,8 @@
+ import org.jsoup.nodes.Element;
+ import org.jsoup.nodes.Node;
+ 
++import java.io.Reader;
++import java.io.StringReader;
+ import java.util.List;
+ 
+ /**
+@@ -29,7 +31,12 @@
+     
+     public Document parseInput(String html, String baseUri) {
+         errors = isTrackErrors() ? ParseErrorList.tracking(maxErrors) : ParseErrorList.noTracking();
+-        return treeBuilder.parse(html, baseUri, errors, settings);
++        return treeBuilder.parse(new StringReader(html), baseUri, errors, settings);
++    }
++
++    public Document parseInput(Reader inputHtml, String baseUri) {
++        errors = isTrackErrors() ? ParseErrorList.tracking(maxErrors) : ParseErrorList.noTracking();
++        return treeBuilder.parse(inputHtml, baseUri, errors, settings);
+     }
+ 
+     // gets & sets
+@@ -97,7 +104,7 @@
+      */
+     public static Document parse(String html, String baseUri) {
+         TreeBuilder treeBuilder = new HtmlTreeBuilder();
+-        return treeBuilder.parse(html, baseUri, ParseErrorList.noTracking(), treeBuilder.defaultSettings());
++        return treeBuilder.parse(new StringReader(html), baseUri, ParseErrorList.noTracking(), treeBuilder.defaultSettings());
+     }
+ 
+     /**
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/TokeniserState.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/TokeniserState.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/TokeniserState.java	2024-09-08 01:36:20.269851701 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/TokeniserState.java	2024-09-08 01:36:20.253851589 +1000
+@@ -1678,7 +1678,7 @@
+                 t.emit(new Token.EOF());
+                 break;
+             default:
+-                String data = r.consumeToAny('<', nullChar);
++                String data = r.consumeToAny('<', nullChar); // todo - why hunt for null here? Just consumeTo'<'?
+                 t.emit(data);
+                 break;
+         }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/TreeBuilder.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/TreeBuilder.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/TreeBuilder.java	2024-09-08 01:36:20.269851701 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/TreeBuilder.java	2024-09-08 01:36:20.253851589 +1000
+@@ -5,6 +5,7 @@
+ import org.jsoup.nodes.Document;
+ import org.jsoup.nodes.Element;
+ 
++import java.io.Reader;
+ import java.util.ArrayList;
+ 
+ /**
+@@ -25,7 +26,7 @@
+ 
+     abstract ParseSettings defaultSettings();
+ 
+-    protected void initialiseParse(String input, String baseUri, ParseErrorList errors, ParseSettings settings) {
++    protected void initialiseParse(Reader input, String baseUri, ParseErrorList errors, ParseSettings settings) {
+         Validate.notNull(input, "String input must not be null");
+         Validate.notNull(baseUri, "BaseURI must not be null");
+ 
+@@ -39,7 +40,7 @@
+         this.baseUri = baseUri;
+     }
+ 
+-    Document parse(String input, String baseUri, ParseErrorList errors, ParseSettings settings) {
++    Document parse(Reader input, String baseUri, ParseErrorList errors, ParseSettings settings) {
+         initialiseParse(input, baseUri, errors, settings);
+         runParser();
+         return doc;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/XmlTreeBuilder.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/XmlTreeBuilder.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/XmlTreeBuilder.java	2024-09-08 01:36:20.269851701 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/XmlTreeBuilder.java	2024-09-08 01:36:20.253851589 +1000
+@@ -4,6 +4,8 @@
+ import org.jsoup.helper.Validate;
+ import org.jsoup.nodes.*;
+ 
++import java.io.Reader;
++import java.io.StringReader;
+ import java.util.List;
+ 
+ /**
+@@ -18,12 +20,16 @@
+         return ParseSettings.preserveCase;
+     }
+ 
+-    Document parse(String input, String baseUri) {
++    Document parse(Reader input, String baseUri) {
+         return parse(input, baseUri, ParseErrorList.noTracking(), ParseSettings.preserveCase);
+     }
+ 
++    Document parse(String input, String baseUri) {
++        return parse(new StringReader(input), baseUri, ParseErrorList.noTracking(), ParseSettings.preserveCase);
++    }
++
+     @Override
+-    protected void initialiseParse(String input, String baseUri, ParseErrorList errors, ParseSettings settings) {
++    protected void initialiseParse(Reader input, String baseUri, ParseErrorList errors, ParseSettings settings) {
+         super.initialiseParse(input, baseUri, errors, settings);
+         stack.add(doc); // place the document onto the stack. differs from HtmlTreeBuilder (not on stack)
+         doc.outputSettings().syntax(Document.OutputSettings.Syntax.xml);
+@@ -130,7 +136,7 @@
+     }
+ 
+     List<Node> parseFragment(String inputFragment, String baseUri, ParseErrorList errors, ParseSettings settings) {
+-        initialiseParse(inputFragment, baseUri, errors, settings);
++        initialiseParse(new StringReader(inputFragment), baseUri, errors, settings);
+         runParser();
+         return doc.childNodes();
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/select/QueryParser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/select/QueryParser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/select/QueryParser.java	2024-09-08 01:36:20.269851701 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/select/QueryParser.java	2024-09-08 01:36:20.253851589 +1000
+@@ -286,8 +286,8 @@
+     }
+     
+     //pseudo selectors :first-child, :last-child, :nth-child, ...
+-    private static final Pattern NTH_AB = Pattern.compile("((\\+|-)?(\\d+)?)n(\\s*(\\+|-)?\\s*\\d+)?", Pattern.CASE_INSENSITIVE);
+-    private static final Pattern NTH_B  = Pattern.compile("(\\+|-)?(\\d+)");
++    private static final Pattern NTH_AB = Pattern.compile("(([+-])?(\\d+)?)n(\\s*([+-])?\\s*\\d+)?", Pattern.CASE_INSENSITIVE);
++    private static final Pattern NTH_B  = Pattern.compile("([+-])?(\\d+)");
+ 
+ 	private void cssNthChild(boolean backwards, boolean ofType) {
+ 		String argS = normalize(tq.chompTo(")"));
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup: UncheckedIOException.java

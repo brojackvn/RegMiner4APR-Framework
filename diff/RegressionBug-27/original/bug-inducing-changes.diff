@@ -1,0 +1,760 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/github/davidmoten/rtree/geometry/Circle.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/github/davidmoten/rtree/geometry/Circle.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/github/davidmoten/rtree/geometry/Circle.java	2024-09-08 01:36:13.837806654 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/github/davidmoten/rtree/geometry/Circle.java	2024-09-08 01:36:13.829806597 +1000
+@@ -4,6 +4,7 @@
+ 
+ import com.github.davidmoten.guavamini.Objects;
+ import com.github.davidmoten.guavamini.Optional;
++import com.github.davidmoten.rtree.geometry.internal.RectangleImpl;
+ import com.github.davidmoten.rtree.internal.util.ObjectsHelper;
+ 
+ public final class Circle implements Geometry {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/github/davidmoten/rtree/geometry/Geometries.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/github/davidmoten/rtree/geometry/Geometries.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/github/davidmoten/rtree/geometry/Geometries.java	2024-09-08 01:36:13.837806654 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/github/davidmoten/rtree/geometry/Geometries.java	2024-09-08 01:36:13.829806597 +1000
+@@ -1,6 +1,8 @@
+ package com.github.davidmoten.rtree.geometry;
+ 
+ import com.github.davidmoten.guavamini.annotations.VisibleForTesting;
++import com.github.davidmoten.rtree.geometry.internal.RectangleDoubleImpl;
++import com.github.davidmoten.rtree.geometry.internal.RectangleImpl;
+ 
+ public final class Geometries {
+ 
+@@ -17,7 +19,7 @@
+     }
+ 
+     public static Rectangle rectangle(double x1, double y1, double x2, double y2) {
+-        return RectangleImpl.create(x1, y1, x2, y2);
++        return rectangleDouble(x1, y1, x2, y2);
+     }
+ 
+     public static Rectangle rectangle(float x1, float y1, float x2, float y2) {
+@@ -54,6 +56,10 @@
+         return rectangle(x1, lat1, x2, lat2);
+     }
+ 
++    public static Rectangle rectangleDouble(double x1, double y1, double x2, double y2) {
++        return RectangleDoubleImpl.create(x1, y1, x2, y2);
++    }
++
+     public static Point pointGeographic(double lon, double lat) {
+         return point(normalizeLongitude(lon), lat);
+     }
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/github/davidmoten/rtree/geometry: internal
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/github/davidmoten/rtree/geometry/Point.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/github/davidmoten/rtree/geometry/Point.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/github/davidmoten/rtree/geometry/Point.java	2024-09-08 01:36:13.837806654 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/github/davidmoten/rtree/geometry/Point.java	2024-09-08 01:36:13.829806597 +1000
+@@ -1,5 +1,7 @@
+ package com.github.davidmoten.rtree.geometry;
+ 
++import com.github.davidmoten.rtree.geometry.internal.RectangleImpl;
++
+ public final class Point implements Rectangle {
+ 
+     private final float x;
+@@ -132,4 +134,39 @@
+         return 0;
+     }
+ 
++    @Override
++    public double x1d() {
++        return x;
++    }
++
++    @Override
++    public double y1d() {
++        return y;
++    }
++
++    @Override
++    public double x2d() {
++        return x;
++    }
++
++    @Override
++    public double y2d() {
++        return y;
++    }
++
++    @Override
++    public double intersectionAreaD(Rectangle r) {
++        return intersectionArea(r);
++    }
++
++    @Override
++    public double perimeterD() {
++        return perimeter();
++    }
++
++    @Override
++    public double areaD() {
++        return area();
++    }
++
+ }
+\ No newline at end of file
+Only in ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/github/davidmoten/rtree/geometry: RectangleDoubleImpl.java
+Only in ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/github/davidmoten/rtree/geometry: RectangleDouble.java
+Only in ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/github/davidmoten/rtree/geometry: RectangleImpl.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/github/davidmoten/rtree/geometry/Rectangle.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/github/davidmoten/rtree/geometry/Rectangle.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/github/davidmoten/rtree/geometry/Rectangle.java	2024-09-08 01:36:13.837806654 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/github/davidmoten/rtree/geometry/Rectangle.java	2024-09-08 01:36:13.829806597 +1000
+@@ -20,4 +20,18 @@
+ 
+     boolean contains(double x, double y);
+ 
++    double x1d();
++
++    double y1d();
++
++    double x2d();
++
++    double y2d();
++
++    double intersectionAreaD(Rectangle r);
++
++    double perimeterD();
++
++    double areaD();
++
+ }
+\ No newline at end of file
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/github/davidmoten/rtree/RTree.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/github/davidmoten/rtree/RTree.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/github/davidmoten/rtree/RTree.java	2024-09-08 01:36:13.837806654 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/github/davidmoten/rtree/RTree.java	2024-09-08 01:36:13.829806597 +1000
+@@ -13,8 +13,8 @@
+ import com.github.davidmoten.guavamini.Optional;
+ import com.github.davidmoten.guavamini.annotations.VisibleForTesting;
+ import com.github.davidmoten.rtree.geometry.Circle;
+-import com.github.davidmoten.rtree.geometry.HasGeometry;
+ import com.github.davidmoten.rtree.geometry.Geometry;
++import com.github.davidmoten.rtree.geometry.HasGeometry;
+ import com.github.davidmoten.rtree.geometry.Intersects;
+ import com.github.davidmoten.rtree.geometry.Line;
+ import com.github.davidmoten.rtree.geometry.Point;
+@@ -41,14 +41,14 @@
+     private final Context<T, S> context;
+ 
+     /**
+-     * Benchmarks show that this is a good choice for up to O(10,000) entries
+-     * when using Quadratic splitter (Guttman).
++     * Benchmarks show that this is a good choice for up to O(10,000) entries when
++     * using Quadratic splitter (Guttman).
+      */
+     public static final int MAX_CHILDREN_DEFAULT_GUTTMAN = 4;
+ 
+     /**
+-     * Benchmarks show that this is the sweet spot for up to O(10,000) entries
+-     * when using R*-tree heuristics.
++     * Benchmarks show that this is the sweet spot for up to O(10,000) entries when
++     * using R*-tree heuristics.
+      */
+     public static final int MAX_CHILDREN_DEFAULT_STAR = 4;
+ 
+@@ -72,7 +72,7 @@
+     }
+ 
+     private RTree() {
+-        this(Optional.<Node<T, S>> absent(), 0, null);
++        this(Optional.<Node<T, S>>absent(), 0, null);
+     }
+ 
+     /**
+@@ -107,10 +107,11 @@
+     }
+ 
+     /**
+-     * Construct an Rtree through STR bulk loading. Default to
+-     * maxChildren=128, minChildren=64 and fill nodes by a factor of 0.7
++     * Construct an Rtree through STR bulk loading. Default to maxChildren=128,
++     * minChildren=64 and fill nodes by a factor of 0.7
+      * 
+-     * @param entries entries to add to the R-tree
++     * @param entries
++     *            entries to add to the R-tree
+      *
+      * @param <T>
+      *            the value type of the entries in the tree
+@@ -123,9 +124,9 @@
+     }
+ 
+     /**
+-     * The tree is scanned for depth and the depth returned. This involves
+-     * recursing down to the leaf level of the tree to get the current depth.
+-     * Should be <code>log(n)</code> in complexity.
++     * The tree is scanned for depth and the depth returned. This involves recursing
++     * down to the leaf level of the tree to get the current depth. Should be
++     * <code>log(n)</code> in complexity.
+      * 
+      * @return depth of the R-tree
+      */
+@@ -183,12 +184,11 @@
+     }
+ 
+     /**
+-     * Sets the node {@link Selector} which decides which branches to follow
+-     * when inserting or searching.
++     * Sets the node {@link Selector} which decides which branches to follow when
++     * inserting or searching.
+      * 
+      * @param selector
+-     *            determines which branches to follow when inserting or
+-     *            searching
++     *            determines which branches to follow when inserting or searching
+      * @return builder
+      */
+     public static Builder selector(Selector selector) {
+@@ -211,8 +211,7 @@
+     public static class Builder {
+ 
+         /**
+-         * According to
+-         * http://dbs.mathematik.uni-marburg.de/publications/myPapers
++         * According to http://dbs.mathematik.uni-marburg.de/publications/myPapers
+          * /1990/BKSS90.pdf (R*-tree paper), best filling ratio is 0.4 for both
+          * quadratic split and R*-tree split.
+          */
+@@ -233,7 +232,8 @@
+         /**
+          * The factor is used as the fill ratio during bulk loading.
+          * 
+-         * @param factor loading factor
++         * @param factor
++         *            loading factor
+          * @return this
+          */
+         public Builder loadingFactor(double factor) {
+@@ -242,9 +242,8 @@
+         }
+ 
+         /**
+-         * When the number of children in an R-tree node drops below this number
+-         * the node is deleted and the children are added on to the R-tree
+-         * again.
++         * When the number of children in an R-tree node drops below this number the
++         * node is deleted and the children are added on to the R-tree again.
+          * 
+          * @param minChildren
+          *            less than this number of children in a node triggers a
+@@ -281,8 +280,8 @@
+         }
+ 
+         /**
+-         * Sets the node {@link Selector} which decides which branches to follow
+-         * when inserting or searching.
++         * Sets the node {@link Selector} which decides which branches to follow when
++         * inserting or searching.
+          * 
+          * @param selector
+          *            selects the branch to follow when inserting or searching
+@@ -328,20 +327,22 @@
+         public <T, S extends Geometry> RTree<T, S> create() {
+             setDefaultCapacity();
+ 
+-            return new RTree<T, S>(Optional.<Node<T, S>> absent(), 0,
++            return new RTree<T, S>(Optional.<Node<T, S>>absent(), 0,
+                     new Context<T, S>(minChildren.get(), maxChildren.get(), selector, splitter,
+                             (Factory<T, S>) factory));
+         }
+ 
+         /**
+-         * Create an RTree by bulk loading, using the STR method.
+-         * STR: a simple and efficient algorithm for R-tree packing
++         * Create an RTree by bulk loading, using the STR method. STR: a simple and
++         * efficient algorithm for R-tree packing
+          * http://ieeexplore.ieee.org/abstract/document/582015/
+          * <p>
+-         * Note: this method mutates the input entries, the internal order of the List may be changed.
++         * Note: this method mutates the input entries, the internal order of the List
++         * may be changed.
+          * </p>
+          * 
+-         * @param entries entries to be added to the r-tree
++         * @param entries
++         *            entries to be added to the r-tree
+          * @return a loaded RTree
+          */
+         @SuppressWarnings("unchecked")
+@@ -365,8 +366,7 @@
+ 
+         @SuppressWarnings("unchecked")
+         private <T, S extends Geometry> RTree<T, S> packingSTR(List<? extends HasGeometry> objects,
+-                                                               boolean isLeaf, int size,
+-                                                               Context<T, S> context) {
++                boolean isLeaf, int size, Context<T, S> context) {
+             int capacity = (int) Math.round(maxChildren.get() * loadingFactor);
+             int nodeCount = (int) Math.ceil(1.0 * objects.size() / capacity);
+ 
+@@ -385,23 +385,24 @@
+             int nodePerSlice = (int) Math.ceil(Math.sqrt(nodeCount));
+             int sliceCapacity = nodePerSlice * capacity;
+             int sliceCount = (int) Math.ceil(1.0 * objects.size() / sliceCapacity);
+-            Collections.sort(objects, new MidComparator((short)0));
++            Collections.sort(objects, new MidComparator((short) 0));
+ 
+             List<Node<T, S>> nodes = new ArrayList<Node<T, S>>(nodeCount);
+             for (int s = 0; s < sliceCount; s++) {
+                 @SuppressWarnings("rawtypes")
+-                List slice = objects.subList(s * sliceCapacity, Math.min((s + 1) * sliceCapacity, objects.size()));
+-                Collections.sort(slice, new MidComparator((short)1));
++                List slice = objects.subList(s * sliceCapacity,
++                        Math.min((s + 1) * sliceCapacity, objects.size()));
++                Collections.sort(slice, new MidComparator((short) 1));
+ 
+                 for (int i = 0; i < slice.size(); i += capacity) {
+                     if (isLeaf) {
+-                        List<Entry<T, S>> entries =
+-                                slice.subList(i, Math.min(slice.size(), i + capacity));
++                        List<Entry<T, S>> entries = slice.subList(i,
++                                Math.min(slice.size(), i + capacity));
+                         Node<T, S> leaf = context.factory().createLeaf(entries, context);
+                         nodes.add(leaf);
+                     } else {
+-                        List<Node<T, S>> children =
+-                                slice.subList(i, Math.min(slice.size(), i + capacity));
++                        List<Node<T, S>> children = slice.subList(i,
++                                Math.min(slice.size(), i + capacity));
+                         Node<T, S> nonleaf = context.factory().createNonLeaf(children, context);
+                         nodes.add(nonleaf);
+                     }
+@@ -411,7 +412,8 @@
+         }
+ 
+         private static final class MidComparator implements Comparator<HasGeometry> {
+-            private final short dimension; // leave space for multiple dimensions, 0 for x, 1 for y, ...
++            private final short dimension; // leave space for multiple dimensions, 0 for x, 1 for y,
++                                           // ...
+ 
+             public MidComparator(short dim) {
+                 dimension = dim;
+@@ -419,13 +421,15 @@
+ 
+             @Override
+             public int compare(HasGeometry o1, HasGeometry o2) {
+-                return Float.compare(mid(o1), mid(o2));
++                return Double.compare(mid(o1), mid(o2));
+             }
+ 
+-            private float mid(HasGeometry o) {
++            private double mid(HasGeometry o) {
+                 Rectangle mbr = o.geometry().mbr();
+-                if (dimension == 0) return (mbr.x1() + mbr.x2()) / 2;
+-                else return (mbr.y1() + mbr.y2()) / 2;
++                if (dimension == 0)
++                    return (mbr.x1d() + mbr.x2d()) / 2;
++                else
++                    return (mbr.y1d() + mbr.y2d()) / 2;
+             }
+         }
+ 
+@@ -504,8 +508,8 @@
+     }
+ 
+     /**
+-     * Returns the Observable sequence of trees created by progressively
+-     * deleting entries.
++     * Returns the Observable sequence of trees created by progressively deleting
++     * entries.
+      * 
+      * @param entries
+      *            the entries to add
+@@ -524,9 +528,9 @@
+     }
+ 
+     /**
+-     * Returns a new R-tree with the given entries deleted. If <code>all</code>
+-     * is false deletes only one if exists. If <code>all</code> is true deletes
+-     * all matching entries.
++     * Returns a new R-tree with the given entries deleted. If <code>all</code> is
++     * false deletes only one if exists. If <code>all</code> is true deletes all
++     * matching entries.
+      * 
+      * @param entries
+      *            entries to delete
+@@ -547,8 +551,7 @@
+      * 
+      * @param entries
+      *            entries to delete
+-     * @return R-tree with entries deleted up to one matching occurence per
+-     *         entry
++     * @return R-tree with entries deleted up to one matching occurence per entry
+      */
+     public RTree<T, S> delete(Iterable<Entry<T, S>> entries) {
+         RTree<T, S> tree = this;
+@@ -558,11 +561,10 @@
+     }
+ 
+     /**
+-     * If <code>all</code> is false deletes one entry matching the given value
+-     * and Geometry. If <code>all</code> is true deletes all entries matching
+-     * the given value and geometry. This method has no effect if the entry is
+-     * not present. The entry must match on both value and geometry to be
+-     * deleted.
++     * If <code>all</code> is false deletes one entry matching the given value and
++     * Geometry. If <code>all</code> is true deletes all entries matching the given
++     * value and geometry. This method has no effect if the entry is not present.
++     * The entry must match on both value and geometry to be deleted.
+      * 
+      * @param value
+      *            the value of the {@link Entry} to be deleted
+@@ -570,25 +572,24 @@
+      *            the geometry of the {@link Entry} to be deleted
+      * @param all
+      *            if false deletes one if exists else deletes all
+-     * @return a new immutable R-tree without one or many instances of the
+-     *         specified entry if it exists otherwise returns the original RTree
+-     *         object
++     * @return a new immutable R-tree without one or many instances of the specified
++     *         entry if it exists otherwise returns the original RTree object
+      */
+     public RTree<T, S> delete(T value, S geometry, boolean all) {
+         return delete(context.factory().createEntry(value, geometry), all);
+     }
+ 
+     /**
+-     * Deletes maximum one entry matching the given value and geometry. This
+-     * method has no effect if the entry is not present. The entry must match on
+-     * both value and geometry to be deleted.
++     * Deletes maximum one entry matching the given value and geometry. This method
++     * has no effect if the entry is not present. The entry must match on both value
++     * and geometry to be deleted.
+      * 
+      * @param value
+      *            the value to be matched for deletion
+      * @param geometry
+      *            the geometry to be matched for deletion
+-     * @return an immutable RTree without one entry (if found) matching the
+-     *         given value and geometry
++     * @return an immutable RTree without one entry (if found) matching the given
++     *         value and geometry
+      */
+     public RTree<T, S> delete(T value, S geometry) {
+         return delete(context.factory().createEntry(value, geometry), false);
+@@ -596,17 +597,15 @@
+ 
+     /**
+      * Deletes one or all matching entries depending on the value of
+-     * <code>all</code>. If multiple copies of the entry are in the R-tree only
+-     * one will be deleted if all is false otherwise all matching entries will
+-     * be deleted. The entry must match on both value and geometry to be
+-     * deleted.
++     * <code>all</code>. If multiple copies of the entry are in the R-tree only one
++     * will be deleted if all is false otherwise all matching entries will be
++     * deleted. The entry must match on both value and geometry to be deleted.
+      * 
+      * @param entry
+      *            the {@link Entry} to be deleted
+      * @param all
+      *            if true deletes all matches otherwise deletes first found
+-     * @return a new immutable R-tree without one instance of the specified
+-     *         entry
++     * @return a new immutable R-tree without one instance of the specified entry
+      */
+     public RTree<T, S> delete(Entry<? extends T, ? extends S> entry, boolean all) {
+         if (root.isPresent()) {
+@@ -623,14 +622,13 @@
+ 
+     /**
+      * Deletes one entry if it exists, returning an immutable copy of the RTree
+-     * without that entry. If multiple copies of the entry are in the R-tree
+-     * only one will be deleted. The entry must match on both value and geometry
+-     * to be deleted.
++     * without that entry. If multiple copies of the entry are in the R-tree only
++     * one will be deleted. The entry must match on both value and geometry to be
++     * deleted.
+      * 
+      * @param entry
+      *            the {@link Entry} to be deleted
+-     * @return a new immutable R-tree without one instance of the specified
+-     *         entry
++     * @return a new immutable R-tree without one instance of the specified entry
+      */
+     public RTree<T, S> delete(Entry<? extends T, ? extends S> entry) {
+         return delete(entry, false);
+@@ -664,8 +662,8 @@
+     }
+ 
+     /**
+-     * Returns a predicate function that indicates if {@link Geometry}
+-     * intersects with a given rectangle.
++     * Returns a predicate function that indicates if {@link Geometry} intersects
++     * with a given rectangle.
+      * 
+      * @param r
+      *            the rectangle to check intersection with
+@@ -681,8 +679,8 @@
+     }
+ 
+     /**
+-     * Returns the always true predicate. See {@link RTree#entries()} for
+-     * example use.
++     * Returns the always true predicate. See {@link RTree#entries()} for example
++     * use.
+      */
+     private static final Func1<Geometry, Boolean> ALWAYS_TRUE = new Func1<Geometry, Boolean>() {
+         @Override
+@@ -692,9 +690,8 @@
+     };
+ 
+     /**
+-     * Returns an {@link Observable} sequence of all {@link Entry}s in the
+-     * R-tree whose minimum bounding rectangle intersects with the given
+-     * rectangle.
++     * Returns an {@link Observable} sequence of all {@link Entry}s in the R-tree
++     * whose minimum bounding rectangle intersects with the given rectangle.
+      * 
+      * @param r
+      *            rectangle to check intersection with the entry mbr
+@@ -705,8 +702,8 @@
+     }
+ 
+     /**
+-     * Returns an {@link Observable} sequence of all {@link Entry}s in the
+-     * R-tree whose minimum bounding rectangle intersects with the given point.
++     * Returns an {@link Observable} sequence of all {@link Entry}s in the R-tree
++     * whose minimum bounding rectangle intersects with the given point.
+      * 
+      * @param p
+      *            point to check intersection with the entry mbr
+@@ -725,9 +722,9 @@
+     }
+ 
+     /**
+-     * Returns an {@link Observable} sequence of all {@link Entry}s in the
+-     * R-tree whose minimum bounding rectangles are strictly less than
+-     * maxDistance from the given rectangle.
++     * Returns an {@link Observable} sequence of all {@link Entry}s in the R-tree
++     * whose minimum bounding rectangles are strictly less than maxDistance from the
++     * given rectangle.
+      * 
+      * @param r
+      *            rectangle to measure distance from
+@@ -745,9 +742,9 @@
+     }
+ 
+     /**
+-     * Returns the intersections with the the given (arbitrary) geometry using
+-     * an intersection function to filter the search results returned from a
+-     * search of the mbr of <code>g</code>.
++     * Returns the intersections with the the given (arbitrary) geometry using an
++     * intersection function to filter the search results returned from a search of
++     * the mbr of <code>g</code>.
+      * 
+      * @param <R>
+      *            type of geometry being searched for intersection with
+@@ -779,8 +776,8 @@
+      * @param maxDistance
+      *            strict max distance that entries must be from g
+      * @param distance
+-     *            function to calculate the distance between geometries of type
+-     *            S and R.
++     *            function to calculate the distance between geometries of type S
++     *            and R.
+      * @return entries strictly less than maxDistance from g
+      */
+     public <R extends Geometry> Observable<Entry<T, S>> search(final R g, final double maxDistance,
+@@ -802,9 +799,9 @@
+     }
+ 
+     /**
+-     * Returns an {@link Observable} sequence of all {@link Entry}s in the
+-     * R-tree whose minimum bounding rectangles are within maxDistance from the
+-     * given point.
++     * Returns an {@link Observable} sequence of all {@link Entry}s in the R-tree
++     * whose minimum bounding rectangles are within maxDistance from the given
++     * point.
+      * 
+      * @param p
+      *            point to measure distance from
+@@ -817,9 +814,8 @@
+     }
+ 
+     /**
+-     * Returns the nearest k entries (k=maxCount) to the given rectangle where
+-     * the entries are strictly less than a given maximum distance from the
+-     * rectangle.
++     * Returns the nearest k entries (k=maxCount) to the given rectangle where the
++     * entries are strictly less than a given maximum distance from the rectangle.
+      * 
+      * @param r
+      *            rectangle
+@@ -832,7 +828,7 @@
+     public Observable<Entry<T, S>> nearest(final Rectangle r, final double maxDistance,
+             int maxCount) {
+         return search(r, maxDistance).lift(new OperatorBoundedPriorityQueue<Entry<T, S>>(maxCount,
+-                Comparators.<T, S> ascendingDistance(r)));
++                Comparators.<T, S>ascendingDistance(r)));
+     }
+ 
+     /**
+@@ -862,8 +858,8 @@
+ 
+     /**
+      * Returns a {@link Visualizer} for an image of given width and height and
+-     * restricted to the given view of the coordinates. The points in the view
+-     * are scaled to match the aspect ratio defined by the width and height.
++     * restricted to the given view of the coordinates. The points in the view are
++     * scaled to match the aspect ratio defined by the width and height.
+      * 
+      * @param width
+      *            of the image in pixels
+@@ -880,9 +876,9 @@
+ 
+     /**
+      * Returns a {@link Visualizer} for an image of given width and height and
+-     * restricted to the the smallest view that fully contains the coordinates.
+-     * The points in the view are scaled to match the aspect ratio defined by
+-     * the width and height.
++     * restricted to the the smallest view that fully contains the coordinates. The
++     * points in the view are scaled to match the aspect ratio defined by the width
++     * and height.
+      * 
+      * @param width
+      *            of the image in pixels
+@@ -895,7 +891,7 @@
+     }
+ 
+     private Rectangle calculateMaxView(RTree<T, S> tree) {
+-        return tree.entries().reduce(Optional.<Rectangle> absent(),
++        return tree.entries().reduce(Optional.<Rectangle>absent(),
+                 new Func2<Optional<Rectangle>, Entry<T, S>, Optional<Rectangle>>() {
+ 
+                     @Override
+@@ -913,8 +909,8 @@
+     }
+ 
+     /**
+-     * If the RTree has no entries returns {@link Optional#absent} otherwise
+-     * returns the minimum bounding rectangle of all entries in the RTree.
++     * If the RTree has no entries returns {@link Optional#absent} otherwise returns
++     * the minimum bounding rectangle of all entries in the RTree.
+      * 
+      * @return minimum bounding rectangle of all entries in RTree
+      */
+@@ -944,8 +940,8 @@
+     }
+ 
+     /**
+-     * Returns a {@link Context} containing the configuration of the RTree at
+-     * the time of instantiation.
++     * Returns a {@link Context} containing the configuration of the RTree at the
++     * time of instantiation.
+      * 
+      * @return the configuration of the RTree prior to instantiation
+      */
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/github/davidmoten/rtree/SplitterRStar.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/github/davidmoten/rtree/SplitterRStar.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/github/davidmoten/rtree/SplitterRStar.java	2024-09-08 01:36:13.837806654 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/github/davidmoten/rtree/SplitterRStar.java	2024-09-08 01:36:13.829806597 +1000
+@@ -19,17 +19,16 @@
+ 
+             @Override
+             public int compare(ListPair<?> p1, ListPair<?> p2) {
+-                //check overlap first then areaSum
++                // check overlap first then areaSum
+                 int value = Float.compare(overlap(p1), overlap(p2));
+                 if (value == 0) {
+                     return Float.compare(p1.areaSum(), p2.areaSum());
+                 } else {
+                     return value;
+                 }
+-            }}; 
++            }
++        };
+     }
+-    
+-   
+ 
+     @Override
+     public <T extends HasGeometry> ListPair<T> split(List<T> items, int minSize) {
+@@ -106,7 +105,7 @@
+ 
+         @Override
+         public int compare(HasGeometry n1, HasGeometry n2) {
+-            return Float.compare(n1.geometry().mbr().x1(), n2.geometry().mbr().x1());
++            return Double.compare(n1.geometry().mbr().x1d(), n2.geometry().mbr().x1d());
+         }
+     };
+ 
+@@ -114,7 +113,7 @@
+ 
+         @Override
+         public int compare(HasGeometry n1, HasGeometry n2) {
+-            return Float.compare(n1.geometry().mbr().x2(), n2.geometry().mbr().x2());
++            return Double.compare(n1.geometry().mbr().x2d(), n2.geometry().mbr().x2d());
+         }
+     };
+ 
+@@ -122,7 +121,7 @@
+ 
+         @Override
+         public int compare(HasGeometry n1, HasGeometry n2) {
+-            return Float.compare(n1.geometry().mbr().y1(), n2.geometry().mbr().y1());
++            return Double.compare(n1.geometry().mbr().y1d(), n2.geometry().mbr().y1d());
+         }
+     };
+ 
+@@ -130,13 +129,12 @@
+ 
+         @Override
+         public int compare(HasGeometry n1, HasGeometry n2) {
+-            return Float.compare(n1.geometry().mbr().y2(), n2.geometry().mbr().y2());
++            return Double.compare(n1.geometry().mbr().y2d(), n2.geometry().mbr().y2d());
+         }
+     };
+ 
+     private static float overlap(ListPair<? extends HasGeometry> pair) {
+-        return pair.group1().geometry().mbr()
+-                .intersectionArea(pair.group2().geometry().mbr());
++        return pair.group1().geometry().mbr().intersectionArea(pair.group2().geometry().mbr());
+     }
+-    
++
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/github/davidmoten/rtree/HighPrecisionTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/github/davidmoten/rtree/HighPrecisionTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/github/davidmoten/rtree/HighPrecisionTest.java	2024-09-08 01:36:13.837806654 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/github/davidmoten/rtree/HighPrecisionTest.java	2024-09-08 01:36:13.833806625 +1000
+@@ -6,6 +6,9 @@
+ 
+ import org.junit.Test;
+ 
++import com.github.davidmoten.rtree.geometry.Geometries;
++import com.github.davidmoten.rtree.geometry.Rectangle;
++
+ public class HighPrecisionTest {
+ 
+     @Test
+@@ -17,6 +20,23 @@
+         System.out.println(b.round(CEILING).floatValue());
+     }
+ 
++    @Test
++    public void testHighPrecision() {
++        RTree<Integer, Rectangle> tree = RTree.create();
++        tree = tree.add(1, Geometries.rectangle(0, 0, 1, 1));
++        double x1 = 2.0000000001;
++        System.out.println((float) x1);
++        tree = tree.add(2, Geometries.rectangle(x1, 2, 3, 3));
++        tree.search(Geometries.rectangle((float) x1, 2.0, 2.0, 2.0)) //
++                .test() //
++                .assertNoValues() //
++                .assertCompleted();
++        tree.search(Geometries.rectangle(x1, 2.0, x1, 2.0)) //
++                .test() //
++                .assertValueCount(1) //
++                .assertCompleted();
++    }
++
+     private static final MathContext FLOOR = new MathContext(7, RoundingMode.FLOOR);
+     private static final MathContext CEILING = new MathContext(7, RoundingMode.CEILING);
+ 
+@@ -29,7 +49,7 @@
+     }
+ 
+     private static boolean gte(float a, long b) {
+-        return new BigDecimal(a).compareTo(new BigDecimal(b)) >=0;
++        return new BigDecimal(a).compareTo(new BigDecimal(b)) >= 0;
+     }
+-    
++
+ }

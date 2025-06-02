@@ -1,0 +1,11 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/ParserOutput.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/ParserOutput.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/ParserOutput.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/ParserOutput.java
+@@ -179,6 +179,7 @@
+ 			currentRecord++;
+ 			if (columnsReordered) {
+ 				if(selectedIndexes.length == 0){
++					column = 0;
+ 					return ArgumentUtils.EMPTY_STRING_ARRAY;
+ 				}
+ 				String[] reorderedValues = new String[selectedIndexes.length];

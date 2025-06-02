@@ -1,0 +1,13 @@
+diff -r -U 3 RegressionBug-97/WORKING/src/main/java/io/github/classgraph/ClasspathElementZip.java RegressionBug-97/BIC/src/main/java/io/github/classgraph/ClasspathElementZip.java
+--- RegressionBug-97/WORKING/src/main/java/io/github/classgraph/ClasspathElementZip.java
++++ RegressionBug-97/BIC/src/main/java/io/github/classgraph/ClasspathElementZip.java
+@@ -446,7 +446,8 @@
+             if (parentMatchStatus == ScanSpecPathMatch.HAS_WHITELISTED_PATH_PREFIX
+                     || parentMatchStatus == ScanSpecPathMatch.AT_WHITELISTED_PATH
+                     || (parentMatchStatus == ScanSpecPathMatch.AT_WHITELISTED_CLASS_PACKAGE
+-                            && scanSpec.classfileIsSpecificallyWhitelisted(relativePath))) {
++                            && scanSpec.classfileIsSpecificallyWhitelisted(relativePath))
++                    || (scanSpec.enableClassInfo && relativePath.equals("module-info.class"))) {
+                 // Resource is whitelisted
+                 addWhitelistedResource(resource, parentMatchStatus, subLog);
+             }

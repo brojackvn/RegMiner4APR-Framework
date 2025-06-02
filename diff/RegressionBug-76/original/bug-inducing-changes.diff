@@ -1,0 +1,731 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/builder/CronBuilder.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/builder/CronBuilder.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/builder/CronBuilder.java	2024-09-08 01:36:24.973884646 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/builder/CronBuilder.java	2024-09-08 01:36:24.965884590 +1000
+@@ -91,7 +91,7 @@
+         checkState(definition != null, "CronBuilder not initialized.");
+ 
+         final FieldConstraints constraints = definition.getFieldDefinition(name).getConstraints();
+-        expression.accept(new ValidationFieldExpressionVisitor(constraints, definition.isStrictRanges()));
++        expression.accept(new ValidationFieldExpressionVisitor(constraints));
+         fields.put(name, new CronField(name, expression, constraints));
+ 
+         return this;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/definition/CronDefinitionBuilder.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/definition/CronDefinitionBuilder.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/definition/CronDefinitionBuilder.java	2024-09-08 01:36:24.977884675 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/definition/CronDefinitionBuilder.java	2024-09-08 01:36:24.965884590 +1000
+@@ -34,7 +34,6 @@
+ public class CronDefinitionBuilder {
+     private final Map<CronFieldName, FieldDefinition> fields = new EnumMap<>(CronFieldName.class);
+     private final Set<CronConstraint> cronConstraints = new HashSet<>();
+-    private boolean enforceStrictRanges;
+     private boolean matchDayOfWeekAndDayOfMonth;
+ 
+     /**
+@@ -124,16 +123,6 @@
+     }
+ 
+     /**
+-     * Sets enforceStrictRanges value to true.
+-     *
+-     * @return this CronDefinitionBuilder instance
+-     */
+-    public CronDefinitionBuilder enforceStrictRanges() {
+-        enforceStrictRanges = true;
+-        return this;
+-    }
+-
+-    /**
+      * Sets matchDayOfWeekAndDayOfMonth value to true.
+      *
+      * @return this CronDefinitionBuilder instance
+@@ -183,7 +172,7 @@
+         validations.addAll(cronConstraints);
+         final List<FieldDefinition> values = new ArrayList<>(fields.values());
+         values.sort(FieldDefinition.createFieldDefinitionComparator());
+-        return new CronDefinition(values, validations, enforceStrictRanges, matchDayOfWeekAndDayOfMonth);
++        return new CronDefinition(values, validations, matchDayOfWeekAndDayOfMonth);
+     }
+ 
+     /**
+@@ -193,12 +182,11 @@
+      */
+     private static CronDefinition cron4j() {
+         return CronDefinitionBuilder.defineCron()
+-                .withMinutes().and()
+-                .withHours().and()
+-                .withDayOfMonth().supportsL().and()
+-                .withMonth().and()
+-                .withDayOfWeek().withValidRange(0, 6).withMondayDoWValue(1).and()
+-                .enforceStrictRanges()
++                .withMinutes().withStrictRange().and()
++                .withHours().withStrictRange().and()
++                .withDayOfMonth().supportsL().withStrictRange().and()
++                .withMonth().withStrictRange().and()
++                .withDayOfWeek().withValidRange(0, 6).withMondayDoWValue(1).withStrictRange().and()
+                 .matchDayOfWeekAndDayOfMonth()
+                 .instance();
+     }
+@@ -270,13 +258,13 @@
+      */
+     private static CronDefinition quartz() {
+         return CronDefinitionBuilder.defineCron()
+-                .withSeconds().and()
+-                .withMinutes().and()
+-                .withHours().and()
+-                .withDayOfMonth().withValidRange(1, 32).supportsL().supportsW().supportsLW().supportsQuestionMark().and()
++                .withSeconds().withStrictRange().and()
++                .withMinutes().withStrictRange().and()
++                .withHours().withStrictRange().and()
++                .withDayOfMonth().withValidRange(1, 32).supportsL().supportsW().supportsLW().supportsQuestionMark().withStrictRange().and()
+                 .withMonth().withValidRange(1, 13).and()
+                 .withDayOfWeek().withValidRange(1, 7).withMondayDoWValue(2).supportsHash().supportsL().supportsQuestionMark().and()
+-                .withYear().withValidRange(1970, 2099).optional().and()
++                .withYear().withValidRange(1970, 2099).withStrictRange().optional().and()
+                 .withCronValidation(CronConstraintsFactory.ensureEitherDayOfWeekOrDayOfMonth())
+                 .instance();
+     }
+@@ -342,9 +330,9 @@
+      */
+     private static CronDefinition spring() {
+         return CronDefinitionBuilder.defineCron()
+-                .withSeconds().and()
+-                .withMinutes().and()
+-                .withHours().and()
++                .withSeconds().withStrictRange().and()
++                .withMinutes().withStrictRange().and()
++                .withHours().withStrictRange().and()
+                 .withDayOfMonth().supportsQuestionMark().and()
+                 .withMonth().and()
+                 .withDayOfWeek().withValidRange(1, 7).withMondayDoWValue(2).supportsQuestionMark().and()
+@@ -358,12 +346,11 @@
+      */
+     private static CronDefinition unixCrontab() {
+         return CronDefinitionBuilder.defineCron()
+-                .withMinutes().and()
+-                .withHours().and()
+-                .withDayOfMonth().and()
+-                .withMonth().and()
+-                .withDayOfWeek().withValidRange(0, 7).withMondayDoWValue(1).withIntMapping(7, 0).and()
+-                .enforceStrictRanges()
++                .withMinutes().withStrictRange().and()
++                .withHours().withStrictRange().and()
++                .withDayOfMonth().withStrictRange().and()
++                .withMonth().withStrictRange().and()
++                .withDayOfWeek().withValidRange(0, 7).withMondayDoWValue(1).withIntMapping(7, 0).withStrictRange().and()
+                 .instance();
+     }
+ 
+@@ -387,5 +374,4 @@
+                 throw new IllegalArgumentException(String.format("No cron definition found for %s", cronType));
+         }
+     }
+-}
+-
++}
+\ No newline at end of file
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/definition/CronDefinition.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/definition/CronDefinition.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/definition/CronDefinition.java	2024-09-08 01:36:24.977884675 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/definition/CronDefinition.java	2024-09-08 01:36:24.965884590 +1000
+@@ -33,7 +33,6 @@
+     private static final long serialVersionUID = 7067112327461432170L;
+     private final Map<CronFieldName, FieldDefinition> fieldDefinitions;
+     private final Set<CronConstraint> cronConstraints;
+-    private final boolean strictRanges;
+     private final boolean matchDayOfWeekAndDayOfMonth;
+ 
+     /**
+@@ -43,8 +42,7 @@
+      *                         Throws a NullPointerException if a null values is received
+      *                         Throws an IllegalArgumentException if an empty list is received
+      */
+-    public CronDefinition(final List<FieldDefinition> fieldDefinitions, final Set<CronConstraint> cronConstraints,
+-            final boolean strictRanges, final boolean matchDayOfWeekAndDayOfMonth) {
++    public CronDefinition(final List<FieldDefinition> fieldDefinitions, final Set<CronConstraint> cronConstraints, final boolean matchDayOfWeekAndDayOfMonth) {
+         Preconditions.checkNotNull(fieldDefinitions, "Field definitions must not be null");
+         Preconditions.checkNotNull(cronConstraints, "Cron validations must not be null");
+         Preconditions.checkNotNullNorEmpty(fieldDefinitions, "Field definitions must not be empty");
+@@ -54,20 +52,10 @@
+             this.fieldDefinitions.put(field.getFieldName(), field);
+         }
+         this.cronConstraints = Collections.unmodifiableSet(cronConstraints);
+-        this.strictRanges = strictRanges;
+         this.matchDayOfWeekAndDayOfMonth = matchDayOfWeekAndDayOfMonth;
+     }
+ 
+     /**
+-     * If ranges for field values should be strictly enforced ('from' greater than 'to').
+-     *
+-     * @return true if should be enforced, false otherwise.
+-     */
+-    public boolean isStrictRanges() {
+-        return strictRanges;
+-    }
+-
+-    /**
+      * If both the day of the week and day of the month should be matched.
+      *
+      * @return true if both should be matched, false otherwise
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/field/constraint/FieldConstraintsBuilder.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/field/constraint/FieldConstraintsBuilder.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/field/constraint/FieldConstraintsBuilder.java	2024-09-08 01:36:24.977884675 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/field/constraint/FieldConstraintsBuilder.java	2024-09-08 01:36:24.965884590 +1000
+@@ -30,6 +30,7 @@
+     private final Map<Integer, Integer> intMapping;
+     private int startRange;
+     private int endRange;
++    private boolean strictRange;
+     private final Set<SpecialChar> specialChars;
+ 
+     /**
+@@ -40,6 +41,7 @@
+         intMapping = new HashMap<>();
+         startRange = 0;//no negatives!
+         endRange = Integer.MAX_VALUE;
++        strictRange = false;
+         specialChars = new HashSet<>();
+         specialChars.add(SpecialChar.NONE);
+     }
+@@ -157,6 +159,16 @@
+     }
+ 
+     /**
++     * With strict range.
++     *
++     * @return same FieldConstraintsBuilder instance
++     */
++    public FieldConstraintsBuilder withStrictRange() {
++        this.strictRange = true;
++        return this;
++    }
++
++    /**
+      * Shifts integer representation of weekday/month names.
+      *
+      * @param shiftSize - size of the shift
+@@ -184,7 +196,7 @@
+      * @return new FieldConstraints instance
+      */
+     public FieldConstraints createConstraintsInstance() {
+-        return new FieldConstraints(stringMapping, intMapping, specialChars, startRange, endRange);
++        return new FieldConstraints(stringMapping, intMapping, specialChars, startRange, endRange, strictRange);
+     }
+ 
+     /**
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/field/constraint/FieldConstraints.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/field/constraint/FieldConstraints.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/field/constraint/FieldConstraints.java	2024-09-08 01:36:24.977884675 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/field/constraint/FieldConstraints.java	2024-09-08 01:36:24.965884590 +1000
+@@ -34,6 +34,7 @@
+     private final Set<SpecialChar> specialChars;
+     private final Integer startRange;
+     private final Integer endRange;
++    private final boolean strictRange;
+ 
+     /**
+      * Constructor.
+@@ -41,14 +42,16 @@
+      * @param specialChars - allowed special chars.
+      * @param startRange   - lowest possible value
+      * @param endRange     - highest possible value
++     * @param strictRange  - if we shall consider strict ranges for this field - regardless global strict ranges criteria
+      */
+     public FieldConstraints(final Map<String, Integer> stringMapping, final Map<Integer, Integer> intMapping, final Set<SpecialChar> specialChars, final int startRange,
+-            final int endRange) {
++            final int endRange, final boolean strictRange) {
+         this.stringMapping = Collections.unmodifiableMap(Preconditions.checkNotNull(stringMapping, "String mapping must not be null"));
+         this.intMapping = Collections.unmodifiableMap(Preconditions.checkNotNull(intMapping, "Integer mapping must not be null"));
+         this.specialChars = Collections.unmodifiableSet(Preconditions.checkNotNull(specialChars, "Special (non-standard) chars set must not be null"));
+         this.startRange = startRange;
+         this.endRange = endRange;
++        this.strictRange = strictRange;
+     }
+ 
+     public int getStartRange() {
+@@ -94,4 +97,7 @@
+         return intMapping.get(exp);
+     }
+ 
++    public boolean isStrictRange() {
++        return strictRange;
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/field/definition/FieldDefinitionBuilder.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/field/definition/FieldDefinitionBuilder.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/field/definition/FieldDefinitionBuilder.java	2024-09-08 01:36:24.977884675 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/field/definition/FieldDefinitionBuilder.java	2024-09-08 01:36:24.969884618 +1000
+@@ -67,6 +67,16 @@
+     }
+ 
+     /**
++     * Specifies that defined range for given field must be a strict range.
++     *
++     * @return same FieldDefinitionBuilder instance
++     */
++    public FieldDefinitionBuilder withStrictRange() {
++        constraints.withStrictRange();
++        return this;
++    }
++
++    /**
+      * Allows to tag a field as optional.
+      *
+      * @return this instance
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/field/expression/Between.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/field/expression/Between.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/field/expression/Between.java	2024-09-08 01:36:24.977884675 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/field/expression/Between.java	2024-09-08 01:36:24.969884618 +1000
+@@ -3,6 +3,9 @@
+ package com.cronutils.model.field.expression;
+ 
+ import com.cronutils.model.field.value.FieldValue;
++import com.cronutils.model.field.value.IntegerFieldValue;
++import com.cronutils.model.field.value.SpecialChar;
++import com.cronutils.model.field.value.SpecialCharFieldValue;
+ 
+ /**
+  * Represents a range in a cron expression.
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/field/expression/visitor/ValidationFieldExpressionVisitor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/field/expression/visitor/ValidationFieldExpressionVisitor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/field/expression/visitor/ValidationFieldExpressionVisitor.java	2024-09-08 01:36:24.977884675 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/field/expression/visitor/ValidationFieldExpressionVisitor.java	2024-09-08 01:36:24.969884618 +1000
+@@ -35,18 +35,15 @@
+ 
+     private final FieldConstraints constraints;
+     private final StringValidations stringValidations;
+-    private final boolean strictRanges;
+ 
+-    public ValidationFieldExpressionVisitor(final FieldConstraints constraints, final boolean strictRanges) {
++    public ValidationFieldExpressionVisitor(final FieldConstraints constraints) {
+         this.constraints = constraints;
+         stringValidations = new StringValidations(constraints);
+-        this.strictRanges = strictRanges;
+     }
+ 
+-    protected ValidationFieldExpressionVisitor(final FieldConstraints constraints, final StringValidations stringValidation, final boolean strictRanges) {
++    protected ValidationFieldExpressionVisitor(final FieldConstraints constraints, final StringValidations stringValidation) {
+         this.constraints = constraints;
+         stringValidations = stringValidation;
+-        this.strictRanges = strictRanges;
+     }
+ 
+     @Override
+@@ -95,7 +92,7 @@
+     public Between visit(final Between between) {
+         preConditions(between);
+ 
+-        if (strictRanges && between.getFrom() instanceof IntegerFieldValue && between.getTo() instanceof IntegerFieldValue) {
++        if ((constraints.isStrictRange()) && between.getFrom() instanceof IntegerFieldValue && between.getTo() instanceof IntegerFieldValue) {
+             final int from = ((IntegerFieldValue) between.getFrom()).getValue();
+             final int to = ((IntegerFieldValue) between.getTo()).getValue();
+             if (from > to) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/SingleCron.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/SingleCron.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/SingleCron.java	2024-09-08 01:36:24.977884675 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/SingleCron.java	2024-09-08 01:36:24.965884590 +1000
+@@ -81,7 +81,7 @@
+         for (final Map.Entry<CronFieldName, CronField> field : retrieveFieldsAsMap().entrySet()) {
+             final CronFieldName fieldName = field.getKey();
+             field.getValue().getExpression().accept(
+-                    new ValidationFieldExpressionVisitor(getCronDefinition().getFieldDefinition(fieldName).getConstraints(), cronDefinition.isStrictRanges())
++                    new ValidationFieldExpressionVisitor(getCronDefinition().getFieldDefinition(fieldName).getConstraints())
+             );
+         }
+         for (final CronConstraint constraint : getCronDefinition().getCronConstraints()) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/time/ExecutionTimeBuilder.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/time/ExecutionTimeBuilder.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/time/ExecutionTimeBuilder.java	2024-09-08 01:36:24.977884675 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/time/ExecutionTimeBuilder.java	2024-09-08 01:36:24.969884618 +1000
+@@ -13,6 +13,7 @@
+ 
+ package com.cronutils.model.time;
+ 
++import com.cronutils.model.Cron;
+ import com.cronutils.model.definition.CronDefinition;
+ import com.cronutils.model.field.CronField;
+ import com.cronutils.model.field.CronFieldName;
+@@ -31,7 +32,7 @@
+  * Builds required components to get previous/next execution to certain reference date.
+  */
+ class ExecutionTimeBuilder {
+-    private final CronDefinition cronDefinition;
++    private final Cron cron;
+     private FieldValueGenerator yearsValueGenerator;
+     private CronField daysOfWeekCronField;
+     private CronField daysOfMonthCronField;
+@@ -42,8 +43,8 @@
+     private TimeNode minutes;
+     private TimeNode seconds;
+ 
+-    protected ExecutionTimeBuilder(final CronDefinition cronDefinition) {
+-        this.cronDefinition = cronDefinition;
++    protected ExecutionTimeBuilder(final Cron cron) {
++        this.cron = cron;
+     }
+ 
+     protected ExecutionTimeBuilder forSecondsMatching(final CronField cronField) {
+@@ -73,6 +74,7 @@
+     protected ExecutionTimeBuilder forYearsMatching(final CronField cronField) {
+         validate(CronFieldName.YEAR, cronField);
+         yearsValueGenerator = FieldValueGeneratorFactory.forCronField(cronField);
++        System.out.println(String.format("We for an %s builder", yearsValueGenerator.getClass()));//TODO delete
+         return this;
+     }
+ 
+@@ -142,8 +144,8 @@
+                     constraints);
+         }
+ 
+-        return new SingleExecutionTime(cronDefinition,
+-                yearsValueGenerator, daysOfWeekCronField, daysOfMonthCronField, daysOfYearCronField,
++        return new SingleExecutionTime(this.cron.getCronDefinition(),
++                this.cron.retrieve(CronFieldName.YEAR), daysOfWeekCronField, daysOfMonthCronField, daysOfYearCronField,
+                 months, hours, minutes, seconds
+         );
+     }
+@@ -174,8 +176,8 @@
+     }
+ 
+     private FieldConstraints getConstraint(final CronFieldName name) {
+-        return cronDefinition.getFieldDefinition(name) != null
+-                ? cronDefinition.getFieldDefinition(name).getConstraints()
++        return cron.getCronDefinition().getFieldDefinition(name) != null
++                ? cron.getCronDefinition().getFieldDefinition(name).getConstraints()
+                 : FieldConstraintsBuilder.instance().forField(name).createConstraintsInstance();
+     }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/time/ExecutionTime.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/time/ExecutionTime.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/time/ExecutionTime.java	2024-09-08 01:36:24.977884675 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/time/ExecutionTime.java	2024-09-08 01:36:24.969884618 +1000
+@@ -39,7 +39,7 @@
+     public static ExecutionTime forCron(final Cron cron) {
+         if(cron instanceof SingleCron){
+             final Map<CronFieldName, CronField> fields = cron.retrieveFieldsAsMap();
+-            final ExecutionTimeBuilder executionTimeBuilder = new ExecutionTimeBuilder(cron.getCronDefinition());
++            final ExecutionTimeBuilder executionTimeBuilder = new ExecutionTimeBuilder(cron);
+             for (final CronFieldName name : CronFieldName.values()) {
+                 if (fields.get(name) != null) {
+                     switch (name) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/time/generator/FieldValueGeneratorFactory.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/time/generator/FieldValueGeneratorFactory.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/time/generator/FieldValueGeneratorFactory.java	2024-09-08 01:36:24.977884675 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/time/generator/FieldValueGeneratorFactory.java	2024-09-08 01:36:24.969884618 +1000
+@@ -85,4 +85,7 @@
+         return forCronField(cronField);
+     }
+ 
++    public static FieldValueGenerator createYearValueGeneratorInstance(final CronField cronField) {
++        return forCronField(cronField);
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/time/generator/FieldValueGenerator.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/time/generator/FieldValueGenerator.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/time/generator/FieldValueGenerator.java	2024-09-08 01:36:24.977884675 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/time/generator/FieldValueGenerator.java	2024-09-08 01:36:24.969884618 +1000
+@@ -14,6 +14,8 @@
+ package com.cronutils.model.time.generator;
+ 
+ import java.util.Collections;
++import java.util.HashSet;
++import java.util.LinkedList;
+ import java.util.List;
+ 
+ import com.cronutils.model.field.CronField;
+@@ -56,13 +58,14 @@
+     public abstract boolean isMatch(int value);
+ 
+     public final List<Integer> generateCandidates(final int start, final int end) {
+-        final List<Integer> candidates = generateCandidatesNotIncludingIntervalExtremes(start, end);
++        List<Integer> candidates = generateCandidatesNotIncludingIntervalExtremes(start, end);
+         if (isMatch(start)) {
+             candidates.add(start);
+         }
+         if (isMatch(end)) {
+             candidates.add(end);
+         }
++        candidates = new LinkedList<>(new HashSet<>(candidates));
+         Collections.sort(candidates);
+         return candidates;
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/time/SingleExecutionTime.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/time/SingleExecutionTime.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/model/time/SingleExecutionTime.java	2024-09-08 01:36:24.977884675 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/model/time/SingleExecutionTime.java	2024-09-08 01:36:24.969884618 +1000
+@@ -32,10 +32,14 @@
+ import com.cronutils.mapper.WeekDay;
+ import com.cronutils.model.definition.CronDefinition;
+ import com.cronutils.model.field.CronField;
++import com.cronutils.model.field.CronFieldName;
++import com.cronutils.model.field.constraint.FieldConstraintsBuilder;
+ import com.cronutils.model.field.definition.DayOfWeekFieldDefinition;
+ import com.cronutils.model.field.expression.Always;
+ import com.cronutils.model.field.expression.QuestionMark;
++
+ import com.cronutils.model.time.generator.FieldValueGenerator;
++import com.cronutils.model.time.generator.FieldValueGeneratorFactory;
+ import com.cronutils.model.time.generator.NoSuchValueException;
+ import com.cronutils.utils.Preconditions;
+ import com.cronutils.utils.VisibleForTesting;
+@@ -49,9 +53,7 @@
+ import static com.cronutils.model.field.CronFieldName.SECOND;
+ import static com.cronutils.model.field.CronFieldName.YEAR;
+ import static com.cronutils.model.field.value.SpecialChar.QUESTION_MARK;
+-import static com.cronutils.model.time.generator.FieldValueGeneratorFactory.createDayOfMonthValueGeneratorInstance;
+-import static com.cronutils.model.time.generator.FieldValueGeneratorFactory.createDayOfWeekValueGeneratorInstance;
+-import static com.cronutils.model.time.generator.FieldValueGeneratorFactory.createDayOfYearValueGeneratorInstance;
++import static com.cronutils.model.time.generator.FieldValueGeneratorFactory.*;
+ import static com.cronutils.utils.Predicates.not;
+ import static java.time.temporal.ChronoUnit.DAYS;
+ import static java.time.temporal.ChronoUnit.SECONDS;
+@@ -78,11 +80,19 @@
+     private final TimeNode seconds;
+ 
+     @VisibleForTesting
+-    SingleExecutionTime(final CronDefinition cronDefinition, final FieldValueGenerator yearsValueGenerator, final CronField daysOfWeekCronField,
++    SingleExecutionTime(final CronDefinition cronDefinition, final CronField yearsValueCronField, final CronField daysOfWeekCronField,
+             final CronField daysOfMonthCronField, final CronField daysOfYearCronField, final TimeNode months, final TimeNode hours,
+             final TimeNode minutes, final TimeNode seconds) {
+         this.cronDefinition = Preconditions.checkNotNull(cronDefinition);
+-        this.yearsValueGenerator = Preconditions.checkNotNull(yearsValueGenerator);
++        FieldValueGenerator alwaysGenerator = FieldValueGeneratorFactory.forCronField(new CronField(CronFieldName.YEAR, Always.always(), FieldConstraintsBuilder.instance().createConstraintsInstance()));
++        if(cronDefinition.containsFieldDefinition(CronFieldName.YEAR)){
++            if(!cronDefinition.getFieldDefinition(CronFieldName.YEAR).isOptional()){
++                Preconditions.checkNotNull(yearsValueCronField);
++            }
++            this.yearsValueGenerator = yearsValueCronField==null?alwaysGenerator:createYearValueGeneratorInstance(yearsValueCronField);
++        } else{
++            this.yearsValueGenerator = alwaysGenerator;
++        }
+         this.daysOfWeekCronField = Preconditions.checkNotNull(daysOfWeekCronField);
+         this.daysOfMonthCronField = Preconditions.checkNotNull(daysOfMonthCronField);
+         this.daysOfYearCronField = daysOfYearCronField;
+@@ -135,7 +145,7 @@
+     }
+ 
+     private ExecutionTimeResult potentialNextClosestMatch(final ZonedDateTime date) throws NoSuchValueException {
+-        final List<Integer> year = yearsValueGenerator.generateCandidates(date.getYear(), date.getYear());
++        final List<Integer> year = yearsValueGenerator.generateCandidates(date.getYear(), date.getYear()).stream().filter(d->d>=date.getYear()).collect(Collectors.toList());
+         final int lowestMonth = months.getValues().get(0);
+         final int lowestHour = hours.getValues().get(0);
+         final int lowestMinute = minutes.getValues().get(0);
+@@ -143,16 +153,6 @@
+ 
+         if (year.isEmpty()) {
+             return getNextPotentialYear(date, lowestMonth, lowestHour, lowestMinute, lowestSecond);
+-            /* TODO solve issue 305
+-            int endyear = cronDefinition.getFieldDefinition(CronFieldName.YEAR).getConstraints().getEndRange();
+-            final List<Integer> years = yearsValueGenerator.generateCandidates(date.getYear(), endyear);
+-            Optional<Integer> validnextyear = years.stream().filter(y->y>date.getYear()).min(Integer::compareTo);
+-            if(validnextyear.isPresent()){
+-                return potentialNextClosestMatch(ZonedDateTime.of(validnextyear.get(), 1, 1, 0, 0, 0, 0, date.getZone()));
+-            }else{
+-                return getNextPotentialYear(date, lowestMonth, lowestHour, lowestMinute, lowestSecond);
+-            }
+-            */
+         }
+ 
+         if (!months.getValues().contains(date.getMonthValue())) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/parser/CronParserField.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/parser/CronParserField.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/cronutils/parser/CronParserField.java	2024-09-08 01:36:24.977884675 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/cronutils/parser/CronParserField.java	2024-09-08 01:36:24.969884618 +1000
+@@ -79,8 +79,8 @@
+      * @return parse result as CronFieldParseResult instance - never null. May throw a RuntimeException if cron expression is bad.
+      */
+     public CronField parse(final String expression) {
+-        String newExpression = expression.toUpperCase();
+-        if(getField().equals(CronFieldName.DAY_OF_WEEK) && newExpression.endsWith("L")){
++        String newExpression = expression;
++        if(getField().equals(CronFieldName.DAY_OF_WEEK) && newExpression.endsWith("L") && newExpression.length()>1){
+             newExpression = ""+constraints.getStringMappingValue(newExpression.replaceAll("L", ""));
+         }
+         return new CronField(field, parser.parse(newExpression), constraints);
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/cronutils/Issue228Test.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/cronutils/Issue228Test.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/cronutils/Issue228Test.java	2024-09-08 01:36:24.977884675 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/cronutils/Issue228Test.java	2024-09-08 01:36:24.969884618 +1000
+@@ -34,12 +34,11 @@
+      * This is the UNIX cron definition with a single modification to match both Day Of Week and Day Of Month.
+      */
+     private final CronDefinition cronDefinition = CronDefinitionBuilder.defineCron()
+-            .withMinutes().and()
+-            .withHours().and()
+-            .withDayOfMonth().and()
+-            .withMonth().and()
+-            .withDayOfWeek().withValidRange(0, 7).withMondayDoWValue(1).withIntMapping(7, 0).and()
+-            .enforceStrictRanges()
++            .withMinutes().withStrictRange().and()
++            .withHours().withStrictRange().and()
++            .withDayOfMonth().withStrictRange().and()
++            .withMonth().withStrictRange().and()
++            .withDayOfWeek().withValidRange(0, 7).withMondayDoWValue(1).withIntMapping(7, 0).withStrictRange().and()
+             .matchDayOfWeekAndDayOfMonth() // the regular UNIX cron definition permits matching either DoW or DoM
+             .instance();
+ 
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/cronutils: Issue305.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/cronutils/model/definition/CronDefinitionBuilderTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/cronutils/model/definition/CronDefinitionBuilderTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/cronutils/model/definition/CronDefinitionBuilderTest.java	2024-09-08 01:36:24.977884675 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/cronutils/model/definition/CronDefinitionBuilderTest.java	2024-09-08 01:36:24.969884618 +1000
+@@ -20,14 +20,10 @@
+ import org.junit.Test;
+ 
+ import com.cronutils.builder.CronBuilder;
+-import com.cronutils.mapper.ConstantsMapper;
+-import com.cronutils.mapper.CronMapper;
+-import com.cronutils.mapper.WeekDay;
+ import com.cronutils.model.Cron;
+ import com.cronutils.model.CronType;
+ import com.cronutils.model.field.CronFieldName;
+ import com.cronutils.model.field.constraint.FieldConstraints;
+-import com.cronutils.model.field.definition.DayOfWeekFieldDefinition;
+ import com.cronutils.model.field.definition.FieldDefinition;
+ import com.cronutils.model.field.expression.Weekdays;
+ import com.cronutils.parser.CronParser;
+@@ -124,7 +120,7 @@
+                         new FieldConstraints(
+                                 Collections.emptyMap(),
+                                 Collections.emptyMap(),
+-                                Collections.emptySet(), 0, 1)
++                                Collections.emptySet(), 0, 1, true)
+                 );
+         builder.register(testFieldDefinition);
+         final Set<FieldDefinition> definitions = builder.instance().getFieldDefinitions();
+@@ -169,7 +165,6 @@
+                 .withDayOfMonth().optional().and()
+                 .withMonth().optional().and()
+                 .withDayOfWeek().withValidRange(0, 7).withMondayDoWValue(1).withIntMapping(7, 0).and()
+-                .enforceStrictRanges()
+                 .instance();
+     }
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/cronutils/model/definition/CronDefinitionTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/cronutils/model/definition/CronDefinitionTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/cronutils/model/definition/CronDefinitionTest.java	2024-09-08 01:36:24.977884675 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/cronutils/model/definition/CronDefinitionTest.java	2024-09-08 01:36:24.969884618 +1000
+@@ -52,23 +52,22 @@
+         when(mockFieldDefinition3optional.getFieldName()).thenReturn(testFieldName3);
+         when(mockFieldDefinition3optional.isOptional()).thenReturn(Boolean.TRUE);
+ 
+-        enforceStrictRange = false;
+         matchDayOfWeekAndDayOfMonth = false;
+     }
+ 
+     @Test(expected = NullPointerException.class)
+     public void testConstructorNullFieldsParameter() {
+-        new CronDefinition(null, new HashSet<>(), enforceStrictRange, matchDayOfWeekAndDayOfMonth);
++        new CronDefinition(null, new HashSet<>(), matchDayOfWeekAndDayOfMonth);
+     }
+ 
+     @Test(expected = NullPointerException.class)
+     public void testConstructorNullConstraintsParameter() {
+-        new CronDefinition(new ArrayList<>(), null, enforceStrictRange, matchDayOfWeekAndDayOfMonth);
++        new CronDefinition(new ArrayList<>(), null, matchDayOfWeekAndDayOfMonth);
+     }
+ 
+     @Test(expected = IllegalArgumentException.class)
+     public void testConstructorEmptyFieldsParameter() {
+-        new CronDefinition(new ArrayList<>(), new HashSet<>(), enforceStrictRange, matchDayOfWeekAndDayOfMonth);
++        new CronDefinition(new ArrayList<>(), new HashSet<>(), matchDayOfWeekAndDayOfMonth);
+     }
+ 
+     @Test
+@@ -77,7 +76,7 @@
+         fields.add(mockFieldDefinition1);
+         fields.add(mockFieldDefinition2);
+         fields.add(mockFieldDefinition3optional);
+-        final Set<FieldDefinition> fieldDefinitions = new CronDefinition(fields, new HashSet<>(), enforceStrictRange, matchDayOfWeekAndDayOfMonth)
++        final Set<FieldDefinition> fieldDefinitions = new CronDefinition(fields, new HashSet<>(), matchDayOfWeekAndDayOfMonth)
+                 .getFieldDefinitions();
+         final List<FieldDefinition> sortedFieldDefinitions = new ArrayList<>(fieldDefinitions);
+         sortedFieldDefinitions.sort(FieldDefinition.createFieldDefinitionComparator());
+@@ -88,14 +87,14 @@
+     public void testLastFieldOptionalNotAllowedOnSingleFieldDefinition() {
+         final List<FieldDefinition> fields = new ArrayList<>();
+         fields.add(mockFieldDefinition3optional);
+-        new CronDefinition(fields, new HashSet<>(), enforceStrictRange, matchDayOfWeekAndDayOfMonth);
++        new CronDefinition(fields, new HashSet<>(), matchDayOfWeekAndDayOfMonth);
+     }
+ 
+     @Test
+     public void testGetFieldDefinitions() {
+         final List<FieldDefinition> fields = new ArrayList<>();
+         fields.add(mockFieldDefinition1);
+-        final CronDefinition cronDefinition = new CronDefinition(fields, new HashSet<>(), enforceStrictRange, matchDayOfWeekAndDayOfMonth);
++        final CronDefinition cronDefinition = new CronDefinition(fields, new HashSet<>(), matchDayOfWeekAndDayOfMonth);
+         assertNotNull(cronDefinition.getFieldDefinitions());
+         assertEquals(1, cronDefinition.getFieldDefinitions().size());
+         assertTrue(cronDefinition.getFieldDefinitions().contains(mockFieldDefinition1));
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/cronutils/model/field/constraints/FieldConstraintsTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/cronutils/model/field/constraints/FieldConstraintsTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/cronutils/model/field/constraints/FieldConstraintsTest.java	2024-09-08 01:36:24.977884675 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/cronutils/model/field/constraints/FieldConstraintsTest.java	2024-09-08 01:36:24.969884618 +1000
+@@ -30,6 +30,7 @@
+     private Set<SpecialChar> specialCharSet;
+     private int startRange;
+     private int endRange;
++    private boolean strictRange;
+ 
+     @Before
+     public void setUp() {
+@@ -38,20 +39,21 @@
+         specialCharSet = Collections.emptySet();
+         startRange = 0;
+         endRange = 59;
++        strictRange = true;
+     }
+ 
+     @Test(expected = NullPointerException.class)
+     public void testConstructorStringMappingNull() {
+-        new FieldConstraints(null, intMapping, specialCharSet, startRange, endRange);
++        new FieldConstraints(null, intMapping, specialCharSet, startRange, endRange, strictRange);
+     }
+ 
+     @Test(expected = NullPointerException.class)
+     public void testConstructorIntMappingNull() {
+-        new FieldConstraints(stringMapping, null, specialCharSet, startRange, endRange);
++        new FieldConstraints(stringMapping, null, specialCharSet, startRange, endRange, strictRange);
+     }
+ 
+     @Test(expected = NullPointerException.class)
+     public void testSpecialCharsSetNull() {
+-        new FieldConstraints(stringMapping, intMapping, null, startRange, endRange);
++        new FieldConstraints(stringMapping, intMapping, null, startRange, endRange, strictRange);
+     }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/cronutils/model/field/expression/visitor/ValidationFieldExpressionVisitorTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/cronutils/model/field/expression/visitor/ValidationFieldExpressionVisitorTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/cronutils/model/field/expression/visitor/ValidationFieldExpressionVisitorTest.java	2024-09-08 01:36:24.977884675 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/cronutils/model/field/expression/visitor/ValidationFieldExpressionVisitorTest.java	2024-09-08 01:36:24.969884618 +1000
+@@ -57,18 +57,18 @@
+         MockitoAnnotations.initMocks(this);
+         final int startRange = 0;
+         final int endRange = 59;
+-        fieldConstraints = new FieldConstraints(Collections.emptyMap(), Collections.emptyMap(), Collections.emptySet(), startRange, endRange);
++        fieldConstraints = new FieldConstraints(Collections.emptyMap(), Collections.emptyMap(), Collections.emptySet(), startRange, endRange, true);
+ 
+         when(stringValidations.removeValidChars(any(String.class))).thenReturn(StringUtils.EMPTY);
+         when(invalidStringValidations.removeValidChars(any(String.class))).thenReturn("$$$");
+ 
+-        strictVisitor = new ValidationFieldExpressionVisitor(fieldConstraints, stringValidations, true);
+-        visitor = new ValidationFieldExpressionVisitor(fieldConstraints, stringValidations, false);
++        strictVisitor = new ValidationFieldExpressionVisitor(fieldConstraints, stringValidations);
++        visitor = new ValidationFieldExpressionVisitor(fieldConstraints, stringValidations);
+     }
+ 
+     @Test(expected = IllegalArgumentException.class)
+     public void testVisitWithInvalidChars() {
+-        final ValidationFieldExpressionVisitor tempVisitor = new ValidationFieldExpressionVisitor(fieldConstraints, invalidStringValidations, true);
++        final ValidationFieldExpressionVisitor tempVisitor = new ValidationFieldExpressionVisitor(fieldConstraints, invalidStringValidations);
+         final FieldExpression exp = FieldExpression.always();
+         tempVisitor.visit(exp);
+     }
+@@ -232,8 +232,24 @@
+         visitor.visit(new Between(new IntegerFieldValue(LOWOOR), new IntegerFieldValue(HIGHOOR)));
+     }
+ 
++    @Test(expected = IllegalArgumentException.class)
++    public void testVisitBetweenOOOrderStrict() {
++        final int startRange = 0;
++        final int endRange = 59;
++        fieldConstraints = new FieldConstraints(Collections.emptyMap(), Collections.emptyMap(), Collections.emptySet(), startRange, endRange, true);
++        visitor = new ValidationFieldExpressionVisitor(fieldConstraints, stringValidations);
++
++        final Between between = new Between(new IntegerFieldValue(HIGH), new IntegerFieldValue(LOW));
++        assertEquals(between, visitor.visit(between));
++    }
++
+     @Test
+-    public void testVisitBetweenOOOrder() {
++    public void testVisitBetweenOOOrderNonStrict() {
++        final int startRange = 0;
++        final int endRange = 59;
++        fieldConstraints = new FieldConstraints(Collections.emptyMap(), Collections.emptyMap(), Collections.emptySet(), startRange, endRange, false);
++        visitor = new ValidationFieldExpressionVisitor(fieldConstraints, stringValidations);
++
+         final Between between = new Between(new IntegerFieldValue(HIGH), new IntegerFieldValue(LOW));
+         assertEquals(between, visitor.visit(between));
+     }

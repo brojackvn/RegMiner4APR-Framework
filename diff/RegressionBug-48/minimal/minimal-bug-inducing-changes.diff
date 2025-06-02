@@ -1,0 +1,26 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java
+@@ -1002,20 +1003,18 @@
+         String name = node.getName();
+         if (data == null) {
+             int symbol = node.getSymbol();
+-            if (symbol >= 0) {
+-                if (frame.has(symbol)) {
+-                    return frame.get(symbol);
+-                } else if (node instanceof ASTVar) {
+-                    return null;
+-                }
++            if (symbol >= 0 && frame.has(symbol)) {
++                return frame.get(symbol);
+             }
+             Object value = context.get(name);
+             if (value == null
+                     && !(node.jjtGetParent() instanceof ASTReference)
+                     && !(context.has(name))
+                     && !node.isTernaryProtected()) {
+-                return unsolvableVariable(node, name, true);
++                return jexl.safe ? null : unsolvableVariable(node, name, !(node.getSymbol() >= 0 || context.has(name)));
+             }
+             return value;
+         } else {

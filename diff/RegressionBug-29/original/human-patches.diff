@@ -1,0 +1,48 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/pom.xml ./RegMiner4APR-Regression-Bugs/BFC/pom.xml
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/pom.xml	2024-09-08 01:36:14.045808110 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/pom.xml	2024-09-08 01:36:14.021807942 +1000
+@@ -4,7 +4,7 @@
+ 	<modelVersion>4.0.0</modelVersion>
+ 	<groupId>com.univocity</groupId>
+ 	<artifactId>univocity-parsers</artifactId>
+-	<version>2.6.3</version>
++	<version>2.6.4-SNAPSHOT</version>
+ 	<name>univocity-parsers</name>
+ 	<packaging>jar</packaging>
+ 	<description>uniVocity's open source parsers for processing different text formats using a consistent API</description>
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/AbstractWriter.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/AbstractWriter.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/AbstractWriter.java	2024-09-08 01:36:14.045808110 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/AbstractWriter.java	2024-09-08 01:36:14.021807942 +1000
+@@ -957,7 +957,7 @@
+ 		usingNullOrEmptyValue = false;
+ 		if (element == null) {
+ 			usingNullOrEmptyValue = true;
+-			return null;
++			return nullValue;
+ 		}
+ 		String string = String.valueOf(element);
+ 		if (string.isEmpty()) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvWriter.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvWriter.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvWriter.java	2024-09-08 01:36:14.049808138 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvWriter.java	2024-09-08 01:36:14.029807998 +1000
+@@ -207,7 +207,7 @@
+ 			boolean isElementQuoted = append(quoteAllFields || quotedColumns.contains(i), nextElement);
+ 
+ 			//skipped all whitespaces and wrote nothing
+-			if (appender.length() == originalLength) {
++			if (appender.length() == originalLength && !usingNullOrEmptyValue) {
+ 				if (isElementQuoted) {
+ 					if (nextElement == null) {
+ 						append(false, nullValue);
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/univocity/parsers/examples/WriterExamples.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/univocity/parsers/examples/WriterExamples.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/univocity/parsers/examples/WriterExamples.java	2024-09-08 01:36:14.049808138 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/univocity/parsers/examples/WriterExamples.java	2024-09-08 01:36:14.029807998 +1000
+@@ -170,7 +170,7 @@
+ 		FixedWidthFields lengths = new FixedWidthFields(15, 10, 35);
+ 		FixedWidthWriterSettings settings = new FixedWidthWriterSettings(lengths);
+ 
+-		// Any null values will be written as ?
++		// Any null values will be written as 'nil'
+ 		settings.setNullValue("nil");
+ 		settings.getFormat().setPadding('_');
+ 		settings.setIgnoreLeadingWhitespaces(false);

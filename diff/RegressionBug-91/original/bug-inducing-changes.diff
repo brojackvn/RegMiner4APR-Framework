@@ -1,0 +1,445 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/incrementaldomsrc/AssistantForHtmlMsgs.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/incrementaldomsrc/AssistantForHtmlMsgs.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/incrementaldomsrc/AssistantForHtmlMsgs.java	2024-09-08 01:36:29.325915127 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/incrementaldomsrc/AssistantForHtmlMsgs.java	2024-09-08 01:36:29.273914763 +1000
+@@ -16,6 +16,8 @@
+ package com.google.template.soy.incrementaldomsrc;
+ 
+ import static com.google.template.soy.incrementaldomsrc.IncrementalDomRuntime.INCREMENTAL_DOM_TEXT;
++import static com.google.template.soy.jssrc.dsl.CodeChunk.WithValue.LITERAL_UNDEFINED;
++import static com.google.template.soy.jssrc.dsl.CodeChunk.assign;
+ import static com.google.template.soy.jssrc.dsl.CodeChunk.id;
+ import static com.google.template.soy.jssrc.internal.JsRuntime.GOOG_STRING_UNESCAPE_ENTITIES;
+ 
+@@ -86,7 +88,7 @@
+   }
+ 
+   @Override
+-  public String generateMsgGroupVariable(MsgFallbackGroupNode node) {
++  public CodeChunk.WithValue generateMsgGroupVariable(MsgFallbackGroupNode node) {
+     throw new IllegalStateException(
+         "This class should only be used for via the new idom entry-point.");
+   }
+@@ -137,11 +139,11 @@
+     // It'd be nice to move this codegen to a Soy template...
+ 
+     // The raw translated text, with placeholder placeholders.
+-    String translationVar = super.generateMsgGroupVariable(node);
++    CodeChunk.WithValue translationVar = super.generateMsgGroupVariable(node);
+ 
+     // If there are no placeholders, we don't need anything special (but we still need to unescape).
+     if (placeholderNames.isEmpty()) {
+-      CodeChunk.WithValue unescape = GOOG_STRING_UNESCAPE_ENTITIES.call(id(translationVar));
++      CodeChunk.WithValue unescape = GOOG_STRING_UNESCAPE_ENTITIES.call(translationVar);
+       jsCodeBuilder().append(INCREMENTAL_DOM_TEXT.call(unescape));
+       return;
+     }
+@@ -170,8 +172,14 @@
+     jsCodeBuilder().appendLine("do {");
+     jsCodeBuilder().increaseIndent();
+     // Find the placeholder.
+-    jsCodeBuilder().appendLine(matchVar, " = ", regexVar,
+-        ".exec(", translationVar, ") || undefined;");
++    jsCodeBuilder()
++        .append(
++            assign(
++                matchVar,
++                id(regexVar)
++                    .dotAccess("exec")
++                    .call(translationVar)
++                    .or(LITERAL_UNDEFINED, translationContext.codeGenerator())));
+     // Replace null with undefined.  This is necessary to make substring() treat falsy as an omitted
+     // parameter, so that it goes until the end of the string.  Otherwise, the non-numeric parameter
+     // would be coerced to zero.
+@@ -182,7 +190,7 @@
+         id(matchVar).and(id(matchVar).dotAccess("index"), translationContext.codeGenerator());
+     CodeChunk.WithValue unescape =
+         GOOG_STRING_UNESCAPE_ENTITIES.call(
+-            id(translationVar).dotAccess("substring").call(id(lastIndexVar), endIndex));
++            translationVar.dotAccess("substring").call(id(lastIndexVar), endIndex));
+ 
+     jsCodeBuilder().append(INCREMENTAL_DOM_TEXT.call(unescape));
+     jsCodeBuilder().appendLine(lastIndexVar, " = ", regexVar, ".lastIndex;");
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/incrementaldomsrc/GenIncrementalDomCodeVisitor.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/incrementaldomsrc/GenIncrementalDomCodeVisitor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/incrementaldomsrc/GenIncrementalDomCodeVisitor.java	2024-09-08 01:36:29.325915127 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/incrementaldomsrc/GenIncrementalDomCodeVisitor.java	2024-09-08 01:36:29.273914763 +1000
+@@ -677,7 +677,7 @@
+ 
+   @Override
+   protected void visitMsgFallbackGroupNode(MsgFallbackGroupNode node) {
+-    String msgExpression;
++    CodeChunk.WithValue msgExpression;
+     switch (node.getHtmlContext()) {
+       case HTML_PCDATA:
+         new AssistantForHtmlMsgs(
+@@ -708,12 +708,11 @@
+                     templateTranslationContext,
+                     errorReporter)
+                 .generateMsgGroupVariable(node);
+-        getJsCodeBuilder()
+-            .addChunkToOutputVar(GOOG_STRING_UNESCAPE_ENTITIES.call(id(msgExpression)));
++        getJsCodeBuilder().addChunkToOutputVar(GOOG_STRING_UNESCAPE_ENTITIES.call(msgExpression));
+         break;
+       default:
+         msgExpression = getAssistantForMsgs().generateMsgGroupVariable(node);
+-        getJsCodeBuilder().addChunkToOutputVar(id(msgExpression));
++        getJsCodeBuilder().addChunkToOutputVar(msgExpression);
+         break;
+     }
+   }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/jssrc/dsl/CodeChunk.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/jssrc/dsl/CodeChunk.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/jssrc/dsl/CodeChunk.java	2024-09-08 01:36:29.325915127 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/jssrc/dsl/CodeChunk.java	2024-09-08 01:36:29.273914763 +1000
+@@ -301,6 +301,7 @@
+     public static final WithValue LITERAL_TRUE = id("true");
+     public static final WithValue LITERAL_FALSE = id("false");
+     public static final WithValue LITERAL_NULL = id("null");
++    public static final WithValue LITERAL_UNDEFINED = id("undefined");
+     public static final WithValue LITERAL_EMPTY_STRING = Leaf.create("''");
+     public static final WithValue EMPTY_OBJECT_LITERAL = Leaf.create("{}");
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/jssrc/internal/GenJsCodeVisitorAssistantForMsgs.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/jssrc/internal/GenJsCodeVisitorAssistantForMsgs.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/jssrc/internal/GenJsCodeVisitorAssistantForMsgs.java	2024-09-08 01:36:29.325915127 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/jssrc/internal/GenJsCodeVisitorAssistantForMsgs.java	2024-09-08 01:36:29.277914791 +1000
+@@ -23,6 +23,7 @@
+ import static com.google.template.soy.jssrc.dsl.CodeChunk.new_;
+ import static com.google.template.soy.jssrc.dsl.CodeChunk.stringLiteral;
+ import static com.google.template.soy.jssrc.internal.JsRuntime.GOOG_GET_MSG;
++import static com.google.template.soy.jssrc.internal.JsRuntime.GOOG_GET_MSG_WITH_FALLBACK;
+ import static com.google.template.soy.jssrc.internal.JsRuntime.GOOG_I18N_MESSAGE_FORMAT;
+ 
+ import com.google.common.base.CaseFormat;
+@@ -33,6 +34,7 @@
+ import com.google.template.soy.jssrc.SoyJsSrcOptions;
+ import com.google.template.soy.jssrc.dsl.CodeChunk;
+ import com.google.template.soy.jssrc.dsl.CodeChunkUtils;
++import com.google.template.soy.jssrc.dsl.Declaration;
+ import com.google.template.soy.msgs.internal.IcuSyntaxUtils;
+ import com.google.template.soy.msgs.internal.MsgUtils;
+ import com.google.template.soy.msgs.restricted.SoyMsgPart;
+@@ -141,23 +143,22 @@
+   }
+ 
+   /**
+-   * Generates Javascript statements that declare a translated variable, returning the variable name
+-   * for the caller to output (as an expression).
+-   * MsgFallbackGroupNodes can only appear in let blocks, which seems like unnecesary overhead since
+-   * this already generates a perfectly usable variable.  However, this design makes incremental DOM
+-   * codegen, which needs to apply complex transforms on the translated variable, much simpler.
+-   * Example:
++   * Returns a code chunk that declares a translated variable.
++   *
++   * <p>Example:
++   *
+    * <pre>
+    *   {msg desc="Link to help content."}Learn more{/msg}
+    *   {msg desc="Tells user how to access a product." hidden="true"}
+-   *     Click &lt;a href="}{$url}"&gt;here&lt;/a&gt; to access {$productName}.
++   *     Click &lt;a href="{$url}"&gt;here&lt;/a&gt; to access {$productName}.
+    *   {/msg}
+    * </pre>
++   *
+    * might generate
++   *
+    * <pre>
+    *   /** @desc Link to help content. *{@literal /}
+    *   var MSG_UNNAMED_9 = goog.getMsg('Learn more');
+-   *   var msg_s9 = MSG_UNNAMED_9;
+    *   /** @desc Tells user how to access a product.
+    *    *  @hidden *{@literal /}
+    *   var MSG_UNNAMED_10 = goog.getMsg(
+@@ -166,90 +167,76 @@
+    *        endLink: '&lt;/a&gt;',
+    *        productName: opt_data.productName});
+    * </pre>
+-   * and return {@code "MSG_UNNAMED_10"}.
+    */
+-  public String generateMsgGroupVariable(MsgFallbackGroupNode node) {
+-    String tmpVarName = translationContext.nameGenerator().generateName("msg_s");
+-    if (node.numChildren() == 1) {
+-      return generateSingleMsgVariable(node.getChild(0), tmpVarName);
+-    } else {  // has fallbackmsg children
+-      generateMsgGroupVariable(node, tmpVarName);
+-      return tmpVarName;
+-    }
++  public CodeChunk.WithValue generateMsgGroupVariable(MsgFallbackGroupNode node) {
++    return node.hasFallbackMsg()
++        ? generateMsgGroupVariableWithFallbackMsgs(node)
++        : generateSingleMsgVariable(node.getChild(0));
+   }
+ 
+-  /**
+-   * Generates an initialized variable declaration for an {@link MsgNode} with no fallback messages.
+-   * @return The variable name, which will be the actual MSG_BLAH variable if no temporary variables
+-   * are needed for additional formatting.
+-   */
+-  private String generateSingleMsgVariable(MsgNode msgNode, String tmpVarName) {
+-    String googMsgVarName = buildGoogMsgVarNameHelper(msgNode);
+-
+-    // Generate the goog.getMsg call.
+-    GoogMsgCodeGenInfo googMsgCodeGenInfo = genGoogGetMsgCallHelper(googMsgVarName, msgNode);
+-
++  /** Returns a code chunk representing a {@link MsgNode} with no fallback messages. */
++  private CodeChunk.WithValue generateSingleMsgVariable(MsgNode msgNode) {
++    String varName = getGoogMsgVarName(msgNode);
++    GoogMsgCodeGenInfo googMsgCodeGenInfo = genGoogGetMsgCallHelper(varName, msgNode);
+     if (!msgNode.isPlrselMsg()) {
+       // No postprocessing is needed. Simply use the original goog.getMsg var.
+-      return googMsgVarName;
++      return id(varName);
+     }
+-    // For plural/select messages, generate the goog.i18n.MessageFormat call.
+-    // We don't want to output the result of goog.getMsg() directly. Instead, we send that
+-    // string to goog.i18n.MessageFormat for postprocessing. This postprocessing is where we're
+-    // handling all placeholder replacements, even ones that have nothing to do with
+-    // plural/select.
+-    jsCodeBuilder().append(declare(tmpVarName, getMessageFormatCall(googMsgCodeGenInfo)));
+-    return tmpVarName;
++
++    // For plural/select messages, return a code chunk that sets up the message variable
++    // with the correct goog.i18n.MessageFormat calls.
++    return translationContext
++        .codeGenerator()
++        .declare(googMsgCodeGenInfo.getMessageFormatCall())
++        .ref();
+   }
+ 
+   /**
+-   * Generates an initialized variable declaration for an {@link MsgFallbackGroupNode} that contains
+-   * fallback(s).
++   * Returns a code chunk representing a {@link MsgFallbackGroupNode}, initialized with calls to
++   * {@code goog.getMsgWithFallback} (and if there are plurals or selects, {@code
++   * goog.i18n.MessageFormat}).
+    */
+-  private void generateMsgGroupVariable(MsgFallbackGroupNode node, String tmpVarName) {
+-    List<GoogMsgCodeGenInfo> childGoogMsgCodeGenInfos = new ArrayList<>(node.numChildren());
++  private CodeChunk.WithValue generateMsgGroupVariableWithFallbackMsgs(MsgFallbackGroupNode node) {
++    List<GoogMsgCodeGenInfo> childGenInfos = new ArrayList<>(node.numChildren());
+ 
+     // Generate the goog.getMsg calls for all children.
+     for (MsgNode msgNode : node.getChildren()) {
+-      String googMsgVarName = buildGoogMsgVarNameHelper(msgNode);
+-      childGoogMsgCodeGenInfos.add(genGoogGetMsgCallHelper(googMsgVarName, msgNode));
++      String googMsgVarName = getGoogMsgVarName(msgNode);
++      childGenInfos.add(genGoogGetMsgCallHelper(googMsgVarName, msgNode));
+     }
+ 
+-    // Declare a temporary variable to hold the getMsgWithFallback() call so that we can apply any
+-    // MessageFormats from any of the fallbacks.  This is also the variable name that we return to
+-    // the caller.
+-    jsCodeBuilder().appendLineStart("var ", tmpVarName, " = goog.getMsgWithFallback(");
+-    boolean isFirst = true;
+-    for (GoogMsgCodeGenInfo childGoogMsgCodeGenInfo : childGoogMsgCodeGenInfos) {
+-      if (isFirst) {
+-        isFirst = false;
+-      } else {
+-        jsCodeBuilder().append(", ");
+-      }
+-      jsCodeBuilder().append(childGoogMsgCodeGenInfo.googMsgVarName);
++    ImmutableList.Builder<CodeChunk.WithValue> args = ImmutableList.builder();
++    for (GoogMsgCodeGenInfo childGoogMsgCodeGenInfo : childGenInfos) {
++      args.add(CodeChunk.id(childGoogMsgCodeGenInfo.googMsgVarName));
+     }
+-    jsCodeBuilder().appendLineEnd(");");
++    // Declare a temporary variable to hold the getMsgWithFallback() call so that we can apply any
++    // MessageFormats from any of the fallbacks.
++    Declaration decl =
++        translationContext.codeGenerator().declare(GOOG_GET_MSG_WITH_FALLBACK.call(args.build()));
++
++    ImmutableList.Builder<CodeChunk> initialStatements = ImmutableList.builder();
+ 
+     // Generate the goog.i18n.MessageFormat calls for child plural/select messages (if any), each
+     // wrapped in an if-block that will only execute if that child is the chosen message.
+-    for (GoogMsgCodeGenInfo childGoogMsgCodeGenInfo : childGoogMsgCodeGenInfos) {
+-      if (childGoogMsgCodeGenInfo.isPlrselMsg) {
+-        CodeChunk.WithValue tmpVar = id(tmpVarName);
+-        jsCodeBuilder()
+-            .append(
+-                ifStatement(
+-                        tmpVar.doubleEquals(id(childGoogMsgCodeGenInfo.googMsgVarName)),
+-                        tmpVar.assign(getMessageFormatCall(childGoogMsgCodeGenInfo)))
+-                    .build());
++    for (GoogMsgCodeGenInfo child : childGenInfos) {
++      if (child.isPlrselMsg) {
++        initialStatements.add(
++            ifStatement(
++                    decl.ref().doubleEquals(id(child.googMsgVarName)),
++                    decl.ref().assign(child.getMessageFormatCall()))
++                .build());
+       }
+     }
++
++    return decl.ref().withInitialStatements(initialStatements.build());
+   }
+ 
+-  /** Builds the googMsgVarName for an MsgNode. */
+-  private String buildGoogMsgVarNameHelper(MsgNode msgNode) {
+-    // NOTE: MSG_UNNAMED/MSG_EXTERNAL are a special tokens recognized by the jscompiler. MSG_UNNAMED
+-    // disables the default logic that requires all messages to be uniquely named.
+-    // and MSG_EXTERNAL
++  /** Returns the variable name for the given {@link MsgNode}. */
++  private String getGoogMsgVarName(MsgNode msgNode) {
++    // MSG_UNNAMED/MSG_EXTERNAL are special tokens recognized by JSCompiler.
++    // MSG_UNNAMED disables the default logic that requires all messages to be uniquely named,
++    // and MSG_EXTERNAL tells JSCompiler that the content of the message comes from outside
++    // JSCompiler.
+     String desiredName =
+         jsSrcOptions.googMsgsAreExternal()
+             ? "MSG_EXTERNAL_" + MsgUtils.computeMsgIdForDualFormat(msgNode)
+@@ -259,10 +246,10 @@
+ 
+ 
+   /**
+-   * Generates the goog.getMsg call for an MsgNode.
+-   * The goog.getMsg call (including JsDoc) will be appended to the jsCodeBuilder.
++   * Generates the {@code goog.getMsg} call for an MsgNode. The call (including JsDoc) will be
++   * appended to the JsCodeBuilder.
+    *
+-   * @return The GoogMsgCodeGenInfo object created in the process, which may be needed for
++   * @return The {@link GoogMsgCodeGenInfo} created in the process, which may be needed for
+    *     generating postprocessing code (if the message is plural/select).
+    */
+   private GoogMsgCodeGenInfo genGoogGetMsgCallHelper(String googMsgVarName, MsgNode msgNode) {
+@@ -356,19 +343,6 @@
+     return msgStrSb.toString();
+   }
+ 
+-  /**
+-   * Generates the {@code goog.i18n.MessageFormat} postprocessing call for a child plural/select
+-   * message.
+-   */
+-  private static CodeChunk.WithValue getMessageFormatCall(GoogMsgCodeGenInfo codeGenInfo) {
+-    MapLiteralBuilder builder = codeGenInfo.pluralsAndSelects;
+-    builder.putAll(codeGenInfo.placeholders);
+-    return new_(GOOG_I18N_MESSAGE_FORMAT)
+-        .call(id(codeGenInfo.googMsgVarName))
+-        .dotAccess("formatIgnoringPound")
+-        .call(builder.build());
+-  }
+-
+   /** Stores the data required for generating {@code goog.getMsg()} calls. */
+   private static final class GoogMsgCodeGenInfo {
+ 
+@@ -388,6 +362,18 @@
+       this.googMsgVarName = googMsgVarName;
+       this.isPlrselMsg = isPlrselMsg;
+     }
++
++    /**
++     * Returns a code chunk representing a {@code goog.i18n.MessageFormat.formatIgnoringPound} call
++     * on the message variable represented by this object.
++     */
++    CodeChunk.WithValue getMessageFormatCall() {
++      pluralsAndSelects.putAll(placeholders);
++      return new_(GOOG_I18N_MESSAGE_FORMAT)
++          .call(id(googMsgVarName))
++          .dotAccess("formatIgnoringPound")
++          .call(pluralsAndSelects.build());
++    }
+   }
+ 
+   /**
+@@ -527,8 +513,7 @@
+ 
+   /** Returns a code chunk for the given placeholder node. */
+   protected CodeChunk.WithValue genGoogMsgPlaceholder(MsgPlaceholderNode msgPhNode) {
+-
+-    List<CodeChunk.WithValue> contentChunks = new ArrayList<>();
++    List<CodeChunk.WithValue> contentChunks = new ArrayList<>(msgPhNode.numChildren());
+ 
+     for (StandaloneNode contentNode : msgPhNode.getChildren()) {
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/jssrc/internal/GenJsCodeVisitor.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/jssrc/internal/GenJsCodeVisitor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/jssrc/internal/GenJsCodeVisitor.java	2024-09-08 01:36:29.325915127 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/jssrc/internal/GenJsCodeVisitor.java	2024-09-08 01:36:29.273914763 +1000
+@@ -959,13 +959,9 @@
+     // Optimization: {msg} nodes emit statements and result in a JsExpr with a single variable.  Use
+     // that variable (typically the MSG_* from getMsg) as-is instead of wrapping a new var around it
+     if (node.getChildren().size() == 1 && node.getChild(0) instanceof MsgFallbackGroupNode) {
+-      String msgVar = getAssistantForMsgs()
+-          .generateMsgGroupVariable((MsgFallbackGroupNode) node.getChild(0));
+-      templateTranslationContext
+-          .soyToJsVariableMappings()
+-          .put(
+-              node.getVarName(),
+-              id(msgVar));
++      CodeChunk.WithValue msgVar =
++          getAssistantForMsgs().generateMsgGroupVariable((MsgFallbackGroupNode) node.getChild(0));
++      templateTranslationContext.soyToJsVariableMappings().put(node.getVarName(), msgVar);
+       return;
+     }
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/jssrc/internal/JsCodeBuilder.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/jssrc/internal/JsCodeBuilder.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/jssrc/internal/JsCodeBuilder.java	2024-09-08 01:36:29.325915127 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/jssrc/internal/JsCodeBuilder.java	2024-09-08 01:36:29.277914791 +1000
+@@ -23,7 +23,6 @@
+ import com.google.common.base.Strings;
+ import com.google.common.collect.ImmutableList;
+ import com.google.template.soy.jssrc.dsl.CodeChunk;
+-import com.google.template.soy.jssrc.dsl.CodeChunk.RequiresCollector;
+ import com.google.template.soy.jssrc.dsl.CodeChunkUtils;
+ import com.google.template.soy.jssrc.dsl.GoogRequire;
+ import java.util.ArrayDeque;
+@@ -109,7 +108,7 @@
+    * <p>TODO(user): this is always an {@link CodeChunk#id}. Consider exposing a subclass of
+    * CodeChunk so we can enforce this invariant at compile time.
+    */
+-  @Nullable protected CodeChunk.WithValue currOutputVar;
++  @Nullable private CodeChunk.WithValue currOutputVar;
+ 
+   /** Whether the current output variable is initialized. */
+   private boolean currOutputVarIsInited;
+@@ -287,10 +286,11 @@
+ 
+   /**
+    * Appends the current indent, then the given strings.
++   *
+    * @param codeFragments The code string(s) to append.
+    * @return This CodeBuilder (for stringing together operations).
+    */
+-  public JsCodeBuilder appendLineStart(String... codeFragments) {
++  JsCodeBuilder appendLineStart(String... codeFragments) {
+     code.append(indent);
+     append(codeFragments);
+     return this;
+@@ -298,25 +298,22 @@
+ 
+   /**
+    * Appends the given strings, then a newline.
++   *
+    * @param codeFragments The code string(s) to append.
+    * @return This CodeBuilder (for stringing together operations).
+    */
+-  public JsCodeBuilder appendLineEnd(String... codeFragments) {
++  JsCodeBuilder appendLineEnd(String... codeFragments) {
+     append(codeFragments);
+     code.append("\n");
+     return this;
+   }
+ 
+-  public RequiresCollector getRequiresCollector() {
+-    return requireCollector;
+-  }
+-
+   /**
+    * Adds a {@code goog.require}
+    *
+    * @param require The namespace being required
+    */
+-  public void addGoogRequire(GoogRequire require) {
++  protected void addGoogRequire(GoogRequire require) {
+     GoogRequire oldRequire = googRequires.put(require.symbol(), require);
+     if (oldRequire != null && !oldRequire.equals(require)) {
+       throw new IllegalArgumentException(
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/jssrc/internal/JsRuntime.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/jssrc/internal/JsRuntime.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/jssrc/internal/JsRuntime.java	2024-09-08 01:36:29.325915127 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/jssrc/internal/JsRuntime.java	2024-09-08 01:36:29.277914791 +1000
+@@ -57,6 +57,9 @@
+ 
+   public static final CodeChunk.WithValue GOOG_GET_MSG = dottedIdNoRequire("goog.getMsg");
+ 
++  public static final CodeChunk.WithValue GOOG_GET_MSG_WITH_FALLBACK =
++      dottedIdNoRequire("goog.getMsgWithFallback");
++
+   public static final CodeChunk.WithValue GOOG_IS_ARRAY = dottedIdNoRequire("goog.isArray");
+ 
+   public static final CodeChunk.WithValue GOOG_IS_BOOLEAN = dottedIdNoRequire("goog.isBoolean");

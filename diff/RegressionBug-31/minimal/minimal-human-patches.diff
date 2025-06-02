@@ -1,0 +1,26 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java
+@@ -265,10 +264,26 @@
+	protected char pickDelimiter(Map<Character, Integer> sums, Map<Character, Integer> totals) {
+ 		char delimiterMax = max(sums, totals, suggestedDelimiter);
+ 		char delimiterMin = min(sums, totals, suggestedDelimiter);
+ 
++		if (delimiterMin == ' ' || delimiterMax == ' ') {
++			boolean hasOtherDelimiters = false;
++			for (Map.Entry<Character, Integer> e : sums.entrySet()) {
++				if (e.getValue() == 0 && e.getKey() != ' ') {
++					hasOtherDelimiters = true;
++					break;
++				}
++			}
++			if (hasOtherDelimiters) {
++				totals.remove(' ');
++				delimiterMax = max(sums, totals, suggestedDelimiter);
++				delimiterMin = min(sums, totals, suggestedDelimiter);
++			}
++		}
+
+ 		char delimiter;
+ 		out:
+ 		if (delimiterMax != delimiterMin) {

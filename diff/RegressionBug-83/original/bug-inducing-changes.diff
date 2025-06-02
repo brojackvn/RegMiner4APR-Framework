@@ -1,0 +1,532 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/passes/PassManager.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/passes/PassManager.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/passes/PassManager.java	2024-09-08 01:36:26.425894816 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/passes/PassManager.java	2024-09-08 01:36:26.369894423 +1000
+@@ -285,6 +285,7 @@
+       // meaning that errors reported in earlier passes do not prevent running subsequent passes.
+       building = true;
+       ImmutableList.Builder<CompilerFilePass> singleFilePassesBuilder = ImmutableList.builder();
++      addPass(new StripSoyCommentsPass(), singleFilePassesBuilder);
+       // Needs to run after htmlrewriting, before ResolveNames, ResolveTemplateParamTypes and
+       // autoescaping.
+       addPass(new ContentSecurityPolicyNonceInjectionPass(errorReporter), singleFilePassesBuilder);
+Only in ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/passes: StripSoyCommentsPass.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soyparse/HtmlRewriter.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soyparse/HtmlRewriter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soyparse/HtmlRewriter.java	2024-09-08 01:36:26.429894844 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soyparse/HtmlRewriter.java	2024-09-08 01:36:26.373894451 +1000
+@@ -61,6 +61,7 @@
+ import com.google.template.soy.soytree.KeyNode;
+ import com.google.template.soy.soytree.LetContentNode;
+ import com.google.template.soy.soytree.LetValueNode;
++import com.google.template.soy.soytree.LineCommentNode;
+ import com.google.template.soy.soytree.LogNode;
+ import com.google.template.soy.soytree.MsgFallbackGroupNode;
+ import com.google.template.soy.soytree.MsgNode;
+@@ -1250,6 +1251,12 @@
+     }
+ 
+     @Override
++    protected void visitLineCommentNode(LineCommentNode node) {
++      processNonPrintableNode(
++          node); // otherwise InferenceEngine is unable to correctly infer escaping mode.
++    }
++
++    @Override
+     protected void visitCallParamContentNode(CallParamContentNode node) {
+       visitScopedBlock(node.getContentKind(), node, "param");
+     }
+@@ -1397,16 +1404,20 @@
+           context.addTagChild(node);
+           break;
+         case BEFORE_ATTRIBUTE_VALUE:
+-          errorReporter.report(
+-              node.getSourceLocation(),
+-              INVALID_LOCATION_FOR_NONPRINTABLE,
+-              "move it before the start of the tag or after the tag name");
++          if (node.getKind() != Kind.LINE_COMMENT_NODE) {
++            errorReporter.report(
++                node.getSourceLocation(),
++                INVALID_LOCATION_FOR_NONPRINTABLE,
++                "move it before the start of the tag or after the tag name");
++          }
+           break;
+         case HTML_TAG_NAME:
+-          errorReporter.report(
+-              node.getSourceLocation(),
+-              INVALID_LOCATION_FOR_NONPRINTABLE,
+-              "it creates ambiguity with an unquoted attribute value");
++          if (node.getKind() != Kind.LINE_COMMENT_NODE) {
++            errorReporter.report(
++                node.getSourceLocation(),
++                INVALID_LOCATION_FOR_NONPRINTABLE,
++                "it creates ambiguity with an unquoted attribute value");
++          }
+           break;
+         case UNQUOTED_ATTRIBUTE_VALUE:
+         case DOUBLE_QUOTED_ATTRIBUTE_VALUE:
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soyparse/ParseErrors.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soyparse/ParseErrors.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soyparse/ParseErrors.java	2024-09-08 01:36:26.429894844 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soyparse/ParseErrors.java	2024-09-08 01:36:26.373894451 +1000
+@@ -231,6 +231,9 @@
+       case SoyFileParserConstants.DOLLAR_IDENT:
+         return "variable";
+ 
++      case SoyFileParserConstants.TEMPLATE_LINE_COMMENT:
++        return null; // Comments are ubiquitous and unnessesery in error messages.
++
+       case SoyFileParserConstants.UNEXPECTED_TOKEN:
+         throw new AssertionError("we should never expect the unexpected token");
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soyparse/SoyFileParser.jj ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soyparse/SoyFileParser.jj
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soyparse/SoyFileParser.jj	2024-09-08 01:36:26.429894844 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soyparse/SoyFileParser.jj	2024-09-08 01:36:26.373894451 +1000
+@@ -99,6 +99,7 @@
+ import com.google.template.soy.soytree.LetContentNode;
+ import com.google.template.soy.soytree.LetNode;
+ import com.google.template.soy.soytree.LetValueNode;
++import com.google.template.soy.soytree.LineCommentNode;
+ import com.google.template.soy.soytree.LogNode;
+ import com.google.template.soy.soytree.MsgFallbackGroupNode;
+ import com.google.template.soy.soytree.MsgNode;
+@@ -723,16 +724,6 @@
+ | < <LINE_COMMENT> >
+ }
+ 
+-// Due to ambiguity with uri schemes, line comments in TEMPLATE_DEFAULT are only interpreted as such
+-// if there is preceding whitespace.
+-// Other lexical states don't have this requirement.  The fact that comments swallow leading
+-// whitespace characters doesn't affect output because of how line joining works.
+-<TEMPLATE_DEFAULT> SKIP: {
+-  // In theory we only require a single whitespace character, but this rule will consume all
+-  // preceeding whitespace. This is necessary to make this unambiguous with the TOKEN_WS definition.
+-  < (<WS>)+ <LINE_COMMENT> >
+-}
+-
+ // NOTE: we don't just configure this for state * because these comments shouldn't work in things
+ // like string literals or attribute values
+ <DEFAULT, TEMPLATE_DEFAULT, IN_CMD_TAG, EXPR, EXPR_NO_DOUBLE_QUOTE, EXPR_NO_SINGLE_QUOTE> SKIP: {
+@@ -959,6 +950,14 @@
+ | < CMD_CLOSE_VELOG              : "{/velog}"       >
+ 
+ | < CMD_SKIP                     : "{skip}"         >
++
++// Due to ambiguity with uri schemes, line comments in TEMPLATE_DEFAULT are only interpreted as such
++// if there is preceding whitespace.
++// Other lexical states don't have this requirement.  The fact that comments swallow leading
++// whitespace characters doesn't affect output because of how line joining works.
++| < TEMPLATE_LINE_COMMENT        : (<WS>)+ <LINE_COMMENT> >
++// In theory we only require a single whitespace character, but this rule will consume all
++// preceeding whitespace. This is necessary to make this unambiguous with the TOKEN_WS definition.
+ }
+ 
+ 
+@@ -1541,6 +1540,7 @@
+     // --- Set the SoyDoc. ---
+     // special tokens are accessible from the non-special tokens that come after them.
+     Token soyDoc = open.specialToken;
++    // TODO(b/134590934): Add support for FILE_LINE_COMMENT
+     if (soyDoc != null && soyDoc.kind == SOYDOC) {
+       builder.setSoyDoc(soyDoc.image, createSrcLoc(soyDoc));
+     }
+@@ -1699,7 +1699,7 @@
+  * Important: The template header consists of a sequence of ParamDecls() separated by optional
+  * whitespace.
+  *
+- * TemplateHeader -> ( Whitespace() | ParamDecl() )*
++ * TemplateHeader -> ( Whitespace() | ParamDecl() | LineComment() )*
+  *
+  * Whether or not a particular piece of whitespace is part of the header or part of an initial raw
+  * text node is ambiguous.  So if there is a trailing piece of non-trivial whitespace it will be
+@@ -1709,6 +1709,7 @@
+ {
+   Token tok;
+   TemplateHeaderVarDefn param;
++  LineCommentNode lineComment = null;
+   List<TemplateHeaderVarDefn> params = ImmutableList.of();
+   RawTextNode whitespace = null;
+   String soyDoc = null;
+@@ -1732,9 +1733,10 @@
+ 
+       { whitespace = builder.build(); }
+     |
+-      param = ParamDecl(soyDoc)
+-      {
+-        switch (param.kind()) {
++      (
++        param = ParamDecl(soyDoc)
++        {
++          switch (param.kind()) {
+           case PARAM:
+             // we just parsed a param, preceding whitespace/doc comments are not important
+             whitespace = null;
+@@ -1757,11 +1759,14 @@
+           case LOCAL_VAR:
+           case UNDECLARED:
+             throw new AssertionError("unexpected var kind: " + param.kind());
++          }
+         }
+-      }
++      |
++        lineComment = LineComment()
++        { soyDoc = lineComment.getEscapedCommentText(); }  // soyDoc often ends up between `/*` `*/`
++      )
+     )
+   )*
+-
+   {
+     templateBuilder.addVarDefns(params);
+     return whitespace;
+@@ -1778,6 +1783,7 @@
+ private TemplateHeaderVarDefn ParamDecl(@Nullable String desc) :
+ {
+   Token tagBegin, name;
++  LineCommentNode lineComment = null;
+   TypeNode paramTypeNode = null;
+   ExprNode value = null;
+   boolean optional = false;
+@@ -1814,6 +1820,7 @@
+       value = Expr()
+     )
+     <CMD_END>
++    [ lineComment = LineComment() ]
+   } catch (ParseException parseException) {
+     reportTemplateBodyErrorAndSkipTo(parseException, CMD_END);
+   }
+@@ -1821,7 +1828,18 @@
+   {
+     if (desc != null) {
+       // trim the leading /** and trailing */ as well as the whitespace from the doc comment.
+-      desc = desc.substring(3, desc.length() - 2).trim();
++      if (desc.startsWith("/**")) {
++        desc = desc.substring(3, desc.length() - 2);
++      }
++      desc = desc.trim();
++    }
++    if (lineComment != null) {
++      if (desc != null) {
++        desc += "\n";
++      } else {
++        desc = "";
++      }
++      desc += lineComment.getEscapedCommentText();
+     }
+     if (stateVar) {
+       if (value == null) {
+@@ -1946,7 +1964,7 @@
+ }
+ 
+ /**
+- * NonPrintableStmt -> LetStmt | LogStmt | DebuggerStmt | KeyStmt
++ * NonPrintableStmt -> LetStmt | LogStmt | DebuggerStmt | KeyStmt | Comment
+  */
+ private StatementNode NonPrintableStmt() :
+ {
+@@ -1960,6 +1978,7 @@
+   | stmt = VeLogStmt()
+   | stmt = KeyStmt()
+   | stmt = SkipStmt()
++  | stmt = LineComment()
+   )
+ 
+   { return stmt; }
+@@ -2095,6 +2114,7 @@
+ 
+   // try to collect all leading whitespace into a raw text node on its own.
+   // This will make it possible to detect if a leading {plural} or {select} was preceeded by content
++  ( LineComment() )*  // TODO(b/138658479): Make sure these comments make it into the AST.
+   [ LOOKAHEAD(1)  // prefer taking this branch over skipping and consuming as RawText
+     { Token tok;
+       RawTextBuilder builder = new RawTextBuilder(filePath, nodeIdGen, whitespaceMode);
+@@ -2116,6 +2136,7 @@
+       msgPluralOrSelectNode = MsgPlural()
+     | msgPluralOrSelectNode = MsgSelect()
+     )
++    ( LineComment() )*  // TODO(b/138658479): Make sure these comments make it into the AST.
+     SkipWhitespace()  // we want to ignore all whitespace after a plural or select, just expect it
+     {
+       if (firstNodeIsWhitespace) {
+@@ -2219,7 +2240,11 @@
+   // consume all whitespace between {plural} and the first {case}
+   // later {case} and {default} tags will naturally consume whitespace due via RawText()
+   SkipWhitespace()
+-
++  (
++    // TODO(b/138658479): Make sure these comments make it into the AST.
++    LineComment()
++    SkipWhitespace()
++  )*
+   try {
+     (
+       tagBegin = <CMD_BEGIN_CASE>
+@@ -2783,17 +2808,24 @@
+ 
+   try {
+     (
+-      tagBegin = <CMD_BEGIN_CASE>
+-      caseExprs = ExprList()
+-      tagEnd = <CMD_END>
+-      {
+-        SwitchCaseNode caseNode =
+-            new SwitchCaseNode(nodeIdGen.genId(), createSrcLoc(tagBegin, tagEnd), caseExprs);
+-        switchNode.addChild(caseNode);
+-      }
++      (
++        LineComment()
++        SkipWhitespace()
++      )+
++    |
++      (
++        tagBegin = <CMD_BEGIN_CASE>
++        caseExprs = ExprList()
++        tagEnd = <CMD_END>
++        {
++          SwitchCaseNode caseNode =
++              new SwitchCaseNode(nodeIdGen.genId(), createSrcLoc(tagBegin, tagEnd), caseExprs);
++          switchNode.addChild(caseNode);
++        }
+ 
+-      templateBlock = TemplateBlock()
+-      { caseNode.addChildren(templateBlock); }
++        templateBlock = TemplateBlock()
++        { caseNode.addChildren(templateBlock); }
++      )
+     )+
+ 
+     [
+@@ -3007,6 +3039,12 @@
+   // consume all whitespace between {call}/{delcall} and the first {param} as well as between params
+   SkipWhitespace()
+   (
++    (
++      // TODO(b/138659631): Retain these comments.
++      LineComment()
++      SkipWhitespace()
++    )+
++    |
+     paramNode = CallParam()
+     {
+       if (params.isEmpty()) {
+@@ -3016,6 +3054,10 @@
+     }
+ 
+     SkipWhitespace()
++    [
++      LineComment()
++      SkipWhitespace()
++    ]
+   )*
+ 
+   { return params; }
+@@ -3132,6 +3174,15 @@
+   { return new DebuggerNode(nodeIdGen.genId(), createSrcLoc(token)); }
+ }
+ 
++private LineCommentNode LineComment() :
++{
++  Token token;
++}
++{
++  token = <TEMPLATE_LINE_COMMENT>
++  { return new LineCommentNode(nodeIdGen.genId(), token.image, createSrcLoc(token)); }
++}
++
+ 
+ // =================================================================================================
+ // Soy expressions.
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soytree/AbstractReturningSoyNodeVisitor.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soytree/AbstractReturningSoyNodeVisitor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soytree/AbstractReturningSoyNodeVisitor.java	2024-09-08 01:36:26.429894844 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soytree/AbstractReturningSoyNodeVisitor.java	2024-09-08 01:36:26.373894451 +1000
+@@ -149,6 +149,9 @@
+       case DEBUGGER_NODE:
+         return visitDebuggerNode((DebuggerNode) node);
+ 
++      case LINE_COMMENT_NODE:
++        return visitLineCommentNode((LineCommentNode) node);
++
+       default:
+         return visitSoyNode(node);
+     }
+@@ -345,6 +348,10 @@
+     return visitSoyNode(node);
+   }
+ 
++  protected R visitLineCommentNode(LineCommentNode node) {
++    return visitSoyNode(node);
++  }
++
+   // -----------------------------------------------------------------------------------------------
+   // Fallback implementation.
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soytree/AbstractSoyNodeVisitor.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soytree/AbstractSoyNodeVisitor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soytree/AbstractSoyNodeVisitor.java	2024-09-08 01:36:26.429894844 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soytree/AbstractSoyNodeVisitor.java	2024-09-08 01:36:26.373894451 +1000
+@@ -197,6 +197,10 @@
+         visitDebuggerNode((DebuggerNode) node);
+         break;
+ 
++      case LINE_COMMENT_NODE:
++        visitLineCommentNode((LineCommentNode) node);
++        break;
++
+       default:
+         visitSoyNode(node);
+         break;
+@@ -422,6 +426,10 @@
+     visitSoyNode(node);
+   }
+ 
++  protected void visitLineCommentNode(LineCommentNode node) {
++    visitSoyNode(node);
++  }
++
+   // -----------------------------------------------------------------------------------------------
+   // Fallback implementation.
+ 
+Only in ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soytree: LineCommentNode.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soytree/RawTextNode.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soytree/RawTextNode.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soytree/RawTextNode.java	2024-09-08 01:36:26.429894844 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soytree/RawTextNode.java	2024-09-08 01:36:26.373894451 +1000
+@@ -138,6 +138,25 @@
+     return offsets == null ? false : offsets.getReasonAt(index) == SourceOffsets.Reason.WHITESPACE;
+   }
+ 
++  /*
++   * Returns true if there was a text command such as {sp} or {nil} immediately
++   * prior to {@code index}.
++   *
++   * @param index the index in the raw text, this value should be in the range {@code [0,
++   *     rawText.length()]} if {@code rawText.length()} is passed, then this is equivalent to asking
++   *     if it ends with a commamnd.
++   * @throws IndexOutOfBoundsException if index is out of range.
++   * @return {@code true} if command executed
++   */
++  public boolean commandAt(int index) {
++    return offsets == null ? false : offsets.getReasonAt(index) == SourceOffsets.Reason.COMMAND;
++  }
++
++  @Nullable
++  public Reason getReasonAt(int index) {
++    return offsets == null ? null : offsets.getReasonAt(index);
++  }
++
+   public Point locationOf(int i) {
+     checkElementIndex(i, rawText.length(), "index");
+     if (offsets == null) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soytree/SoyNode.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soytree/SoyNode.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/soytree/SoyNode.java	2024-09-08 01:36:26.429894844 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/soytree/SoyNode.java	2024-09-08 01:36:26.377894480 +1000
+@@ -100,8 +100,9 @@
+ 
+     LOG_NODE,
+     DEBUGGER_NODE,
+-  }
+ 
++    LINE_COMMENT_NODE,
++  }
+ 
+   /** Returns this node's kind (corresponding to this node's specific type). */
+   Kind getKind();
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/tests/com/google/template/soy/passes/PassManagerTest.java ./RegMiner4APR-Regression-Bugs/BIC/java/tests/com/google/template/soy/passes/PassManagerTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/tests/com/google/template/soy/passes/PassManagerTest.java	2024-09-08 01:36:26.433894872 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/tests/com/google/template/soy/passes/PassManagerTest.java	2024-09-08 01:36:26.381894508 +1000
+@@ -68,7 +68,8 @@
+             .build();
+ 
+     assertThat(names(manager.singleFilePasses))
+-        .containsExactly("ContentSecurityPolicyNonceInjection", "ResolveTemplateParamTypes");
++        .containsExactly(
++            "StripSoyComments", "ContentSecurityPolicyNonceInjection", "ResolveTemplateParamTypes");
+     assertThat(names(manager.crossTemplateCheckingPasses)).isEmpty();
+   }
+ 
+@@ -81,7 +82,7 @@
+             .build();
+ 
+     assertThat(names(manager.singleFilePasses))
+-        .containsExactly("ContentSecurityPolicyNonceInjection");
++        .containsExactly("StripSoyComments", "ContentSecurityPolicyNonceInjection");
+     assertThat(names(manager.crossTemplateCheckingPasses)).isEmpty();
+   }
+ 
+Only in ./RegMiner4APR-Regression-Bugs/BIC/java/tests/com/google/template/soy/passes: StripSoyCommentsPassTest.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/tests/com/google/template/soy/soyparse/TemplateParserTest.java ./RegMiner4APR-Regression-Bugs/BIC/java/tests/com/google/template/soy/soyparse/TemplateParserTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/tests/com/google/template/soy/soyparse/TemplateParserTest.java	2024-09-08 01:36:26.437894900 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/tests/com/google/template/soy/soyparse/TemplateParserTest.java	2024-09-08 01:36:26.381894508 +1000
+@@ -887,7 +887,7 @@
+ 
+     String templateHeaderAndBody =
+         ""
+-            + "  {@param boo: string}  // Something scary. (Not doc comment.)\n"
++            + "  {@param boo: string}  // Something scary. (Becomes a SoyDoc comment.)\n"
+             + "  {@param foo: list<int>}  /** Something random. */\n"
+             + "  {@param goo: string}/** Something\n"
+             + "      slimy. */\n"
+@@ -906,12 +906,12 @@
+     assertFalse(declInfos.get(0).isInjected());
+     assertEquals("boo", declInfos.get(0).name());
+     assertEquals("string", declInfos.get(0).type().toString());
+-    assertEquals(null, declInfos.get(0).desc());
++    assertEquals("Something scary. (Becomes a SoyDoc comment.)", declInfos.get(0).desc());
+     assertEquals("foo", declInfos.get(1).name());
+     assertEquals("list<int>", declInfos.get(1).type().toString());
+     assertEquals(null, declInfos.get(1).desc());
+     assertEquals("Something random.", declInfos.get(2).desc());
+-    assertEquals("Something\n      slimy.", declInfos.get(3).desc());
++    assertEquals("{@param commentedOut: string}", declInfos.get(3).desc());
+     assertEquals("too", declInfos.get(4).name());
+     assertEquals(null, declInfos.get(4).desc());
+     assertEquals("woo", declInfos.get(5).name());
+Only in ./RegMiner4APR-Regression-Bugs/BIC/java/tests/com/google/template/soy/soytree: LineCommentNodeTest.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/javascript/soy_requirements_onefile.js ./RegMiner4APR-Regression-Bugs/BIC/javascript/soy_requirements_onefile.js
+--- ./RegMiner4APR-Regression-Bugs/WORKING/javascript/soy_requirements_onefile.js	2024-09-08 01:36:26.437894900 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/javascript/soy_requirements_onefile.js	2024-09-08 01:36:26.381894508 +1000
+@@ -23,7 +23,7 @@
+ goog$array.removeIf=function(a,b,c){b=goog$array.findIndex(a,b,c);return 0<=b?(goog$array.removeAt(a,b),!0):!1};goog$array.removeAllIf=function(a,b,c){var d=0;goog$array.forEachRight(a,function(e,f){b.call(c,e,f,a)&&goog$array.removeAt(a,f)&&d++});return d};goog$array.concat=function(a){return Array.prototype.concat.apply([],arguments)};goog$array.join=function(a){return Array.prototype.concat.apply([],arguments)};
+ goog$array.toArray=function(a){var b=a.length;if(0<b){for(var c=Array(b),d=0;d<b;d++)c[d]=a[d];return c}return[]};goog$array.clone=goog$array.toArray;goog$array.extend=function(a,b){for(var c=1;c<arguments.length;c++){var d=arguments[c];if(goog$isArrayLike(d)){var e=a.length||0,f=d.length||0;a.length=e+f;for(var g=0;g<f;g++)a[e+g]=d[g]}else a.push(d)}};goog$array.splice=function(a,b,c,d){return Array.prototype.splice.apply(a,goog$array.slice(arguments,1))};
+ goog$array.slice=function(a,b,c){return 2>=arguments.length?Array.prototype.slice.call(a,b):Array.prototype.slice.call(a,b,c)};goog$array.removeDuplicates=function(a,b,c){b=b||a;var d=function(k){return goog$isObject(k)?"o"+(k[goog$UID_PROPERTY_]||(k[goog$UID_PROPERTY_]=++goog$uidCounter_)):(typeof k).charAt(0)+k};c=c||d;d={};for(var e=0,f=0;f<a.length;){var g=a[f++],h=c(g);Object.prototype.hasOwnProperty.call(d,h)||(d[h]=!0,b[e++]=g)}b.length=e};
+-goog$array.binarySearch=function(a,b,c){return goog$array.binarySearch_(a,c||goog$array.defaultCompare,!1,b)};goog$array.binarySelect=function(a,b,c){return goog$array.binarySearch_(a,b,!0,void 0,c)};goog$array.binarySearch_=function(a,b,c,d,e){for(var f=0,g=a.length,h;f<g;){var k=f+g>>1;var l=c?b.call(e,a[k],k,a):b(d,a[k]);0<l?f=k+1:(g=k,h=!l)}return h?f:~f};goog$array.sort=function(a,b){a.sort(b||goog$array.defaultCompare)};
++goog$array.binarySearch=function(a,b,c){return goog$array.binarySearch_(a,c||goog$array.defaultCompare,!1,b)};goog$array.binarySelect=function(a,b,c){return goog$array.binarySearch_(a,b,!0,void 0,c)};goog$array.binarySearch_=function(a,b,c,d,e){for(var f=0,g=a.length,h;f<g;){var k=f+(g-f>>>1);var l=c?b.call(e,a[k],k,a):b(d,a[k]);0<l?f=k+1:(g=k,h=!l)}return h?f:-f-1};goog$array.sort=function(a,b){a.sort(b||goog$array.defaultCompare)};
+ goog$array.stableSort=function(a,b){for(var c=Array(a.length),d=0;d<a.length;d++)c[d]={index:d,value:a[d]};var e=b||goog$array.defaultCompare;goog$array.sort(c,function(f,g){return e(f.value,g.value)||f.index-g.index});for(d=0;d<a.length;d++)a[d]=c[d].value};goog$array.sortByKey=function(a,b,c){var d=c||goog$array.defaultCompare;goog$array.sort(a,function(e,f){return d(b(e),b(f))})};goog$array.sortObjectsByKey=function(a,b,c){goog$array.sortByKey(a,function(d){return d[b]},c)};
+ goog$array.isSorted=function(a,b,c){b=b||goog$array.defaultCompare;for(var d=1;d<a.length;d++){var e=b(a[d-1],a[d]);if(0<e||0==e&&c)return!1}return!0};goog$array.equals=function(a,b,c){if(!goog$isArrayLike(a)||!goog$isArrayLike(b)||a.length!=b.length)return!1;var d=a.length;c=c||goog$array.defaultCompareEquality;for(var e=0;e<d;e++)if(!c(a[e],b[e]))return!1;return!0};
+ goog$array.compare3=function(a,b,c){c=c||goog$array.defaultCompare;for(var d=Math.min(a.length,b.length),e=0;e<d;e++){var f=c(a[e],b[e]);if(0!=f)return f}return goog$array.defaultCompare(a.length,b.length)};goog$array.defaultCompare=function(a,b){return a>b?1:a<b?-1:0};goog$array.inverseDefaultCompare=function(a,b){return-goog$array.defaultCompare(a,b)};goog$array.defaultCompareEquality=function(a,b){return a===b};
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/testdata/javascript/soy_usegoog_lib_es5.js ./RegMiner4APR-Regression-Bugs/BIC/testdata/javascript/soy_usegoog_lib_es5.js
+--- ./RegMiner4APR-Regression-Bugs/WORKING/testdata/javascript/soy_usegoog_lib_es5.js	2024-09-08 01:36:26.441894928 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/testdata/javascript/soy_usegoog_lib_es5.js	2024-09-08 01:36:26.385894535 +1000
+@@ -1306,11 +1306,11 @@
+ };
+ goog.array.binarySearch_ = function(arr, compareFn, isEvaluator, opt_target, opt_selfObj) {
+   for (var left = 0, right = arr.length, found; left < right;) {
+-    var middle = left + right >> 1;
++    var middle = left + (right - left >>> 1);
+     var compareResult = isEvaluator ? compareFn.call(opt_selfObj, arr[middle], middle, arr) : compareFn(opt_target, arr[middle]);
+     0 < compareResult ? left = middle + 1 : (right = middle, found = !compareResult);
+   }
+-  return found ? left : ~left;
++  return found ? left : -left - 1;
+ };
+ goog.array.sort = function(arr, opt_compareFn) {
+   arr.sort(opt_compareFn || goog.array.defaultCompare);
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/testdata/javascript/soy_usegoog_lib.js ./RegMiner4APR-Regression-Bugs/BIC/testdata/javascript/soy_usegoog_lib.js
+--- ./RegMiner4APR-Regression-Bugs/WORKING/testdata/javascript/soy_usegoog_lib.js	2024-09-08 01:36:26.441894928 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/testdata/javascript/soy_usegoog_lib.js	2024-09-08 01:36:26.385894535 +1000
+@@ -5848,7 +5848,7 @@
+   var right = arr.length;  // exclusive
+   var found;
+   while (left < right) {
+-    var middle = (left + right) >> 1;
++    var middle = left + ((right - left) >>> 1);
+     var compareResult;
+     if (isEvaluator) {
+       compareResult = compareFn.call(opt_selfObj, arr[middle], middle, arr);
+@@ -5867,8 +5867,10 @@
+     }
+   }
+   // left is the index if found, or the insertion point otherwise.
+-  // ~left is a shorthand for -left - 1.
+-  return found ? left : ~left;
++  // Avoiding bitwise not operator, as that causes a loss in precision for array
++  // indexes outside the bounds of a 32-bit signed integer.  Array indexes have
++  // a maximum value of 2^32-2 https://tc39.es/ecma262/#array-index
++  return found ? left : -left - 1;
+ };
+ 
+ 

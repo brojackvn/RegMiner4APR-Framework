@@ -1,0 +1,12 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/internal/Normalizer.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/internal/Normalizer.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/internal/Normalizer.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/internal/Normalizer.java
+@@ -8,7 +8,7 @@
+ public final class Normalizer {
+ 
+     public static String lowerCase(final String input) {
+-        return input.toLowerCase(Locale.ENGLISH);
++        return input != null ? input.toLowerCase(Locale.ENGLISH) : "";
+     }
+ 
+     public static String normalize(final String input) {

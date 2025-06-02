@@ -1,0 +1,139 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/DirectCompactOrderedSketch.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/DirectCompactOrderedSketch.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/DirectCompactOrderedSketch.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/DirectCompactOrderedSketch.java
+@@ -53,10 +53,11 @@
+    * @return a DirectCompactOrderedSketch.
+    */
+   static DirectCompactOrderedSketch compact(final UpdateSketch sketch, final WritableMemory dstMem) {
+-    final long thetaLong = sketch.getThetaLong();
+-    final boolean empty = sketch.isEmpty();
+     final int curCount = sketch.getRetainedEntries(true);
++    long thetaLong = sketch.getThetaLong();
++    boolean empty = sketch.isEmpty();
++    thetaLong = thetaOnCompact(empty, curCount, thetaLong);
++    empty = emptyOnCompact(curCount, thetaLong);
+     final int preLongs = computeCompactPreLongs(thetaLong, empty, curCount);
+     final short seedHash = sketch.getSeedHash();
+     final long[] cache = sketch.getCache();
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/HeapCompactOrderedSketch.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/HeapCompactOrderedSketch.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/HeapCompactOrderedSketch.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/HeapCompactOrderedSketch.java
+@@ -77,10 +77,11 @@
+    * @return a CompactSketch
+    */
+   static CompactSketch compact(final UpdateSketch sketch) {
+-    final long thetaLong = sketch.getThetaLong();
+-    final boolean empty = sketch.isEmpty();
+     final int curCount = sketch.getRetainedEntries(true);
++    long thetaLong = sketch.getThetaLong();
++    boolean empty = sketch.isEmpty();
++    thetaLong = thetaOnCompact(empty, curCount, thetaLong);
++    empty = emptyOnCompact(curCount, thetaLong);
+     final short seedHash = sketch.getSeedHash();
+     final long[] cache = sketch.getCache();
+     final boolean ordered = true;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/SetOperation.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/SetOperation.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/SetOperation.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/SetOperation.java
+@@ -222,14 +224,12 @@
+   abstract boolean isEmpty();
+ 
+   //used only by the set operations
+-  static final CompactSketch createCompactSketch(final long[] compactCache, final boolean empty,
+-      final short seedHash, int curCount, long thetaLong, final boolean dstOrdered,
++  static final CompactSketch createCompactSketch(final long[] compactCache, boolean empty,
++      final short seedHash, final int curCount, long thetaLong, final boolean dstOrdered,
+       final WritableMemory dstMem) {
+-    if (empty) {
+-      curCount = 0;
+-      thetaLong = Long.MAX_VALUE;
+-    }
++    thetaLong = thetaOnCompact(empty, curCount, thetaLong);
++    empty = emptyOnCompact(curCount, thetaLong);
++
+     CompactSketch sketchOut = null;
+     final int sw = (dstOrdered ? 2 : 0) | ((dstMem != null) ? 1 : 0);
+     switch (sw) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/Sketch.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/Sketch.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/Sketch.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/Sketch.java
+@@ -557,40 +557,31 @@
++  static final long thetaOnCompact(final boolean empty, final int curCount, final long thetaLong) {
++    return (empty && (curCount == 0) && (thetaLong < Long.MAX_VALUE)) ? Long.MAX_VALUE : thetaLong;
++  }
+
++  static final boolean emptyOnCompact(final int curCount, final long thetaLong) {
++    return ((curCount == 0) && (thetaLong == Long.MAX_VALUE));
++  }
+ 
+   static final double estimate(final long thetaLong, final int curCount, final boolean empty) {
+     if (estMode(thetaLong, empty)) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/UnionImpl.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/UnionImpl.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/yahoo/sketches/theta/UnionImpl.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/yahoo/sketches/theta/UnionImpl.java
+@@ -49,8 +49,7 @@
+    */
+   private final UpdateSketch gadget_;
+   private final short seedHash_; //eliminates having to compute the seedHash on every update.
+-  private long unionThetaLong_ = Long.MAX_VALUE; //when on-heap, this is the only copy
+-  private boolean unionEmpty_ = true;
++  private long unionThetaLong_; //when on-heap, this is the only copy
+ 
+   private UnionImpl(final UpdateSketch gadget, final long seed) {
+     gadget_ = gadget;
+@@ -198,7 +192,7 @@
+     final int gadgetCurCount = gadget_.getRetainedEntries(true);
+     final int k = 1 << gadget_.getLgNomLongs();
+     final long[] gadgetCacheCopy =
+-        (gadget_.isDirect()) ? gadget_.getCache() : gadget_.getCache().clone();
++        (gadget_.hasMemory()) ? gadget_.getCache() : gadget_.getCache().clone();
+ 
+     //Pull back to k
+     final long curGadgetThetaLong = gadget_.getThetaLong();
+@@ -206,10 +200,10 @@
+         ? selectExcludingZeros(gadgetCacheCopy, gadgetCurCount, k + 1) : curGadgetThetaLong;
+ 
+     //Finalize Theta and curCount
+-    final long unionThetaLong = (gadget_.isDirect())
++    final long unionThetaLong = (gadget_.hasMemory())
+         ? gadget_.getMemory().getLong(UNION_THETA_LONG) : unionThetaLong_;
+ 
+-    long minThetaLong = min(min(curGadgetThetaLong, adjGadgetThetaLong), unionThetaLong);
++    final long minThetaLong = min(min(curGadgetThetaLong, adjGadgetThetaLong), unionThetaLong);
+     final int curCountOut = (minThetaLong < curGadgetThetaLong)
+         ? HashOperations.count(gadgetCacheCopy, minThetaLong)
+         : gadgetCurCount;
+@@ -217,8 +211,7 @@
+     //Compact the cache
+     final long[] compactCacheOut =
+         compactCache(gadgetCacheCopy, curCountOut, minThetaLong, dstOrdered);
+-    final boolean empty = gadget_.isEmpty() && unionEmpty_;
+-    if (empty) { minThetaLong = Long.MAX_VALUE; }
++    final boolean empty = gadget_.isEmpty();
+     return createCompactSketch(
+         compactCacheOut, empty, seedHash_, curCountOut, minThetaLong, dstOrdered, dstMem);
+   }
+@@ -508,15 +496,15 @@
+         gadget_.hashUpdate(hashIn); //backdoor update, hash function is bypassed
+       }
+     }
+-    unionThetaLong_ = min(unionThetaLong_, gadget_.getThetaLong()); //theta rule
+-    final int gCurCount = gadget_.getRetainedEntries();
+-    unionEmpty_ = (gCurCount == 0) && (unionThetaLong_ == Long.MAX_VALUE); //empty rule
+-    if (gadget_.isDirect()) {
+-      final WritableMemory wmem = (WritableMemory)gadget_.getMemory();
+-      wmem.putLong(UNION_THETA_LONG, unionThetaLong_);
+-      if (unionEmpty_) { PreambleUtil.setEmpty(wmem); }
++    unionThetaLong_ = min(unionThetaLong_, gadget_.getThetaLong()); //sync thetaLongs
++    final boolean emptyIn = (curCount == 0) && (thetaLongIn == Long.MAX_VALUE);
++    final boolean empty = gadget_.isEmpty() && emptyIn; //Empty rule
++    if (gadget_.hasMemory()) {
++      final WritableMemory wmem = (WritableMemory) gadget_.getMemory();
++      //OK to modify empty but NOT thetaLong
++      if (empty) { PreambleUtil.setEmpty(wmem); }
+       else { PreambleUtil.clearEmpty(wmem); }
+-    }
++    } else { ((HeapUpdateSketch) gadget_).setEmpty(empty); }
+   }
+ 
+ }

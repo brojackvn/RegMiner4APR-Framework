@@ -1,0 +1,12 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/nodes/Attribute.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/nodes/Attribute.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/nodes/Attribute.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/nodes/Attribute.java
+@@ -77,7 +77,7 @@
+      @return the attribute value
+      */
+     public String getValue() {
+-        return val;
++        return Attributes.checkNotNull(val);
+     }
+ 
+     /**

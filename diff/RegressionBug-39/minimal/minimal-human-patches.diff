@@ -1,0 +1,12 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvParser.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvParser.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvParser.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvParser.java
+@@ -280,7 +280,7 @@
+ 					processQuoteEscape();
+ 					prev = ch;
+ 					ch = input.nextChar();
+-					if(unescaped && ch == delimiter || ch == newLine){
++					if(unescaped && (ch == delimiter || ch == newLine)){
+ 						return;
+ 					}
+ 				}

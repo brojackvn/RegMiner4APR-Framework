@@ -1,0 +1,71 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/zaxxer/hikari/HikariConfig.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/zaxxer/hikari/HikariConfig.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/zaxxer/hikari/HikariConfig.java	2024-09-08 01:36:19.437845873 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/zaxxer/hikari/HikariConfig.java	2024-09-08 01:36:19.429845817 +1000
+@@ -42,6 +42,7 @@
+ import java.util.concurrent.ThreadLocalRandom;
+ 
+ import static com.zaxxer.hikari.util.UtilityElf.getNullIfEmpty;
++import static com.zaxxer.hikari.util.UtilityElf.safeIsAssignableFrom;
+ import static java.util.concurrent.TimeUnit.MINUTES;
+ import static java.util.concurrent.TimeUnit.SECONDS;
+ 
+@@ -758,8 +759,8 @@
+       if (metricRegistry != null) {
+          metricRegistry = getObjectOrPerformJndiLookup(metricRegistry);
+ 
+-         if (!(metricRegistry.getClass().getName().contains("MetricRegistry"))
+-             && !(metricRegistry.getClass().getName().contains("MeterRegistry"))) {
++         if (!safeIsAssignableFrom(metricRegistry, "com.codahale.metrics.MetricRegistry")
++             && !(safeIsAssignableFrom(metricRegistry, "io.micrometer.core.instrument.MeterRegistry"))) {
+             throw new IllegalArgumentException("Class must be instance of com.codahale.metrics.MetricRegistry or io.micrometer.core.instrument.MeterRegistry");
+          }
+       }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/zaxxer/hikari/pool/HikariPool.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/zaxxer/hikari/pool/HikariPool.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/zaxxer/hikari/pool/HikariPool.java	2024-09-08 01:36:19.437845873 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/zaxxer/hikari/pool/HikariPool.java	2024-09-08 01:36:19.429845817 +1000
+@@ -57,6 +57,7 @@
+ import static com.zaxxer.hikari.util.ConcurrentBag.IConcurrentBagEntry.STATE_NOT_IN_USE;
+ import static com.zaxxer.hikari.util.UtilityElf.createThreadPoolExecutor;
+ import static com.zaxxer.hikari.util.UtilityElf.quietlySleep;
++import static com.zaxxer.hikari.util.UtilityElf.safeIsAssignableFrom;
+ import static java.util.Collections.unmodifiableCollection;
+ import static java.util.concurrent.TimeUnit.MILLISECONDS;
+ import static java.util.concurrent.TimeUnit.SECONDS;
+@@ -272,10 +273,10 @@
+     */
+    public void setMetricRegistry(Object metricRegistry)
+    {
+-      if (metricRegistry != null && metricRegistry.getClass().getName().contains("MetricRegistry")) {
++      if (metricRegistry != null && safeIsAssignableFrom(metricRegistry, "com.codahale.metrics.MetricRegistry")) {
+          setMetricsTrackerFactory(new CodahaleMetricsTrackerFactory((MetricRegistry) metricRegistry));
+       }
+-      else if (metricRegistry != null && metricRegistry.getClass().getName().contains("MeterRegistry")) {
++      else if (metricRegistry != null && safeIsAssignableFrom(metricRegistry, "io.micrometer.core.instrument.MeterRegistry")) {
+          setMetricsTrackerFactory(new MicrometerMetricsTrackerFactory((MeterRegistry) metricRegistry));
+       }
+       else {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/zaxxer/hikari/util/UtilityElf.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/zaxxer/hikari/util/UtilityElf.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/zaxxer/hikari/util/UtilityElf.java	2024-09-08 01:36:19.437845873 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/zaxxer/hikari/util/UtilityElf.java	2024-09-08 01:36:19.429845817 +1000
+@@ -66,6 +66,21 @@
+    }
+ 
+    /**
++    * Checks whether an object is an instance of given type without throwing exception when the class is not loaded.
++    * @param obj the object to check
++    * @param className String class
++    * @return true if object is assignable from the type, false otherwise or when the class cannot be loaded
++    */
++   public static boolean safeIsAssignableFrom(Object obj, String className) {
++      try {
++         Class<?> clazz = Class.forName(className);
++         return clazz.isAssignableFrom(obj.getClass());
++      } catch (ClassNotFoundException ignored) {
++         return false;
++      }
++   }
++
++   /**
+     * Create and instance of the specified class using the constructor matching the specified
+     * arguments.
+     *

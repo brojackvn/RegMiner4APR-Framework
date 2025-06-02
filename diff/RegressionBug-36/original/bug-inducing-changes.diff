@@ -1,0 +1,63 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java	2024-09-08 01:36:15.033815029 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java	2024-09-08 01:36:15.013814889 +1000
+@@ -178,7 +178,7 @@
+ 
+ 		sums.keySet().removeAll(toRemove);
+ 
+-		char delimiter = min(sums, totals, suggestedDelimiter);
++		char delimiter = max(sums, totals, suggestedDelimiter);
+ 		char quote = doubleQuoteCount >= singleQuoteCount ? '"' : '\'';
+ 
+ 		escape.remove(delimiter);
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/univocity/parsers/csv/CsvFormatDetectorTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/univocity/parsers/csv/CsvFormatDetectorTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/univocity/parsers/csv/CsvFormatDetectorTest.java	2024-09-08 01:36:15.033815029 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/univocity/parsers/csv/CsvFormatDetectorTest.java	2024-09-08 01:36:15.013814889 +1000
+@@ -33,8 +33,8 @@
+ 						Arrays.asList(new String[]{"A", "'B'", "C"}, new String[]{"1\" and \"2", "3\"A", "'B'", "C"}, new String[]{"A", "'B'", "C"}, new String[]{"A", "'B'", "C"})},
+ 				{"\"A\";'B';\"C\"\n\"1\\\" and \\\"2\";\"3' and '4\";\"5\\\" and \\\"6\"\n\"A\";'B';\"C\"\n\"A\";'B';\"C\"\n",
+ 						Arrays.asList(new String[]{"A", "'B'", "C"}, new String[]{"1\" and \"2", "3' and '4", "5\" and \"6"}, new String[]{"A", "'B'", "C"}, new String[]{"A", "'B'", "C"})},
+-				{"1,2;2,3;3,4\n1,2;2,3;3,4\n1,2;2,3;3,4\n1,2;2,3;3,4\n",
+-						Arrays.asList(new String[]{"1,2", "2,3", "3,4"}, new String[]{"1,2", "2,3", "3,4"}, new String[]{"1,2", "2,3", "3,4"}, new String[]{"1,2", "2,3", "3,4"})},
++				{"1,2;2,3;3,4;a\n1,2;2,3;3,4;b\n1,2;2,3;3,4;c\n1,2;2,3;3,4;d\n",
++						Arrays.asList(new String[]{"1,2", "2,3", "3,4", "a"}, new String[]{"1,2", "2,3", "3,4", "b"}, new String[]{"1,2", "2,3", "3,4", "c"}, new String[]{"1,2", "2,3", "3,4", "d"})},
+ 				{"A;B;C;D;E\n$1.2;$2.3;$3.4\n$1.2;$2.3;$3.4\n$1.2;$2.3;$3.4\n$1.2;$2.3;$3.4\n",
+ 						Arrays.asList(new String[]{"A", "B", "C", "D", "E"}, new String[]{"$1.2", "$2.3", "$3.4"}, new String[]{"$1.2", "$2.3", "$3.4"}, new String[]{"$1.2", "$2.3", "$3.4"},
+ 								new String[]{"$1.2", "$2.3", "$3.4"})},
+@@ -71,4 +71,36 @@
+ 		}
+ 	}
+ 
++
++	@Test
++	public void testAutodetection() throws Exception {
++		CsvParserSettings settings = new CsvParserSettings();
++		settings.detectFormatAutomatically();
++		CsvParser parser = new CsvParser(settings);
++
++		String s = "" +
++				"1;2001-01-01;First row;1.1\n" +
++				"2;2002-02-02;Second row;2.2\n" +
++				"3;2003-03-03;Third row;3.3\n" +
++				"4;2004-04-04;Fourth row;4.4";
++
++		List<String[]> rows = parser.parseAll(new StringReader(s));
++
++		CsvFormat format = parser.getDetectedFormat();
++		assertEquals(format.getDelimiter(), ';');
++		assertEquals(rows.size(), 4);
++
++		s = "" +
++				"1;2001-01-01;First row;1.1\n" +
++				"2;2002-02-02;Second row;2\n" +
++				"3;2003-03-03;Third row;3.3\n" +
++				"4;2004-04-04;Fourth row;4.4";
++
++		rows = parser.parseAll(new StringReader(s));
++
++		format = parser.getDetectedFormat();
++		assertEquals(format.getDelimiter(), ';');
++		assertEquals(rows.size(), 4);
++	}
++
+ }

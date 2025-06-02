@@ -1,0 +1,20 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/parser/JSONScanner.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/parser/JSONScanner.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/parser/JSONScanner.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/parser/JSONScanner.java
+@@ -1438,6 +1438,7 @@
+             return false;
+         }
+ 
++        int startPos = bp;
+         int index = bp + fieldName.length;
+ 
+         char ch = charAt(index++);
+@@ -1553,6 +1554,8 @@
+             } else if (isWhitespace(ch)) {
+                 ch = charAt(++bp);
+             } else {
++                bp = startPos;
++                ch = charAt(bp);
+                 matchStat = NOT_MATCH;
+                 return false;
+             }

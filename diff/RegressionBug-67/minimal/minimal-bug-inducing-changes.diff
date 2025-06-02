@@ -1,0 +1,160 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Element.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Element.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Element.java	2024-09-08 01:36:20.341852205 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Element.java	2024-09-08 01:36:20.333852149 +1000
+@@ -37,10 +38,13 @@
+  * @author Jonathan Hedley, jonathan@hedley.net
+  */
+ public class Element extends Node {
++    private static final List<Node> EMPTY_NODES = Collections.emptyList();
++    private static final Pattern classSplit = Pattern.compile("\\s+");
+     private Tag tag;
+     private WeakReference<List<Element>> shadowChildrenRef; // points to child elements shadowed from node children
+
+-    private static final Pattern classSplit = Pattern.compile("\\s+");
++    List<Node> childNodes;
++    private Attributes attributes;
++    private String baseUri;
+ 
+     /**
+      * Create a new, standalone element.
+@@ -60,9 +64,11 @@
+      * @see #appendElement(String)
+      */
+     public Element(Tag tag, String baseUri, Attributes attributes) {
+-        super(baseUri, attributes);
+         Validate.notNull(tag);    
++        Validate.notNull(baseUri);
++        childNodes = EMPTY_NODES;
++        this.baseUri = baseUri;
++        this.attributes = attributes;
+         this.tag = tag;
+     }
+     
+@@ -75,7 +81,41 @@
+      * @see Tag#valueOf(String, ParseSettings)
+      */
+     public Element(Tag tag, String baseUri) {
+-        this(tag, baseUri, new Attributes());
++        this(tag, baseUri, null);
++    }
+
++    protected List<Node> ensureChildNodes() {
++        if (childNodes == EMPTY_NODES) {
++            childNodes = new NodeList(4);
++        }
++        return childNodes;
++    }
+
+     @Override
+     protected boolean hasAttributes() {
+         return attributes != null;
+     }
+
+     @Override
+     public Attributes attributes() {
+         if (!hasAttributes())
+             attributes = new Attributes();
+         return attributes;
+     }
+
+     @Override
+     public String baseUri() {
+         return baseUri;
+     }
+ 
+     @Override
+     protected void doSetBaseUri(String baseUri) {
+         this.baseUri = baseUri;
+     }
+
++    @Override
++    public int childNodeSize() {
++        return childNodes.size();
+     }
+ 
+     @Override
+@@ -1344,4 +1385,26 @@
+         return clone;
+     }
+ 
++    private final class NodeList extends ChangeNotifyingArrayList<Node> {
++        NodeList(int initialCapacity) {
++            super(initialCapacity);
++        }
++
++        public void onContentsChanged() {
++            nodelistChanged();
++        }
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/LeafNode.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/LeafNode.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/LeafNode.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/LeafNode.java
++   @Override
++    public int childNodeSize() {
++        return 0;
++    }
+
++    @Override
++    protected List<Node> ensureChildNodes() {
++        throw new UnsupportedOperationException("Leaf Nodes do not have child nodes.");
++    }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Node.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Node.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Node.java	2024-09-08 01:36:20.345852233 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Node.java	2024-09-08 01:36:20.333852149 +1000
+@@ -201,17 +190,19 @@
+         }
+     }
+ 
++    protected abstract List<Node> ensureChildNodes();
+
+     /**
+      Get a child node by its 0-based index.
+      @param index index of child node
+      @return the child node at this index. Throws a {@code IndexOutOfBoundsException} if the index is out of bounds.
+      */
+     public Node childNode(int index) {
+-        return childNodes.get(index);
++        return ensureChildNodes().get(index);
+     }
+ 
+     /**
+@@ -240,12 +232,10 @@
+      * Get the number of child nodes that this node holds.
+      * @return the number of child nodes that this node holds.
+      */
+-    public final int childNodeSize() {
+-        return childNodes.size();
+-    }
+ 
++    public abstract int childNodeSize();
+
+     protected Node[] childNodesAsArray() {
+-        return childNodes.toArray(new Node[childNodeSize()]);
++        return ensureChildNodes().toArray(new Node[childNodeSize()]);
+     }
+ 
+     /**
+@@ -520,8 +508,8 @@
+     public Node nextSibling() {
+         if (parentNode == null)
+             return null; // root
+        
+-        final List<Node> siblings = parentNode.childNodes;
++        final List<Node> siblings = parentNode.ensureChildNodes();
+         final int index = siblingIndex+1;
+         if (siblings.size() > index)
+             return siblings.get(index);
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/TextNode.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/TextNode.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/TextNode.java	2024-09-08 01:36:20.345852233 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/TextNode.java	2024-09-08 01:36:20.333852149 +1000
+@@ -1,33 +1,36 @@ 
+      @param text raw text
+      @see #createFromEncoded(String)
+
++    public TextNode(String text) {
++        value = text;
++    }
+ 
+     /**
+      Create a new TextNode representing the supplied (unencoded) text).

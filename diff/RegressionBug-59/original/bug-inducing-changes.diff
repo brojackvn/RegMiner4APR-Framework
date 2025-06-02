@@ -1,0 +1,204 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/esri/core/geometry/ConvexHull.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/esri/core/geometry/ConvexHull.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/esri/core/geometry/ConvexHull.java	2024-09-08 01:36:19.525846490 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/esri/core/geometry/ConvexHull.java	2024-09-08 01:36:19.497846294 +1000
+@@ -52,10 +52,13 @@
+ 
+ 	/**
+ 	 * Adds a geometry to the current bounding geometry using an incremental algorithm for dynamic insertion.
+-	 * \param geometry The geometry to add to the bounding geometry.
++	 * @param geometry The geometry to add to the bounding geometry.
+ 	 */
+ 
+ 	void addGeometry(Geometry geometry) {
++		if (geometry.isEmpty())
++			return;
++		
+ 		int type = geometry.getType().value();
+ 
+ 		if (MultiVertexGeometry.isMultiVertex(type))
+@@ -80,6 +83,9 @@
+ 		Point point = new Point();
+ 		int first = m_tree_hull.getFirst(-1);
+ 		Polygon hull = new Polygon(m_shape.getVertexDescription());
++		if (m_tree_hull.size(-1) == 0)
++			return hull;
++		
+ 		m_shape.queryPoint(m_tree_hull.getElement(first), point);
+ 		hull.startPath(point);
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/esri/core/geometry/ogc/OGCConcreteGeometryCollection.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/esri/core/geometry/ogc/OGCConcreteGeometryCollection.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/esri/core/geometry/ogc/OGCConcreteGeometryCollection.java	2024-09-08 01:36:19.533846546 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/esri/core/geometry/ogc/OGCConcreteGeometryCollection.java	2024-09-08 01:36:19.505846350 +1000
+@@ -27,11 +27,19 @@
+ import com.esri.core.geometry.Envelope;
+ import com.esri.core.geometry.Geometry;
+ import com.esri.core.geometry.GeometryCursor;
++import com.esri.core.geometry.GeometryException;
++import com.esri.core.geometry.MultiPath;
++import com.esri.core.geometry.MultiPoint;
++import com.esri.core.geometry.MultiVertexGeometry;
+ import com.esri.core.geometry.NumberUtils;
++import com.esri.core.geometry.OperatorConvexHull;
+ import com.esri.core.geometry.Polygon;
++import com.esri.core.geometry.SimpleGeometryCursor;
+ import com.esri.core.geometry.SpatialReference;
++import com.esri.core.geometry.VertexDescription;
+ import com.esri.core.geometry.GeoJsonExportFlags;
+ import com.esri.core.geometry.OperatorExportToGeoJson;
++import com.esri.core.geometry.Point;
+ 
+ import java.nio.ByteBuffer;
+ import java.nio.ByteOrder;
+@@ -377,6 +385,59 @@
+ 		}
+ 
+ 	}
++	
++	@Override
++	public OGCGeometry convexHull() {
++		GeometryCursor cursor = OperatorConvexHull.local().execute(
++				getEsriGeometryCursor(), false, null);
++		MultiPoint mp = new MultiPoint();
++		Polygon polygon = new Polygon();
++		VertexDescription vd = null;
++		for (Geometry geom = cursor.next(); geom != null; geom = cursor.next()) {
++			vd = geom.getDescription();
++			if (geom.isEmpty())
++				continue;
++
++			if (geom.getType() == Geometry.Type.Polygon) {
++				polygon.add((MultiPath) geom, false);
++			}
++			else if (geom.getType() == Geometry.Type.Polyline) {
++				mp.add((MultiVertexGeometry) geom, 0, -1);
++			}
++			else if (geom.getType() == Geometry.Type.Point) {
++				mp.add((Point) geom);
++			}
++			else {
++				throw new GeometryException("internal error");
++			}
++		}
++
++		Geometry resultGeom = null;
++		if (!mp.isEmpty()) {
++			resultGeom = OperatorConvexHull.local().execute(mp, null);
++		}
++
++		if (!polygon.isEmpty()) {
++			if (!resultGeom.isEmpty()) {
++				Geometry[] geoms = { resultGeom, polygon };
++				resultGeom = OperatorConvexHull.local().execute(
++						new SimpleGeometryCursor(geoms), true, null).next();
++			}
++			else {
++				resultGeom = polygon;
++			}
++		}
++
++		if (resultGeom == null) {
++			Point pt = new Point();
++			if (vd != null)
++				pt.assignVertexDescription(vd);
++
++			return new OGCPoint(pt, getEsriSpatialReference());
++		}
++
++		return OGCGeometry.createFromEsriGeometry(resultGeom, getEsriSpatialReference(), false);
++	}
+ 
+ 	List<OGCGeometry> geometries;
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/esri/core/geometry/ogc/OGCCurve.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/esri/core/geometry/ogc/OGCCurve.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/esri/core/geometry/ogc/OGCCurve.java	2024-09-08 01:36:19.533846546 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/esri/core/geometry/ogc/OGCCurve.java	2024-09-08 01:36:19.505846350 +1000
+@@ -41,6 +41,9 @@
+ 
+ 	@Override
+ 	public OGCGeometry boundary() {
++		if (isEmpty())
++			return new OGCMultiPoint(this.getEsriSpatialReference());
++		
+ 		if (isClosed())
+ 			return new OGCMultiPoint(new MultiPoint(getEsriGeometry()
+ 					.getDescription()), esriSR);// return empty multipoint;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/esri/core/geometry/ogc/OGCGeometry.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/esri/core/geometry/ogc/OGCGeometry.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/esri/core/geometry/ogc/OGCGeometry.java	2024-09-08 01:36:19.533846546 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/esri/core/geometry/ogc/OGCGeometry.java	2024-09-08 01:36:19.505846350 +1000
+@@ -433,18 +433,16 @@
+ 		OperatorCentroid2D op = (OperatorCentroid2D) OperatorFactoryLocal.getInstance()
+ 				.getOperator(Operator.Type.Centroid2D);
+ 
+-        Point2D centroid = op.execute(getEsriGeometry(), null);
+-        if (centroid == null) {
+-            return OGCGeometry.createFromEsriGeometry(new Point(), esriSR);
+-        }
+-        return OGCGeometry.createFromEsriGeometry(new Point(centroid), esriSR);
++		Point2D centroid = op.execute(getEsriGeometry(), null);
++		if (centroid == null) {
++			return OGCGeometry.createFromEsriGeometry(new Point(), esriSR);
++		}
++		return OGCGeometry.createFromEsriGeometry(new Point(centroid), esriSR);
+ 	}
+ 
+ 	public OGCGeometry convexHull() {
+-		com.esri.core.geometry.OperatorConvexHull op = (OperatorConvexHull) OperatorFactoryLocal
+-				.getInstance().getOperator(Operator.Type.ConvexHull);
+-		com.esri.core.geometry.GeometryCursor cursor = op.execute(
+-				getEsriGeometryCursor(), true, null);
++		com.esri.core.geometry.GeometryCursor cursor = OperatorConvexHull.local().execute(
++				getEsriGeometryCursor(), false, null);
+ 		return OGCGeometry.createFromEsriCursor(cursor, esriSR);
+ 	}
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/esri/core/geometry/ogc/OGCLineString.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/esri/core/geometry/ogc/OGCLineString.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/esri/core/geometry/ogc/OGCLineString.java	2024-09-08 01:36:19.533846546 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/esri/core/geometry/ogc/OGCLineString.java	2024-09-08 01:36:19.509846378 +1000
+@@ -82,6 +82,9 @@
+ 
+ 	@Override
+ 	public boolean isClosed() {
++		if (isEmpty())
++			return false;
++
+ 		return multiPath.isClosedPathInXYPlane(0);
+ 	}
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/esri/core/geometry/TestOGC.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/esri/core/geometry/TestOGC.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/esri/core/geometry/TestOGC.java	2024-09-08 01:36:19.537846574 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/esri/core/geometry/TestOGC.java	2024-09-08 01:36:19.509846378 +1000
+@@ -926,4 +926,34 @@
+ 		}
+ 	}
+ 	
++	@Test
++	public void testEmptyBoundary() throws Exception {
++		{
++			OGCGeometry g = OGCGeometry.fromText("POINT EMPTY");
++			OGCGeometry b = g.boundary();
++			assertTrue(b.asText().compareTo("MULTIPOINT EMPTY") == 0);
++		}
++		{
++			OGCGeometry g = OGCGeometry.fromText("MULTIPOINT EMPTY");
++			OGCGeometry b = g.boundary();
++			assertTrue(b.asText().compareTo("MULTIPOINT EMPTY") == 0);
++		}
++		{
++			OGCGeometry g = OGCGeometry.fromText("LINESTRING EMPTY");
++			OGCGeometry b = g.boundary();
++			assertTrue(b.asText().compareTo("MULTIPOINT EMPTY") == 0);
++		}
++		{
++			OGCGeometry g = OGCGeometry.fromText("POLYGON EMPTY");
++			OGCGeometry b = g.boundary();
++			assertTrue(b.asText().compareTo("MULTILINESTRING EMPTY") == 0);
++		}
++		{
++			OGCGeometry g = OGCGeometry.fromText("MULTIPOLYGON EMPTY");
++			OGCGeometry b = g.boundary();
++			assertTrue(b.asText().compareTo("MULTILINESTRING EMPTY") == 0);
++		}
++	}
++	
++	
+ }

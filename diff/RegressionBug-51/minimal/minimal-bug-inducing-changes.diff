@@ -1,0 +1,116 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/TemplateDebugger.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/TemplateDebugger.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/TemplateDebugger.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/TemplateDebugger.java
+@@ -148,46 +138,15 @@
+ 
+     @Override
+     protected Object acceptStatement(JexlNode child, Object data) {
+-        // if not really a template, use super impl
+-        if (exprs != null) {
+-            int printe = getPrintStatement(child);
+-            if (printe >= 0) {
+-                // statement is an expr
+-                TemplateExpression te = exprs[printe];
+-                return visit(te, data);
+-            }
+-            // if statement is not a jexl:print(...), need to prepend '$$'
+-            newJexlLine();
+-        }
+-        return super.acceptStatement(child, data);
+-    }
+-
+-    /**
+-     * Recreate a statement from an expression node.
+-     * @param child the template expression
+-     * @param lastSeen the state before this child node 
+-     * @return the new state after the child node
+-     */
+-    private Type debugStatement(JexlNode child, Type lastSeen) {
+-        // if not really a template, use super impl
+-        Type t = Type.EXPR_LINE;
+-        if (exprs != null) {
+-            int printe = getPrintStatement(child);
+-            if (printe >= 0) {
+-                if (Type.TMPL_LINE == lastSeen && (builder.charAt(builder.length() - 1) != '\n')) {
+-                    builder.append('\n');
+-                }
+-                // statement is an expr
+-                TemplateExpression te = exprs[printe];
+-                visit(te, null);
+-                return t;
+-            }
++        TemplateExpression te = getPrintStatement(child);
++        if (te != null) {
++            newJxltLine();
++            return visit(te, data);
++        } else {
+             // if statement is not a jexl:print(...), need to prepend '$$'
+             newJexlLine();
+-            t = Type.TMPL_LINE;
++            return super.acceptStatement(child, data);
+         }
+-        super.acceptStatement(child, null);
+-        return t;
+     }
+ 
+     /**
+@@ -195,8 +154,8 @@
+      * @param child the node to check
+      * @return the expression number or -1 if the node is not a jexl:print
+      */
+-    private int getPrintStatement(JexlNode child) {
+-        if (child instanceof ASTFunctionNode) {
++    private TemplateExpression getPrintStatement(JexlNode child) {
++        if (exprs != null && child instanceof ASTFunctionNode) {
+             ASTFunctionNode node = (ASTFunctionNode) child;
+             ASTIdentifier ns = (ASTIdentifier) node.jjtGetChild(0);
+             JexlNode args = node.jjtGetChild(1);
+@@ -206,12 +165,12 @@
+                 && args.jjtGetChild(0) instanceof ASTNumberLiteral) {
+                 ASTNumberLiteral exprn = (ASTNumberLiteral) args.jjtGetChild(0);
+                 int n = exprn.getLiteral().intValue();
+-                if (exprs != null && n >= 0 && n < exprs.length) {
+-                    return n;
++                if (n >= 0 && n < exprs.length) {
++                    return exprs[n];
+                 }
+             }
+         }
+-        return -1;
++        return null;
+     }
+ 
+     /**
+@@ -224,21 +183,39 @@
+         } else {
+             for (int i = length - 1; i >= 0; --i) {
+                 char c = builder.charAt(i);
+-                if (c == '\n') {
+-                    builder.append("$$ ");
+-                    break;
+-                }
+-                if (c == '}') {
+-                    builder.append("\n$$ ");
+-                    break;
+-                }
+-                if (c != ' ') {
+-                    break;
++                switch (c) {
++                    case '\n':
++                        builder.append("$$ ");
++                        return;
++                    case '}':
++                        builder.append("\n$$ ");
++                        return;
++                    case ' ':
++                    case ';':
++                        return;
+                 }
+             }
+         }
+     }
+
+    
+     /**
+      * Insert \n when needed.
+      */
