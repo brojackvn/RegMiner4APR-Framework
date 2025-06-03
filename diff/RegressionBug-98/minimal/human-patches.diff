@@ -1,6 +1,6 @@
-diff -r -U 3 RegressionBug-98/BUGGY/src/main/java/org/apache/commons/io/input/BufferedFileChannelInputStream.java RegressionBug-98/BFC/src/main/java/org/apache/commons/io/input/BufferedFileChannelInputStream.java
---- RegressionBug-98/BUGGY/src/main/java/org/apache/commons/io/input/BufferedFileChannelInputStream.java
-+++ RegressionBug-98/BFC/src/main/java/org/apache/commons/io/input/BufferedFileChannelInputStream.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/io/input/BufferedFileChannelInputStream.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/io/input/BufferedFileChannelInputStream.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/io/input/BufferedFileChannelInputStream.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/io/input/BufferedFileChannelInputStream.java
 @@ -169,6 +169,9 @@
  
      @Override

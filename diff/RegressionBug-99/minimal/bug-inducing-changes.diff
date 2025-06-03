@@ -1,6 +1,6 @@
-diff -r -U 3 /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-99/WORKING/src/main/java/org/apache/commons/io/FileUtils.java /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-99/BIC/src/main/java/org/apache/commons/io/FileUtils.java
---- /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-99/WORKING/src/main/java/org/apache/commons/io/FileUtils.java	2025-03-24 17:00:39.191759877 +1100
-+++ /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-99/BIC/src/main/java/org/apache/commons/io/FileUtils.java	2025-03-24 17:00:36.539743358 +1100
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/io/FileUtils.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/io/FileUtils.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/io/FileUtils.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/io/FileUtils.java
 @@ -825,7 +835,7 @@
       * @see #copyFileToDirectory(File, File, boolean)
       * @since 2.8.0

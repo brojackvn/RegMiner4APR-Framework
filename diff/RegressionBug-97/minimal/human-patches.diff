@@ -1,6 +1,6 @@
-diff -r -U 3 RegressionBug-97/BUGGY/src/main/java/io/github/classgraph/ClasspathElement.java RegressionBug-97/BFC/src/main/java/io/github/classgraph/ClasspathElement.java
---- RegressionBug-97/BUGGY/src/main/java/io/github/classgraph/ClasspathElement.java
-+++ RegressionBug-97/BFC/src/main/java/io/github/classgraph/ClasspathElement.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/io/github/classgraph/ClasspathElement.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/io/github/classgraph/ClasspathElement.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/io/github/classgraph/ClasspathElement.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/io/github/classgraph/ClasspathElement.java
 @@ -235,11 +235,14 @@
       *            the log
       */
@@ -21,9 +21,9 @@ diff -r -U 3 RegressionBug-97/BUGGY/src/main/java/io/github/classgraph/Classpath
  
          // Write to log if enabled, and as long as classfile scanning is not disabled, and this is not
          // a blacklisted classfile
-diff -r -U 3 RegressionBug-97/BUGGY/src/main/java/io/github/classgraph/ClasspathElementModule.java RegressionBug-97/BFC/src/main/java/io/github/classgraph/ClasspathElementModule.java
---- RegressionBug-97/BUGGY/src/main/java/io/github/classgraph/ClasspathElementModule.java
-+++ RegressionBug-97/BFC/src/main/java/io/github/classgraph/ClasspathElementModule.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/io/github/classgraph/ClasspathElementModule.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/io/github/classgraph/ClasspathElementModule.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/io/github/classgraph/ClasspathElementModule.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/io/github/classgraph/ClasspathElementModule.java
 @@ -316,16 +316,22 @@
                  }
  
@@ -50,9 +50,9 @@ diff -r -U 3 RegressionBug-97/BUGGY/src/main/java/io/github/classgraph/Classpath
                  }
              }
  
-diff -r -U 3 RegressionBug-97/BUGGY/src/main/java/io/github/classgraph/ClasspathElementZip.java RegressionBug-97/BFC/src/main/java/io/github/classgraph/ClasspathElementZip.java
---- RegressionBug-97/BUGGY/src/main/java/io/github/classgraph/ClasspathElementZip.java
-+++ RegressionBug-97/BFC/src/main/java/io/github/classgraph/ClasspathElementZip.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/io/github/classgraph/ClasspathElementZip.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/io/github/classgraph/ClasspathElementZip.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/io/github/classgraph/ClasspathElementZip.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/io/github/classgraph/ClasspathElementZip.java
 @@ -504,15 +504,20 @@
  
              // Add the ZipEntry path as a Resource
