@@ -25,17 +25,16 @@ ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
 ENV PATH=$JAVA_HOME/bin:$PATH
 
 # Copy the Oracle JDK 7 archive into the image
-COPY jdk-7u80-linux-x64.tar.gz /tmp/
+COPY jdk-7u80-linux-x64.tar /tmp/
 # Install Java 7
 RUN mkdir -p /usr/lib/jvm/java-7-oracle && \
-    tar -xzf /tmp/jdk-7u80-linux-x64.tar.gz -C /usr/lib/jvm/java-7-oracle --strip-components=1 && \
-    rm /tmp/jdk-7u80-linux-x64.tar.gz
-
+    tar -xvf /tmp/jdk-7u80-linux-x64.tar -C /usr/lib/jvm/java-7-oracle --strip-components=1 && \
+    rm /tmp/jdk-7u80-linux-x64.tar
 # Maven 3.9.8 installation
 RUN cd /opt && \
-wget https://dlcdn.apache.org/maven/maven-3/3.9.8/binaries/apache-maven-3.9.8-bin.tar.gz && \
-tar -xzf apache-maven-3.9.8-bin.tar.gz && \
-mv apache-maven-3.9.8 maven
+wget https://dlcdn.apache.org/maven/maven-3/3.9.11/binaries/apache-maven-3.9.11-bin.tar.gz && \
+tar -xzf apache-maven-3.9.11-bin.tar.gz && \
+mv apache-maven-3.9.11 maven
 
 # Set environment variables for Maven
 ENV M2_HOME=/opt/maven
