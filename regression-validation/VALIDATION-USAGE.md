@@ -1,5 +1,6 @@
 # 🛠️ Validation Usage 
-This validation tool is buildt on top of the **RegMiner** tool, requiring additional criteria (as presented in our paper) to validate potential regression bugs extracted by **RegMiner**.
+
+This validation tool is built on top of the **RegMiner** tool, requiring additional criteria (as presented in our paper) to validate potential regression bugs extracted by **RegMiner**.
 
 ## 📋 Prerequisites
 
@@ -18,15 +19,20 @@ This validation tool is buildt on top of the **RegMiner** tool, requiring additi
     
     Ensure **Docker** is installed and running on your system.
 
-2. **Clone the repository**
+2. **Clone the Repository**
+    
     ```bash
-    git clone hhttps://github.com/MSR25-RegressionBug/RegMiner4APR-Framework.git
+    git clone https://github.com/MSR25-RegressionBug/RegMiner4APR-Framework.git
+    cd RegMiner4APR-Framework/regression-validation
     ```
 
-3. **Build Docker image**
+3. **Build Docker Image**
+    
+    **Step 1:** Download Java 7 from [Figshare](https://figshare.com/articles/dataset/Java_7/27604326) with the filename `jdk-7u80-linux-x64.tar.gz` and place it in the `regression-validation` directory.
+
+    **Step 2:** Build the Docker image:
+    
     ```bash
-    cd regression-validation
-    wget https://figshare.com/ndownloader/files/50177778 -O ./jdk-7u80-linux-x64.tar.gz
     docker build -t regression-validation .
     ```
 
