@@ -167,3 +167,5 @@ scripts/
 examples/
 lib/jacoco-0.8.12
 others/
+maven-repo/
+github-mining.ipynb
