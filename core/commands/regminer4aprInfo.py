@@ -11,8 +11,8 @@ def get_bug_by_id(regressionbug_id):
     
     info_regressionbug = []
     for bug in regressionbug4apr:
-        if bug["bug_id"] == f"RegressionBug-{regressionbug_id}":
-            info_regressionbug.append(bug)
+        if regressionbug4apr[bug]["bug_id"] == f"RegressionBug-{regressionbug_id}":
+            info_regressionbug.append(regressionbug4apr[bug])
     for bug in meta_data:
         if bug["bug_id"] == f"RegressionBug-{regressionbug_id}":
             info_regressionbug.append(bug)
