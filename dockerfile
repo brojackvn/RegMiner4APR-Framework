@@ -12,7 +12,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Update package list and install required packages
 RUN apt-get update && \
-    apt-get install -y openjdk-8-jdk git python3 wget tar
+    apt-get install -y openjdk-8-jdk openjdk-11-jdk git python3 wget tar
 
 # Set environment variables for Java
 ENV JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
