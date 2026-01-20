@@ -26,21 +26,39 @@ def clean_command(working_dir):
         metadata = json.load(file)
         build_system = metadata.get("build_system")
         additional_command = metadata.get("additional_command")
+        language = metadata.get("language")
+        java_version = metadata.get("java_version")
 
+    # Prepare environment
+    env = os.environ.copy()
     # Determine the clean command based on the build system
-    if build_system == "maven":
-        if additional_command == "xvfb":
-            command = ["mvn", "clean"]
+    if language == "java":        
+        if int(java_version) == 8:
+            java_home = "/usr/lib/jvm/java-8-openjdk-amd64"
+        elif int(java_version) == 11:
+            java_home = "/usr/lib/jvm/java-11-openjdk-amd64"
         else:
+            print(f"Error: Unsupported Java version: {java_version}")
+            return 1
+        env["JAVA_HOME"] = java_home
+        env["PATH"] = f"{java_home}/bin:" + env["PATH"]
+
+        if build_system == "maven":
             command = ["mvn", "clean"]
-    elif build_system == "gradle":
-        command = ["./gradlew", "clean"]
-    
+        elif build_system == "gradle":
+            command = ["./gradlew", "clean"]
+    elif language == "python":
+        print("Python projects do not require clean command yet.")
+        return 0
+    else:
+        print(f"Error: Unsupported language: {language}")
+        return 1
+
     # Clean the compiled files
     print("=" * 80)
     print(f"Cleaning compiled files at working directory: {os.path.abspath(working_dir)}")
     print("-" * 40)
-    clean_result = subprocess.run(command, cwd=os.path.abspath(working_dir), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    clean_result = subprocess.run(command, cwd=os.path.abspath(working_dir), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     if clean_result.returncode != 0:
         print(f"Error: Cleaning compiled files at working directory!")
