@@ -1836,5 +1836,981 @@
                 }
             ]
         }
+    },
+    "100": {
+        "bug_id": "RegressionBug-100",
+        "github_repository": "iipc/webarchive-commons",
+        "bfcID": "44ec22772a24d5dc916b0b0730625988e20cc865",
+        "buggyID": "3ef28b5dd76249ae7e9f9fdc028e94edef566d0f",
+        "bicID": "3ef28b5dd76249ae7e9f9fdc028e94edef566d0f",
+        "workingID": "37a7ac57115ef569828c54c006b56832704c5962",
+        "failing_tests": {
+            "org.archive.url.BasicURLCanonicalizerTest#testHostDots": [
+                {
+                    "type": "java.lang.StringIndexOutOfBoundsException",
+                    "message": ": String index out of range: 6"
+                }
+            ]
+        }
+    },
+    "101": {
+        "bug_id": "RegressionBug-101",
+        "github_repository": "ralscha/extdirectspring",
+        "bfcID": "33859a9f887c98c29be32b129999f6cb7383a1e4",
+        "buggyID": "d97e51099954bb19f8cc489fd70c040192855d90",
+        "bicID": "d97e51099954bb19f8cc489fd70c040192855d90",
+        "workingID": "45bd3e0a410b170b4d65d3a8d6ebebb4459d3488",
+        "failing_tests": {
+            "ch.ralscha.extdirectspring.filter.BooleanFilterTest#testBooleanPropertyNullFilter": [
+                {
+                    "type": "java.lang.NullPointerException:",
+                    "message": "null"
+                }
+            ],
+            "ch.ralscha.extdirectspring.filter.BooleanFilterTest#testBooleanNullFilter": [
+                {
+                    "type": "java.lang.NullPointerException:",
+                    "message": "null"
+                }
+            ]
+        }
+    },
+    "102": {
+        "bug_id": "RegressionBug-102",
+        "github_repository": "FasterXML/jackson-core",
+        "bfcID": "f2b5635dd44b9a6892d3a23773526df8cb3d6bac",
+        "buggyID": "a5da65ff67fb469e410df15e13fbb4b3bf9ca42a",
+        "bicID": "a5da65ff67fb469e410df15e13fbb4b3bf9ca42a",
+        "workingID": "ff4fb6828ac26388c4fdad8c9534fe8fb2d8c2ec",
+        "failing_tests": {
+            "com.fasterxml.jackson.core.TestLocation#testBasicToString": [
+                {
+                    "type": "junit.framework.ComparisonFailure",
+                    "message": "expected:<[Source: UNKNOWN; [byte offset: #10]]> but was:<[Source: UNKNOWN; [line: 3, column: 2]]>"
+                }
+            ]
+        }
+    },
+    "103": {
+        "bug_id": "RegressionBug-103",
+        "github_repository": "tony19/named-regexp",
+        "bfcID": "7506b6870642d14423e364c6aa1bc29fc75701a3",
+        "buggyID": "9674eb8165b202d0249345ba46e845da4e31e8ee",
+        "bicID": "2f6232dc128cb5d9d567b6bc56a554bc49159429",
+        "workingID": "b156ea6f563244e9e9d3903decb0bef1c4c8378c",
+        "failing_tests": {
+            "com.google.code.regexp.MatcherTest#testNamedGroupsCanBeCalledMultipleTimes": [
+                {
+                    "type": "java.lang.IndexOutOfBoundsException",
+                    "message": ": Index: 0, Size: 0"
+                }
+            ]
+        }
+    },
+    "104": {
+        "bug_id": "RegressionBug-104",
+        "github_repository": "tony19/named-regexp",
+        "bfcID": "2f6232dc128cb5d9d567b6bc56a554bc49159429",
+        "buggyID": "b156ea6f563244e9e9d3903decb0bef1c4c8378c",
+        "bicID": "db3fba0cb8feb8a68e675fbf31e91cb33f647890",
+        "workingID": "b4697e960083d069c6ddfcbfb4700ee12821ac41",
+        "failing_tests": {
+            "com.google.code.regexp.MatcherTest#testNamedGroupsReturnsWhenMatchesEmptyString": [
+                {
+                    "type": "org.junit.runners.model.TestTimedOutException",
+                    "message": ": test timed out after 1000 milliseconds"
+                }
+            ]
+        }
+    },
+    "105": {
+        "bug_id": "RegressionBug-105",
+        "github_repository": "tony19/named-regexp",
+        "bfcID": "94d497df0c2974250d1d6b0f0400833c1ccb4c14",
+        "buggyID": "3433d3e10c6de2e003c1b623a550c48bf385f025",
+        "bicID": "db3fba0cb8feb8a68e675fbf31e91cb33f647890",
+        "workingID": "b4697e960083d069c6ddfcbfb4700ee12821ac41",
+        "failing_tests": {
+            "com.google.code.regexp.MatcherTest#testNamedGroupsReturnsEmptyListWhenNoGroupPresent": [
+                {
+                    "type": "java.lang.Exception",
+                    "message": ": test timed out after 1000 milliseconds\n\tat com.google.code.regexp.Matcher.namedGroups(Unknown Source)\n\tat com.google.code.regexp.MatcherTest.testNamedGroupsReturnsEmptyListWhenNoGroupPresent(Unknown Source)\n\tat sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)"
+                }
+            ]
+        }
+    },
+    "106": {
+        "bug_id": "RegressionBug-106",
+        "github_repository": "crawler-commons/crawler-commons",
+        "bfcID": "f598af8d28df11cfccd96962eb9034a35409ed2e",
+        "buggyID": "cda1bdee82b8250a9c831e02d78e3892db54c8a3",
+        "bicID": "569ec9b8cd7f83a7f311bf0cfcc7c2e6cde0b5d8",
+        "workingID": "535f96236c27698b7b4a52b0fca65ee216b201d1",
+        "failing_tests": {
+            "crawlercommons.domains.PaidLevelDomainTest#testPrivateDomains": [
+                {
+                    "type": "org.junit.ComparisonFailure",
+                    "message": "expected:<[]blogspot.com> but was:<[myblog.]blogspot.com>"
+                }
+            ]
+        }
+    },
+    "107": {
+        "bug_id": "RegressionBug-107",
+        "github_repository": "jhy/jsoup",
+        "bfcID": "f5fc1bb04c224865f8eee5ed718f4ffee0e18712",
+        "buggyID": "de1ced99d4dae991a546534454d5f7d9dc26f0b1",
+        "bicID": "a97672ad240f679f0071e046a119edb6d7dcbb1c",
+        "workingID": "f75a462e020e98c2f90354b0d3ae5e6141e0e533",
+        "failing_tests": {
+            "org.jsoup.select.SelectorTest#trimSelector": [
+                {
+                    "type": "org.jsoup.select.Selector$SelectorParseException",
+                    "message": ": Could not parse query '': unexpected token at ''"
+                }
+            ]
+        }
+    },
+    "108": {
+        "bug_id": "RegressionBug-108",
+        "github_repository": "jhy/jsoup",
+        "bfcID": "adb7a15a1e2dd6742a25592602a6e8ee77b518b6",
+        "buggyID": "1b38f80d623310e84c87b2d708ed0ab648dfafc5",
+        "bicID": "fb8b60b4d3d202c6fa708f60b8b4a5a53836af24",
+        "workingID": "2412188026aa32491e769d6221c16a3bda6e897b",
+        "failing_tests": {
+            "org.jsoup.parser.HtmlParserTest#testHandlesDeepSpans": [
+                {
+                    "type": "java.lang.StackOverflowError",
+                    "message": ""
+                }
+            ]
+        }
+    },
+    "109": {
+        "bug_id": "RegressionBug-109",
+        "github_repository": "jhy/jsoup",
+        "bfcID": "62c0595813b817ec593b0941ca4c3f29d10fac55",
+        "buggyID": "528ba552b19ab2ae949feecb373ef85a0b126566",
+        "bicID": "b92b4f6b9b3256e97bfb6a0732bf113b6da53a4c",
+        "workingID": "e5210d1f9ef4f1d41ff0a8c4a2ab8e9192d5e087",
+        "failing_tests": {
+            "org.jsoup.integration.ParseTest#testXwiki": [
+                {
+                    "type": "java.io.IOException",
+                    "message": ": Mark invalid"
+                }
+            ]
+        }
+    },
+    "110": {
+        "bug_id": "RegressionBug-110",
+        "github_repository": "jhy/jsoup",
+        "bfcID": "c324fabe86c0a59eb635610dc85d8d7a7be25c74",
+        "buggyID": "22a17d24279450e7e214b57beb4c0bda5f3698e5",
+        "bicID": "38049ce2808cafce3884c25c4613aaaff9f2d0d8",
+        "workingID": "f28c024ba127fd701f0d195a359afbabff04d7a1",
+        "failing_tests": {
+            "org.jsoup.nodes.ElementTest#testNextElementSiblingAfterClone": [
+                {
+                    "type": "java.lang.NullPointerException",
+                    "message": ""
+                }
+            ]
+        }
+    },
+    "111": {
+        "bug_id": "RegressionBug-111",
+        "github_repository": "apache/commons-beanutils",
+        "bfcID": "7b0388878e522468f90ea163b15ccfba05616c95",
+        "buggyID": "cc623734fe48d04372cadf8fd6a85ca15bfe44a5",
+        "bicID": "b1d296a3acb31bda6b830c3bfcd29dfeec3b2ea3",
+        "workingID": "397f93cc9da26bef5e21d8680f71a57af4ccac10",
+        "failing_tests": {
+            "org.apache.commons.beanutils.bugs.Jira465TestCase#testListProperty": [
+                {
+                    "type": "junit.framework.AssertionFailedError",
+                    "message": "Could not set property: org.apache.commons.beanutils.ConversionException: Default conversion to List failed."
+                }
+            ],
+            "org.apache.commons.beanutils.IndexedPropertyTestCase#testSetListItemA": [
+                {
+                    "type": "junit.framework.AssertionFailedError",
+                    "message": "Threw exception org.apache.commons.beanutils.ConversionException: Default conversion to List failed."
+                }
+            ]
+        }
+    },
+    "112": {
+        "bug_id": "RegressionBug-112",
+        "github_repository": "apache/commons-beanutils",
+        "bfcID": "47ed0c7cdcb4d516e41769e38a9cd5ef4d01713d",
+        "buggyID": "a57bd5e8e2b63290cefbd0629f513717bd1ae212",
+        "bicID": "8f67c1bbb9f09d82ae537aabe76979fd13827d0d",
+        "workingID": "5ef7ee15554279380f4dfed23d362fe02e510a04",
+        "failing_tests": {
+            "org.apache.commons.beanutils.bugs.Jira458TestCase#testConversionWithNullDefaultEmptyString": [
+                {
+                    "type": "org.apache.commons.beanutils.ConversionException",
+                    "message": ": Unsupported target type: class java.lang.Integer"
+                }
+            ],
+            "org.apache.commons.beanutils.bugs.Jira458TestCase#testConversionWithNullDefaultNullInput": [
+                {
+                    "type": "org.apache.commons.beanutils.ConversionException",
+                    "message": ": Unsupported target type: class java.lang.Integer"
+                }
+            ]
+        }
+    },
+    "113": {
+        "bug_id": "RegressionBug-113",
+        "github_repository": "alibaba/fastjson",
+        "bfcID": "17e56f9c6b1e650c1ea9190d479ad390111234f1",
+        "buggyID": "705892158e059cfbf1e4dc115064595eca58d436",
+        "bicID": "ef6c08a304ba53d376d8dcde9c4eff2476e27b40",
+        "workingID": "8b52572d49ad2eb7401ff0185894131efaf37d4e",
+        "failing_tests": {
+            "com.alibaba.json.bvt.basicType.FloatTest3_random#test_ran": [
+                {
+                    "type": "junit.framework.AssertionFailedError",
+                    "message": "expected:<0.0015253425> but was:<0.010817531>"
+                }
+            ]
+        }
+    },
+    "114": {
+        "bug_id": "RegressionBug-114",
+        "github_repository": "apache/commons-compress",
+        "bfcID": "f8bf45444c49053a92f6f560c5008d5ac43aa27f",
+        "buggyID": "4355c0d224342b5c94881b7aabb441f765867dfe",
+        "bicID": "915fdd3fcb55f81fbb4f63f9f9752c329488c524",
+        "workingID": "f2c9f9632c5888acfc2b4d1905fee78d06a1a231",
+        "failing_tests": {
+            "org.apache.commons.compress.archivers.tar.TarUtilsTest#testParseOctalInvalid": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": "Expected IllegalArgumentException - embedded NUL"
+                }
+            ],
+            "org.apache.commons.compress.archivers.TarTestCase#testCOMPRESS178": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": "Expected IOException"
+                }
+            ]
+        }
+    },
+    "115": {
+        "bug_id": "RegressionBug-115",
+        "github_repository": "apache/commons-lang",
+        "bfcID": "bd9adbb637a8a4aa5eb61c6fde2c576d0ab3c4fa",
+        "buggyID": "1d1883f0e20215720eb583fd43eee088808c616b",
+        "bicID": "5e62bf80f345ff28d494c2b407a9e8691a9fb684",
+        "workingID": "77d187eefc8596ef8203eb827486099cc8b27835",
+        "failing_tests": {
+            "org.apache.commons.lang3.reflect.ConstructorUtilsTest#testInvokeConstructor": [
+                {
+                    "type": "java.lang.NoSuchMethodException",
+                    "message": ": No such accessible constructor on object: org.apache.commons.lang3.reflect.ConstructorUtilsTest$TestBean"
+                }
+            ],
+            "org.apache.commons.lang3.reflect.ConstructorUtilsTest#testGetMatchingAccessibleMethod": [
+                {
+                    "type": "java.lang.NullPointerException",
+                    "message": ""
+                }
+            ]
+        }
+    },
+    "116": {
+        "bug_id": "RegressionBug-116",
+        "github_repository": "bmwcarit/barefoot",
+        "bfcID": "25fb150da9f9d78307d79516d655bf29f56deecc",
+        "buggyID": "7b679b25a6f54ade53a280961091dedeb5a157bf",
+        "bicID": "cd1b27591da26ea17637cc01fd6d4c427c06e7d9",
+        "workingID": "eb16240a8fe137b7a9359dd42df74397d49f2ae3",
+        "failing_tests": {
+            "com.bmwcarit.barefoot.markov.KStateTest#TestKStateUnbound": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": "expected:<7> but was:<8>"
+                }
+            ]
+        }
+    },
+    "117": {
+        "bug_id": "RegressionBug-117",
+        "github_repository": "google/gson",
+        "bfcID": "9e6f2bab20257b6823a5b753739f047d79e9dcbd",
+        "buggyID": "7719e73a108c450666613c279bedaed724cd9cc9",
+        "bicID": "c24af304077e4a6d1925db7cd35d0cd1ed488d6a",
+        "workingID": "5f63fcec98881e16ff950e9d981ce86a2563fb51",
+        "failing_tests": {
+            "com.google.gson.internal.bind.JsonTreeReaderTest#testSkipValue_filledJsonObject": [
+                {
+                    "type": "java.lang.ArrayIndexOutOfBoundsException",
+                    "message": ": -1"
+                }
+            ],
+            "com.google.gson.internal.bind.JsonTreeReaderTest#testSkipValue_emptyJsonObject": [
+                {
+                    "type": "java.lang.ArrayIndexOutOfBoundsException",
+                    "message": ": -1"
+                }
+            ]
+        }
+    },
+    "118": {
+        "bug_id": "RegressionBug-118",
+        "github_repository": "google/gson",
+        "bfcID": "dea305503ad8827121e8212248c271f1f2f90048",
+        "buggyID": "67bd3a2cf6f9c9c6e7f615969b1918f68e03932d",
+        "bicID": "23e2916947940864f828505531aa130fba6d8743",
+        "workingID": "34f400582973ab41e39d942618398e83ff0efbec",
+        "failing_tests": {
+            "com.google.gson.regression.JsonAdapterNullSafeTest#testNullSafeBugSerialize": [
+                {
+                    "type": "java.lang.NullPointerException",
+                    "message": ""
+                }
+            ],
+            "com.google.gson.regression.JsonAdapterNullSafeTest#testNullSafeBugDeserialize": [
+                {
+                    "type": "java.lang.NullPointerException",
+                    "message": ""
+                }
+            ]
+        }
+    },
+    "119": {
+        "bug_id": "RegressionBug-119",
+        "github_repository": "hypfvieh/dbus-java",
+        "bfcID": "c3d4a3b4cbf9c0e560673db3d94fd6ef0e87a7c0",
+        "buggyID": "c2556eaa9f388388285c25a6ea9351b4920ba7e2",
+        "bicID": "383999b9aff7b848038d8091f6b36d90a7388c21",
+        "workingID": "d63b128551d8d22ec49b38336f8fc86542964938",
+        "failing_tests": {
+            "org.freedesktop.dbus.utils.generator.InterfaceCodeGeneratorTest#testCreateAllFirewallInterfaces": [
+                {
+                    "type": "org.opentest4j.AssertionFailedError",
+                    "message": "expected: <20> but was: <0>"
+                }
+            ]
+        }
+    },
+    "120": {
+        "bug_id": "RegressionBug-120",
+        "github_repository": "jhy/jsoup",
+        "bfcID": "982c993a1b886a807d7facc47dcb29dbed2961f3",
+        "buggyID": "6a047bfe495d4c8ae827c9522fbf3fa525d8fdd7",
+        "bicID": "a657ae0240b875a703a1e4909d56ad59997d362d",
+        "workingID": "d9dfc4a6f2769a7211113b54427b5fd8966f418a",
+        "failing_tests": {
+            "org.jsoup.select.ElementsTest#forms": [
+                {
+                    "type": "org.opentest4j.AssertionFailedError",
+                    "message": "expected: <2> but was: <0>"
+                }
+            ]
+        }
+    },
+    "121": {
+        "bug_id": "RegressionBug-121",
+        "github_repository": "jhy/jsoup",
+        "bfcID": "f627193ce0950f0d55ed1b4f6a2fe9973447853a",
+        "buggyID": "64eef180f610d0dad97873f6786b103700ddb8b2",
+        "bicID": "ea1fb65e9ff8eee82c4e379dc3236d09a5ab02e1",
+        "workingID": "ea3225714c9e6e02ab17c4a79a88b71d1ea6eae3",
+        "failing_tests": {
+            "org.jsoup.nodes.ElementTest#booleanAttributeOutput": [
+                {
+                    "type": "org.junit.ComparisonFailure",
+                    "message": "expected:<...mg src=\"foo\" noshade[] nohref async autofo...> but was:<...mg src=\"foo\" noshade[=\"\"] nohref async autofo...>"
+                }
+            ]
+        }
+    },
+    "122": {
+        "bug_id": "RegressionBug-122",
+        "github_repository": "apache/commons-jexl",
+        "bfcID": "72b101feac88d64a9abb52169062115651fda67a",
+        "buggyID": "babdbf0ff183817404154bd4a66761e105f52a99",
+        "bicID": "07a0255f1bc0a68e5214be684d9710957f412143",
+        "workingID": "d840c58173012000c02a3755234c2ff9d5c5c852",
+        "failing_tests": {
+            "org.apache.commons.jexl3.PublicFieldsTest#testGetStaticField": [
+                {
+                    "type": "org.apache.commons.jexl3.JexlException$Property",
+                    "message": ": org.apache.commons.jexl3.PublicFieldsTest.testGetStaticField@1:13 unsolvable property 'NOT42'"
+                }
+            ],
+            "org.apache.commons.jexl3.PublicFieldsTest#testGetEnum": [
+                {
+                    "type": "org.apache.commons.jexl3.JexlException$Property",
+                    "message": ": org.apache.commons.jexl3.PublicFieldsTest.testGetEnum@1:20 unsolvable property 'FEMALE'"
+                }
+            ]
+        }
+    },
+    "123": {
+        "bug_id": "RegressionBug-123",
+        "github_repository": "vietj/reactive-pg-client",
+        "bfcID": "9efa6097e1e8e61ee0df146d924701705ff55149",
+        "buggyID": "05cc73f719708c4da8d95e75d6ffc73dea5e5928",
+        "bicID": "888115489d98540f056aa428eb630c13c38ba138",
+        "workingID": "83b3260ad99ae08304e1161dc0208485f77bc23f",
+        "failing_tests": {
+            "io.reactiverse.pgclient.PgPoolTest#testAuthFailure": [
+                {
+                    "type": "java.util.concurrent.TimeoutException:",
+                    "message": "null"
+                }
+            ]
+        }
+    },
+    "124": {
+        "bug_id": "RegressionBug-124",
+        "github_repository": "apache/commons-jexl",
+        "bfcID": "66e44d1011fe43b69cabf01ca65c7e334bf692c5",
+        "buggyID": "8ff1c9093a8f54c2b40ed9a004f6cdf81ce5d18b",
+        "bicID": "21a1cfca333d32e373d4955df9a82d5bb7822cf1",
+        "workingID": "34ce7f4a3b9138b80a65e14cbdb00b0116f9b474",
+        "failing_tests": {
+            "org.apache.commons.jexl3.IssuesTest#test192": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": "expected null, but was:<class org.apache.commons.jexl3.IssuesTest$C192>"
+                }
+            ]
+        }
+    },
+    "125": {
+        "bug_id": "RegressionBug-125",
+        "github_repository": "uniVocity/univocity-parsers",
+        "bfcID": "a554aae38b33e892b40f96c839081a7ff14c8b2c",
+        "buggyID": "f6571abcf2595b23129621f368feb43d4d3def28",
+        "bicID": "d263bc58ab83b6ee2d0a0ab74f8ef52810046a46",
+        "workingID": "e34a149077147de7cafcafbbaf8a4310e6297584",
+        "failing_tests": {
+            "com.univocity.parsers.issues.github.Github_121#ensureHierarchyWorksWithMissingColumns": [
+                {
+                    "type": "com.univocity.parsers.common.DataProcessingException",
+                    "message": "Unexpected error processing input row [A123, Category 1] using RowProcessor com.univocity.parsers.common.processor.BeanListProcessor.\nInternal state when error was thrown: line=2, column=0, record=1, charIndex=33, headers=[Name, Description], row=[A123, Category 1]"
+                }
+            ]
+        }
+    },
+    "126": {
+        "bug_id": "RegressionBug-126",
+        "github_repository": "yegor256/cactoos",
+        "bfcID": "42622f9ca977ae8dfe78ce02844b132856d25c12",
+        "buggyID": "bfc30f08f1a9e14c89d8b49ea86a748d26592b05",
+        "bicID": "5771bc881e19fd56c1ab3ca05a59dee5b47b4272",
+        "workingID": "b83c5460c81061d17c67ef0824102c47f94cb5e1",
+        "failing_tests": {
+            "org.cactoos.func.RepeatedFuncTest#repeatsNullsResults": [
+                {
+                    "type": "java.lang.IllegalStateException",
+                    "message": ": NULL instead of a valid value"
+                }
+            ]
+        }
+    },
+    "127": {
+        "bug_id": "RegressionBug-127",
+        "github_repository": "tynamo/tapestry-security",
+        "bfcID": "e6eeb71fad73b8f8108dba16346f64bd89ecff11",
+        "buggyID": "8af7fe9b4e47e6a9f760db90110238ce79518f31",
+        "bicID": "88256380814b89ae192690b58bad58e41aa661db",
+        "workingID": "1c7196f44d45d15eb192724644998a6dc535cf51",
+        "failing_tests": {
+            "org.tynamo.security.services.SecurityModuleUnitTest#buildRememberMeWithHmacPaddingForCipherKey": [
+                {
+                    "type": "org.apache.shiro.crypto.CryptoException",
+                    "message": "Unable to init cipher instance."
+                }
+            ],
+            "org.tynamo.security.services.SecurityModuleUnitTest#buildRememberMeWithHmacTruncatedForCipherKey": [
+                {
+                    "type": "org.apache.shiro.crypto.CryptoException",
+                    "message": "Unable to init cipher instance."
+                }
+            ]
+        }
+    },
+    "128": {
+        "bug_id": "RegressionBug-128",
+        "github_repository": "spring-projects/spring-hateoas",
+        "bfcID": "fb0ba255a69fdbf346f60e5f2a10e26b70fefd7f",
+        "buggyID": "61528d3242155a59b9e4ee573121f979ddea9643",
+        "bicID": "47cefe6869c9f41fef17d0187377a7cd379a488e",
+        "workingID": "8f53d3f730dd4c1eff4f054252cf27b89840e777",
+        "failing_tests": {
+            "org.springframework.hateoas.mvc.ControllerLinkBuilderUnitTest#createsLinkRelativeToContextRoot": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": "Expected : a string ending with \"/ctx/people\"\n     but: was \"http://localhost/ctx/foo/people\""
+                }
+            ]
+        }
+    },
+    "129": {
+        "bug_id": "RegressionBug-129",
+        "github_repository": "spring-projects/spring-data-rest",
+        "bfcID": "6c007487c7aa2fad0cb03109a959f997eca41d41",
+        "buggyID": "b4b8fdfee0c67c163e9f5251fff45b0e0bd6660a",
+        "bicID": "4b36f794dca3866cd817f7f48f05d4ab6b8edd34",
+        "workingID": "17538c65d7c18edf2aaaca8b565f04545033cbaf",
+        "failing_tests": {
+            "org.springframework.data.rest.webmvc.config.RepositoryRestMvConfigurationIntegrationTests#registersRepositoryRestConfigurersInDeclaredOrder": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": ": \n\nExpecting:\n  [org.springframework.data.rest.webmvc.config.JMoleculesConfigurer@16fb356,\n    org.springframework.data.rest.webmvc.config.RepositoryRestConfigurer$1@5a021cb9,\n    org.springframework.data.rest.webmvc.config.RepositoryRestConfigurer$1@f31c0c6]\nto contain sequence:\n  [org.springframework.data.rest.webmvc.config.RepositoryRestConfigurer$1@f31c0c6,\n    org.springframework.data.rest.webmvc.config.RepositoryRestConfigurer$1@5a021cb9]"
+                }
+            ]
+        }
+    },
+    "130": {
+        "bug_id": "RegressionBug-130",
+        "github_repository": "bguerout/jongo",
+        "bfcID": "6e7a2784552d26e76da4ad35b28cb72f3eb32755",
+        "buggyID": "c303f83b997a8289cbbe7bdb92c5069423e09290",
+        "bicID": "ab5d27f6f6c3750846aeabac8371a705fced4af4",
+        "workingID": "eb49a60ea7f34a12b2a392db5e0a89e1250990d2",
+        "failing_tests": {
+            "org.jongo.query.BsonQueryFactoryTest#shouldBindKeyParameterEvenIfQuoted": [
+                {
+                    "type": "java.lang.IllegalArgumentException",
+                    "message": ": Too many parameters passed to query: {'#': 123}"
+                }
+            ],
+            "org.jongo.query.BsonQueryFactoryTest#shouldBindKeyParameterEvenIfQuotedAndCompound": [
+                {
+                    "type": "java.lang.IllegalArgumentException",
+                    "message": ": Too many parameters passed to query: {'#.#': 123}"
+                }
+            ],
+            "org.jongo.query.BsonQueryFactoryTest#shouldBindKeyParameterEvenIfQuotedAndTokenIsNotSingleChar": [
+                {
+                    "type": "java.lang.IllegalArgumentException",
+                    "message": ": Cannot parse query: {'#123': 123}"
+                }
+            ]
+        }
+    },
+    "131": {
+        "bug_id": "RegressionBug-131",
+        "github_repository": "spring-projects/spring-amqp",
+        "bfcID": "917d6e91e968e35336720c17d88d3d9d84afa11e",
+        "buggyID": "d98569c6e3e1e2166a3c9d86bb4ebad1a259f491",
+        "bicID": "39c9c44caf0982234d6835cc4eecfecd8c609b9b",
+        "workingID": "fed2f3170a9d11624f75696bee28d33116463b52",
+        "failing_tests": {
+            "org.springframework.amqp.rabbit.listener.adapter.MessagingMessageListenerAdapterTests#headers": [
+                {
+                    "type": "org.opentest4j.AssertionFailedError",
+                    "message": "Expecting :\n <null>\nto be equal to:\n <org.springframework.amqp.rabbit.listener.adapter.MessagingMessageListenerAdapterTests.Foo>\nbut was not."
+                }
+            ]
+        }
+    },
+    "132": {
+        "bug_id": "RegressionBug-132",
+        "github_repository": "uniVocity/univocity-parsers",
+        "bfcID": "4bc0c553e40ce1e47d8d2a6a43df5c5923898f8c",
+        "buggyID": "bac021866f0845066cfd791d3cb36894ee5bd3bb",
+        "bicID": "e7c1d0c8b888cc09fe4b6afc61ea6b5f1eb98a72",
+        "workingID": "378f318d7cf64a2b778a47a34bcc6f5a75483c11",
+        "failing_tests": {
+            "com.univocity.parsers.issues.github.Github_24#ensureExceptionsAreThrown": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": "Expected exception to be thrown here"
+                }
+            ]
+        }
+    },
+    "133": {
+        "bug_id": "RegressionBug-133",
+        "github_repository": "vavr-io/vavr",
+        "bfcID": "dc239ef58a553285b3445c6de8ba1d4446865e1d",
+        "buggyID": "451befab52083237904e1eed28a8f6a2272a9e2b",
+        "bicID": "f3992a56c7c4ed557e0c697cabe24ef9c0c17dae",
+        "workingID": "5a2d666f461dc771433204a4960a1c035d7f40bc",
+        "failing_tests": {
+            "javaslang.collection.StreamTest#shouldNotEvaluateHeadOfTailWhenCallingIteratorHasNext": [
+                {
+                    "type": "org.junit.ComparisonFailure",
+                    "message": "expected:<\"12345[]\"> but was:<\"12345[6]\">"
+                }
+            ]
+        }
+    },
+    "134": {
+        "bug_id": "RegressionBug-134",
+        "github_repository": "spring-projects/spring-amqp",
+        "bfcID": "90aee119e31ff356c22c486f3299eabfef49fcc4",
+        "buggyID": "18bd7075193705927d3d68c51627bded5649ef7b",
+        "bicID": "06af4033c8f34dba38ba2346a4a81ed019299ca4",
+        "workingID": "715f39ff3baab340e5d681d74697140c88a7874e",
+        "failing_tests": {
+            "org.springframework.amqp.support.converter.Jackson2JsonMessageConverterTests#concreteInMapRegression": [
+                {
+                    "type": "java.lang.ClassCastException",
+                    "message": "java.lang.ClassCastException: java.util.LinkedHashMap cannot be cast to org.springframework.amqp.support.converter.Jackson2JsonMessageConverterTests$Qux"
+                }
+            ],
+            "org.springframework.amqp.support.converter.Jackson2JsonMessageConverterTests#concreteInListRegression": [
+                {
+                    "type": "java.lang.ClassCastException",
+                    "message": "java.lang.ClassCastException: java.util.LinkedHashMap cannot be cast to org.springframework.amqp.support.converter.Jackson2JsonMessageConverterTests$Foo"
+                }
+            ]
+        }
+    },
+    "135": {
+        "bug_id": "RegressionBug-135",
+        "github_repository": "tntim96/JSCover",
+        "bfcID": "a19bcb76f70c7c58b5b858c84c7247c3d258e4bf",
+        "buggyID": "fd581ea60ea2d3392a03939dfd641f7d0e398c33",
+        "bicID": "dd3a21ed090491ab4434ba62decae348c0c3ef99",
+        "workingID": "f5b3be68f118549104bf0ad52e3d0c11a9d579fe",
+        "failing_tests": {
+            "jscover.instrument.InstrumenterTest#shouldInstrumentLabelWithoutBraces": [
+                {
+                    "type": "org.junit.ComparisonFailure",
+                    "message": "expected:<...ta[1]++;\noutloop:\n  [for (var j = 0; j < 10; j++) {\n    _$jscoverage['test.js'].lineData[3]++;\n    break outloop;]\n  }\n> but was:<...ta[1]++;\noutloop:\n  [{\n    _$jscoverage['test.js'].lineData[2]++;\n    for (var j = 0; j < 10; j++) {\n      _$jscoverage['test.js'].lineData[3]++;\n      break outloop;\n    }]\n  }\n>"
+                }
+            ],
+            "jscover.instrument.InstrumenterTest#shouldInstrumentLoopWithContinueLabel": [
+                {
+                    "type": "org.junit.ComparisonFailure",
+                    "message": "expected:<...[1]++;\nlabelmark:\n  [for (x = 0; x < 5; x++) {\n    _$jscoverage['test.js'].lineData[3]++;\n    if (x) {\n      _$jscoverage['test.js'].lineData[4]++;\n      continue labelmark;]\n    }\n  }\n> but was:<...[1]++;\nlabelmark:\n  [{\n    _$jscoverage['test.js'].lineData[2]++;\n    for (x = 0; x < 5; x++) {\n      _$jscoverage['test.js'].lineData[3]++;\n      if (x) {\n        _$jscoverage['test.js'].lineData[4]++;\n        continue labelmark;\n      }]\n    }\n  }\n>"
+                }
+            ]
+        }
+    },
+    "136": {
+        "bug_id": "RegressionBug-136",
+        "github_repository": "uniVocity/univocity-parsers",
+        "bfcID": "1bff05eedec5f5bb24f775eb7c0a774a4d18e7f1",
+        "buggyID": "e3d62f4335e41058f8db79999520c3453ffe60f3",
+        "bicID": "ebe87e07e750ff538ef7d116fc0bbe6b6d2c57aa",
+        "workingID": "1e77a2e7785f91e62da356537ae4118d36d07993",
+        "failing_tests": {
+            "com.univocity.parsers.common.AbstractWriterTest#testExcludeFields": [
+                {
+                    "type": "com.univocity.parsers.common.TextWritingException",
+                    "message": "Error writing row.\nInternal state when error was thrown: recordCount=0, recordData=[V1, V2, V3]"
+                }
+            ],
+            "com.univocity.parsers.common.AbstractWriterTest#testSelectFields": [
+                {
+                    "type": "com.univocity.parsers.common.TextWritingException",
+                    "message": "Error writing row.\nInternal state when error was thrown: recordCount=0, recordData=[V1, V2, V3]"
+                }
+            ]
+        }
+    },
+    "137": {
+        "bug_id": "RegressionBug-137",
+        "github_repository": "uniVocity/univocity-parsers",
+        "bfcID": "cd066141eff78cab5b4c0796fd9538ba41caaa7f",
+        "buggyID": "fbe1f7d9347469b050f5d865dd2bf36479d8dcd4",
+        "bicID": "50ae63fe0585a7fe0da4a8abe1f42b15546a02c9",
+        "workingID": "eed698b4c1dadf7d5e9d749bbd8b9c330cfcfb4e",
+        "failing_tests": {
+            "com.univocity.parsers.issues.support.Ticket_11#parseLastLineComment": [
+                {
+                    "type": "com.univocity.parsers.common.TextParsingException",
+                    "message": "java.lang.IllegalArgumentException - Unable to skip 1 lines from line 1. End of input reached\nParser Configuration: CsvParserSettings:\n Auto configuration enabled=true\n Autodetect column delimiter=false\n Autodetect quotes=false\n Column reordering enabled=true\n Empty value=null\n Escape unquoted values=false\n Header extraction enabled=null\n Headers=null\n Ignore leading whitespaces=true\n Ignore trailing whitespaces=true\n Input buffer size=1048576\n Input reading on separate thread=true\n Keep escape sequences=false\n Keep quotes=false\n Length of content displayed on error=-1\n Line separator detection enabled=false\n Maximum number of characters per column=4096\n Maximum number of columns=512\n Normalize escaped line separators=true\n Null value=null\n Number of records to read=all\n Processor=none\n Restricting data in exceptions=false\n RowProcessor error handler=null\n Selected fields=none\n Skip bits as whitespace=true\n Skip empty lines=true\n Unescaped quote handling=nullFormat configuration:\n CsvFormat:\n  Comment character=#\n  Field delimiter=,\n  Line separator (normalized)=\\n\n  Line separator sequence=\\n\n  Quote character=\"\n  Quote escape character=\"\n  Quote escape escape character=null\nInternal state when error was thrown: line=2, column=0, record=1, charIndex=6, headers=[a, b]"
+                }
+            ]
+        }
+    },
+    "138": {
+        "bug_id": "RegressionBug-138",
+        "github_repository": "uniVocity/univocity-parsers",
+        "bfcID": "33a099c57a61d14d2fb2a58c22cd84806e9d27c8",
+        "buggyID": "0c57a7f738c38526c03c7de836a7d50576703523",
+        "bicID": "d263bc58ab83b6ee2d0a0ab74f8ef52810046a46",
+        "workingID": "e34a149077147de7cafcafbbaf8a4310e6297584",
+        "failing_tests": {
+            "com.univocity.parsers.issues.github.Github_138#parseWithInvalidIndex": [
+                {
+                    "type": "com.univocity.parsers.common.DataProcessingException",
+                    "message": "Unexpected error processing input row [b, c] using Processor com.univocity.parsers.common.processor.BeanListProcessor.\nInternal state when error was thrown: line=1, column=0, record=1, charIndex=6, row=[b, c]"
+                }
+            ]
+        }
+    },
+    "139": {
+        "bug_id": "RegressionBug-139",
+        "github_repository": "uniVocity/univocity-parsers",
+        "bfcID": "2f94c87924b6f4115466ab985e0da8db7fff500e",
+        "buggyID": "0eacff1e83d664041d1f8b7dcc0d76f28f8c9145",
+        "bicID": "239e35f1bb861ca184bf87df2b0de08eb9c5c922",
+        "workingID": "761042ab1215f96de033b56cb73e79cb8a661f42",
+        "failing_tests": {
+            "com.univocity.parsers.common.input.WriterCharAppenderTest#testAppendAndExpandWhenAppendingChar": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": "expected [\"abcdefghijklmno\" \"pqrst\" \"uvwxyz\"\n] but found [\"abcdefghijklmno&#0; \"pqrst&#0; \"uvwxyz\"\n]"
+                },
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": "expected [\"abcdefghijklmno\" \"pqrst\" \"uvwxyz\"\n] but found [\"abcdefghijklmno&#0; \"pqrst&#0; \"uvwxyz\"\n]"
+                }
+            ]
+        }
+    },
+    "140": {
+        "bug_id": "RegressionBug-140",
+        "github_repository": "scijava/scijava-common",
+        "bfcID": "7cc0b56df02ec944dcc65913a1af1ceb63a83e86",
+        "buggyID": "c4cb3a71f6e5c02d78d27bcee728adb096f579ef",
+        "bicID": "c68bf459a9be52c6c4070e2122a4a1dbf9966466",
+        "workingID": "85122f6295aeb3684d78eff2696d7809f3dccd4d",
+        "failing_tests": {
+            "org.scijava.command.CommandInfoTest#testDuplicateServiceParameters": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": ""
+                }
+            ]
+        }
+    },
+    "141": {
+        "bug_id": "RegressionBug-141",
+        "github_repository": "scijava/scijava-common",
+        "bfcID": "1a4b024826c76b1e8aa7d4b0b867ef1d22d7f603",
+        "buggyID": "b917b2148edb6db4c44a5432855e71238ff63aa0",
+        "bicID": "14571d894ac299acd7e46e7d95acd07bd6a002c2",
+        "workingID": "d5575acb9793d961998a5cb2d06c76d0b9e190d7",
+        "failing_tests": {
+            "org.scijava.convert.ConverterTest#testNullConverter": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": ""
+                }
+            ]
+        }
+    },
+    "142": {
+        "bug_id": "RegressionBug-142",
+        "github_repository": "scijava/scijava-common",
+        "bfcID": "9a9e566487253355b1f06d3e6f635a38f9fcc2cc",
+        "buggyID": "f618bd1357fab65829954b8c289c4361ecb65cf5",
+        "bicID": "c4de809369ec0fc907fc3581cb34d51667c1f3d2",
+        "workingID": "c8424205852cce05b90b83723081cee2fc9db92a",
+        "failing_tests": {
+            "org.scijava.command.CommandModuleTest#testCancelable": [
+                {
+                    "type": "org.junit.ComparisonFailure",
+                    "message": "expected:<[Stop! Collaborate and listen]!> but was:<[NO SINGING]!>"
+                }
+            ]
+        }
+    },
+    "143": {
+        "bug_id": "RegressionBug-143",
+        "github_repository": "scijava/scijava-common",
+        "bfcID": "98f696feafdc789949ff40ce3c57fe998c4c38c4",
+        "buggyID": "fdf7494d97c5f1062f5ae458bd4e1c34748a627c",
+        "bicID": "57d06443a46766df6c873eb04d5237eeef41e2ab",
+        "workingID": "57efb0d97c4a7fe3d45931a8427132c212bda434",
+        "failing_tests": {
+            "org.scijava.command.InvalidCommandTest#testValid": [
+                {
+                    "type": "java.lang.AssertionError:",
+                    "message": "null"
+                }
+            ]
+        }
+    },
+    "144": {
+        "bug_id": "RegressionBug-144",
+        "github_repository": "bonigarcia/webdrivermanager",
+        "bfcID": "509e56b5d48160f4eda6e149bbcb32bc96cb5461",
+        "buggyID": "e2c1bde678d5462a52ef99eb27e5dc37e3d9363e",
+        "bicID": "c766a512be766769dc257191a6aaee124fc2e755",
+        "workingID": "772d45a01c4dff36996b84f3292ec416e6ee0273",
+        "failing_tests": {
+            "io.github.bonigarcia.wdm.test.chrome.ChromeReadVersionTest#chromeVersionsTest": [
+                {
+                    "type": "org.opentest4j.AssertionFailedError",
+                    "message": "Expecting value to be true but was false"
+                }
+            ]
+        }
+    },
+    "145": {
+        "bug_id": "RegressionBug-145",
+        "github_repository": "pagehelper/Mybatis-PageHelper",
+        "bfcID": "d56061dc9389545c712be42fe881ff16dd58182e",
+        "buggyID": "2c879208d3c9979832663f38b79f3f5923ca9914",
+        "bicID": "be1b31fc7ec3d74000e65c0b67c85fc444d221af",
+        "workingID": "d323b6087da9db97ca24191e80e76eb483b854d4",
+        "failing_tests": {
+            "com.github.pagehelper.sql.SqlServerTest#testSqlServerSquareBrackets": [
+                {
+                    "type": "com.github.pagehelper.PageException",
+                    "message": ": \u4e0d\u652f\u6301\u8be5SQL\u8f6c\u6362\u4e3a\u5206\u9875\u67e5\u8be2!"
+                }
+            ]
+        }
+    },
+    "146": {
+        "bug_id": "RegressionBug-146",
+        "github_repository": "decorators-squad/eo-yaml",
+        "bfcID": "6d8dfb071e8d8308e24b159b7fc61ea5b9068f13",
+        "buggyID": "d970e1f729197aca931bfe7bbee6b4d36f5120d4",
+        "bicID": "3171c848d42b7d32c69a3e608f6d30bfa39ad390",
+        "workingID": "3a6bd119a2e2810d8f87113899844cfb91447528",
+        "failing_tests": {
+            "com.amihaiemil.eoyaml.extensions.MergedYamlMappingTest#mergesByOverridingCommentOfSequence": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": "Expected : \"New Comment\"\n     but: was \"Old Comment\""
+                }
+            ],
+            "com.amihaiemil.eoyaml.extensions.MergedYamlMappingTest#mergesByOverridingInnerComment": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": "Expected : \"New Comment\"\n     but: was \"Old Comment\""
+                }
+            ]
+        }
+    },
+    "147": {
+        "bug_id": "RegressionBug-147",
+        "github_repository": "ijpb/MorphoLibJ",
+        "bfcID": "cadc595a698e0f831e38ba341d5ce56643d7759a",
+        "buggyID": "8385d145d4689c0c096818b7ef03dccf4caea1fd",
+        "bicID": "8385d145d4689c0c096818b7ef03dccf4caea1fd",
+        "workingID": "3ad88b5663c4fdcf500b6e2acf63863b98a91671",
+        "failing_tests": {
+            "inra.ijpb.measure.region2d.AverageThicknessTest#test_process_rectangle": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": ""
+                }
+            ],
+            "inra.ijpb.measure.region2d.AverageThicknessTest#test_process_ThinLines_TouchingLabels": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": ""
+                }
+            ]
+        }
+    },
+    "148": {
+        "bug_id": "RegressionBug-148",
+        "github_repository": "Multiverse/Multiverse-Core",
+        "bfcID": "d3ff2922fd5ecfacc37bff9efaf18b9ab72cd97d",
+        "buggyID": "5e2824abebaa1f9807e629da8af7dd92ef4d1745",
+        "bicID": "7762aca019fbdcdf61c5e12ccc384d1024c12ad7",
+        "workingID": "6ebc1188e80f754b62ce707ba02626fe02631107",
+        "failing_tests": {
+            "com.onarandombox.MultiverseCore.utils.FileUtilsTest#copyFolder_intoExistingFolder": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": ""
+                }
+            ],
+            "com.onarandombox.MultiverseCore.utils.FileUtilsTest#copyFolder": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": ""
+                }
+            ]
+        }
+    },
+    "149": {
+        "bug_id": "RegressionBug-149",
+        "github_repository": "lemire/javaewah",
+        "bfcID": "b27f72051d64ab7498357a285e0416933548f90d",
+        "buggyID": "1e71f48a110ea9190e81b269c45784c5d8c7e1d8",
+        "bicID": "f627f406ba17e8b1c5a2147910eca7e950eea935",
+        "workingID": "a618452efac4f3be1a945168382dbb6f7b8c2076",
+        "failing_tests": {
+            "com.googlecode.javaewah.EWAHCompressedBitmapTest#issue72a": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": "expected:<42885> but was:<43013>"
+                }
+            ],
+            "com.googlecode.javaewah.EWAHCompressedBitmapTest#issue72b": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": "expected:<33273> but was:<33209>"
+                }
+            ],
+            "com.googlecode.javaewah.EWAHCompressedBitmapTest#issue72c": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": "expected:<96054> but was:<96118>"
+                }
+            ],
+            "com.googlecode.javaewah.EWAHCompressedBitmapTest#issue73": [
+                {
+                    "type": "java.lang.RuntimeException",
+                    "message": ": You can only reduce the size of the bitmap within the scope of the last word. To extend the bitmap, please call setSizeInBits(int,boolean)."
+                }
+            ],
+            "com.googlecode.javaewah.EWAHCompressedBitmapTest#issue74": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": "expected:<44066> but was:<44002>"
+                }
+            ],
+            "com.googlecode.javaewah32.EWAHCompressedBitmap32Test#issue72a": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": "expected:<42949> but was:<43013>"
+                }
+            ],
+            "com.googlecode.javaewah32.EWAHCompressedBitmap32Test#issue72b": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": "expected:<33241> but was:<33209>"
+                }
+            ],
+            "com.googlecode.javaewah32.EWAHCompressedBitmap32Test#issue72c": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": "expected:<96086> but was:<96118>"
+                }
+            ],
+            "com.googlecode.javaewah32.EWAHCompressedBitmap32Test#issue73": [
+                {
+                    "type": "java.lang.RuntimeException",
+                    "message": ": You can only reduce the size of the bitmap within the scope of the last word. To extend the bitmap, please call setSizeInbits(int,boolean): 10685 10720"
+                }
+            ],
+            "com.googlecode.javaewah32.EWAHCompressedBitmap32Test#issue74": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": "expected:<44034> but was:<44002>"
+                }
+            ]
+        }
+    },
+    "150": {
+        "bug_id": "RegressionBug-150",
+        "github_repository": "PapenfussLab/gridss",
+        "bfcID": "d02bdf5c48d9e2f389d32bf8ecd9516a6d23a4c9",
+        "buggyID": "513fca75d1682c59776be9eea8512ef49072ddd8",
+        "bicID": "6c9ad0d7de2b0a26493e3fd3a83cb5011ae9d34c",
+        "workingID": "0deecedb49cb0157a6e845af38e10c156ac4e5ee",
+        "failing_tests": {
+            "au.edu.wehi.idsv.AssemblyEvidenceSourceTest#fragmentSize_should_be_source_min": [
+                {
+                    "type": "java.lang.AssertionError",
+                    "message": "expected:<100> but was:<300>"
+                }
+            ]
+        }
     }
 }
