@@ -11,7 +11,7 @@ def check_jdk_version():
         elif 'version "11' in result.stderr:
             return 1  # Java 11 is found
         else:
-            print("Java 8 is required!")
+            print("Java 8 and 11 is required!")
             return 1  # Not Java 8
     except FileNotFoundError:
         print("Java is not installed or not in the system's PATH.")
