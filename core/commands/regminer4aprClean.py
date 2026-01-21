@@ -25,7 +25,6 @@ def clean_command(working_dir):
     with open(metadata_file, 'r') as file:
         metadata = json.load(file)
         build_system = metadata.get("build_system")
-        language = metadata.get("language")
         java_version = metadata.get("java_version")
 
     # Prepare environment
