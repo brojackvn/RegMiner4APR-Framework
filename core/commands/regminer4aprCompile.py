@@ -27,12 +27,26 @@ def compile_command(working_dir):
     
     with open(metadata_file, 'r') as file:
         metadata = json.load(file)
+        bug_id = metadata.get("bug_id")
         build_system = metadata.get("build_system")
-        additional_command = metadata.get("additional_command")
+        java_version = metadata.get("java_version")
+
+    # Prepare environment
+    env = os.environ.copy()
 
     # Determine the compile command based on the build system
+    if int(java_version) == 8:
+        java_home = "/usr/lib/jvm/java-8-openjdk-amd64"
+    elif int(java_version) == 11:
+        java_home = "/usr/lib/jvm/java-11-openjdk-amd64"
+    else:
+        print(f"Error: Unsupported Java version: {java_version}")
+        return 1
+    env["JAVA_HOME"] = java_home
+    env["PATH"] = f"{java_home}/bin:" + env["PATH"]
+
     if build_system == "maven":
-        if additional_command == "xvfb":
+        if bug_id == "RegressionBug-23":
             command = ["xvfb-run", "mvn", "clean", "compile", "-Drat.skip", "-Dcheckstyle.skip"]
             compile_testcases_command = ["xvfb-run", "mvn", "test-compile", "-Drat.skip", "-Dcheckstyle.skip"]
         else:
@@ -46,7 +60,7 @@ def compile_command(working_dir):
     print("=" * 80)
     print(f"Compiling at working directory: {os.path.abspath(working_dir)}")
     print("-" * 40)
-    compile_result = subprocess.run(command, cwd=os.path.abspath(working_dir), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    compile_result = subprocess.run(command, cwd=os.path.abspath(working_dir), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     if compile_result.returncode != 0:
         print(f"Error: Compiling at working directory!")
@@ -60,7 +74,7 @@ def compile_command(working_dir):
         print(f"Compiling test classes at working directory: {os.path.abspath(working_dir)}")
         print("-" * 40)
         # Compile the test classes
-        if subprocess.call(compile_testcases_command, cwd=os.path.abspath(working_dir), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
+        if subprocess.call(compile_testcases_command, cwd=os.path.abspath(working_dir), env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
             print(f"Error: Compiling test classes!")
             return 1
         else:
