@@ -1,0 +1,14 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/input/AbstractCharInputReader.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/input/AbstractCharInputReader.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/input/AbstractCharInputReader.java	2024-09-08 01:36:15.273816710 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/input/AbstractCharInputReader.java	2024-09-08 01:36:15.253816570 +1000
+@@ -202,7 +202,9 @@
+ 					process.execute(buffer, length);
+ 				}
+ 			} finally {
+-				inputAnalysisProcesses = null;
++				if(length > 4) {
++					inputAnalysisProcesses = null;
++				}
+ 			}
+ 		}
+ 	}

@@ -1,0 +1,110 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/explanations/smus/SmusComputation.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/explanations/smus/SmusComputation.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/explanations/smus/SmusComputation.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/explanations/smus/SmusComputation.java	2024-09-08 01:36:07.689763596 +1000
+@@ -28,11 +28,16 @@
+ 
+ package org.logicng.explanations.smus;
+ 
++import static org.logicng.handlers.Handler.aborted;
++import static org.logicng.handlers.Handler.start;
++import static org.logicng.handlers.OptimizationHandler.satHandler;
++
+ import org.logicng.datastructures.Assignment;
+ import org.logicng.datastructures.Tristate;
+ import org.logicng.formulas.Formula;
+ import org.logicng.formulas.FormulaFactory;
+ import org.logicng.formulas.Variable;
++import org.logicng.handlers.OptimizationHandler;
+ import org.logicng.propositions.Proposition;
+ import org.logicng.propositions.StandardProposition;
+ import org.logicng.solvers.MiniSat;
+@@ -71,13 +76,31 @@
++    public static <P extends Proposition> List<P> computeSmus(final List<P> propositions, final List<Formula> additionalConstraints, final FormulaFactory f,
++                                                              final OptimizationHandler handler) {
++        start(handler);
+         final SATSolver growSolver = MiniSat.miniSat(f);
+         growSolver.add(additionalConstraints == null ? Collections.singletonList(f.verum()) : additionalConstraints);
+         final Map<Variable, P> propositionMapping = new TreeMap<>();
+@@ -86,13 +109,23 @@
+             propositionMapping.put(selector, proposition);
+             growSolver.add(f.equivalence(selector, proposition.formula()));
+         }
+-        if (growSolver.sat(propositionMapping.keySet()) == Tristate.TRUE) {
+-            return null; // no MUS, since propositions are SAT
++        final boolean sat = growSolver.sat(satHandler(handler), propositionMapping.keySet()) == Tristate.TRUE;
++        if (aborted(handler)) {
++            return null;
++        }
++        if (sat) {
++            throw new IllegalArgumentException("Cannot compute a smallest MUS for a satisfiable formula set.");
+         }
+         final SATSolver hSolver = MiniSat.miniSat(f);
+         while (true) {
+@@ -108,26 +141,47 @@
++    public static List<Formula> computeSmusForFormulas(final List<Formula> formulas, final List<Formula> additionalConstraints, final FormulaFactory f,
++                                                       final OptimizationHandler handler) {
+         final List<Proposition> props = formulas.stream().map(StandardProposition::new).collect(Collectors.toList());
+-        final List<Proposition> smus = computeSmus(props, additionalConstraints, f);
++        final List<Proposition> smus = computeSmus(props, additionalConstraints, f, handler);
+         return smus == null ? null : smus.stream().map(Proposition::formula).collect(Collectors.toList());
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/Handler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/Handler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/Handler.java	2024-09-08 01:36:07.773764185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/Handler.java	2024-09-08 01:36:07.689763596 +1000
+@@ -46,5 +48,26 @@
++    static boolean aborted(final Handler handler) {
++        return handler != null && handler.aborted();
++    }
+
++    static void start(final Handler handler) {
++        if (handler != null) {
++            handler.started();
++        }
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/OptimizationHandler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/OptimizationHandler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/handlers/OptimizationHandler.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/handlers/OptimizationHandler.java
+@@ -54,19 +54,33 @@
+      * @param handler the optimization handler
+      * @return The SAT handler if the optimization handler is not {@code null}, otherwise {@code null}
+      */
++    static SATHandler satHandler(final OptimizationHandler handler) {
++        return handler == null ? null : handler.satHandler();
++    }
++}
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/sat/MiniSat2Solver.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/sat/MiniSat2Solver.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/logicng/solvers/sat/MiniSat2Solver.java	2024-09-08 01:36:07.777764212 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/logicng/solvers/sat/MiniSat2Solver.java	2024-09-08 01:36:07.693763624 +1000
+@@ -44,6 +44,9 @@
+ 
+ package org.logicng.solvers.sat;
+ 
++import static org.logicng.handlers.Handler.start;
++import static org.logicng.handlers.SATHandler.finishSolving;
++
+ import org.logicng.collections.LNGBooleanVector;
+ import org.logicng.collections.LNGIntVector;
+ import org.logicng.collections.LNGVector;
+@@ -194,9 +197,7 @@
+     @Override
+     public Tristate solve(final SATHandler handler) {
+         this.handler = handler;
+-        if (this.handler != null) {
+-            this.handler.started();
+-        }
++        start(handler);
+         this.model.clear();
+         this.conflict.clear();
+         if (!this.ok) {
+@@ -227,9 +228,7 @@
+         } else if (status == Tristate.FALSE && this.conflict.empty()) {
+             this.ok = false;
+         }
+-        if (this.handler != null) {
+-            this.handler.finishedSolving();
+-        }
++        finishSolving(handler);
+         cancelUntil(0);
+         this.handler = null;
+         this.canceledByHandler = false;

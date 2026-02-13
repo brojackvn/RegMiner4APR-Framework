@@ -1,0 +1,346 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/AbstractParser.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/AbstractParser.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/AbstractParser.java	2024-09-08 01:36:14.313809987 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/AbstractParser.java	2024-09-08 01:36:14.285809791 +1000
+@@ -264,7 +264,11 @@
+ 		}
+ 
+ 		if (input instanceof AbstractCharInputReader) {
+-			((AbstractCharInputReader) input).addInputAnalysisProcess(getInputAnalysisProcess());
++			AbstractCharInputReader inputReader = ((AbstractCharInputReader) input);
++			inputReader.addInputAnalysisProcess(getInputAnalysisProcess());
++			for(InputAnalysisProcess p : settings.getInputAnalysisProcesses()){
++				inputReader.addInputAnalysisProcess(p);
++			}
+ 		}
+ 
+ 		try {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/CommonParserSettings.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/CommonParserSettings.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/CommonParserSettings.java	2024-09-08 01:36:14.313809987 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/CommonParserSettings.java	2024-09-08 01:36:14.285809791 +1000
+@@ -66,6 +66,8 @@
+ 	private boolean commentCollectionEnabled = false;
+ 	private boolean autoClosingEnabled = true;
+ 	private boolean commentProcessingEnabled = true;
++	private List<InputAnalysisProcess> inputAnalysisProcesses = new ArrayList<InputAnalysisProcess>();
++
+ 	/**
+ 	 * Indicates whether or not a separate thread will be used to read characters from the input while parsing (defaults true if the number of available
+ 	 * processors at runtime is greater than 1)
+@@ -108,14 +110,16 @@
+ 	/**
+ 	 * Defines whether or not the first valid record parsed from the input should be considered as the row containing the names of each column
+ 	 *
+-	 * @param headerExtractionEnabled a flag indicating whether the first valid record parsed from the input should be considered as the row containing the names of each column
++	 * @param headerExtractionEnabled a flag indicating whether the first valid record parsed from the input should be considered as the row containing the
++	 *                                names of each column
+ 	 */
+ 	public void setHeaderExtractionEnabled(boolean headerExtractionEnabled) {
+ 		this.headerExtractionEnabled = headerExtractionEnabled;
+ 	}
+ 
+ 	/**
+-	 * Returns the callback implementation of the interface {@link RowProcessor} which handles the lifecycle of the parsing process and processes each record extracted from the input
++	 * Returns the callback implementation of the interface {@link RowProcessor} which handles the lifecycle of the parsing process and processes each record
++	 * extracted from the input
+ 	 *
+ 	 * @return Returns the RowProcessor used by the parser to handle each record
+ 	 *
+@@ -138,7 +142,8 @@
+ 
+ 
+ 	/**
+-	 * Defines the callback implementation of the interface {@link RowProcessor} which handles the lifecycle of the parsing process and processes each record extracted from the input
++	 * Defines the callback implementation of the interface {@link RowProcessor} which handles the lifecycle of the parsing process and processes each record
++	 * extracted from the input
+ 	 *
+ 	 * @param processor the RowProcessor instance which should used by the parser to handle each record
+ 	 *
+@@ -148,7 +153,8 @@
+ 	 * @see com.univocity.parsers.common.processor.MasterDetailListProcessor
+ 	 * @see com.univocity.parsers.common.processor.BeanProcessor
+ 	 * @see com.univocity.parsers.common.processor.BeanListProcessor
+-	 * @deprecated Use the {@link #setProcessor(Processor)} method as it allows format-specific processors to be built to work with different implementations of {@link Context}.
++	 * @deprecated Use the {@link #setProcessor(Processor)} method as it allows format-specific processors to be built to work with different implementations of
++	 * {@link Context}.
+ 	 * Implementations based on {@link RowProcessor} allow only parsers who provide a {@link ParsingContext} to be used.
+ 	 */
+ 	@Deprecated
+@@ -158,7 +164,8 @@
+ 
+ 
+ 	/**
+-	 * Returns the callback implementation of the interface {@link Processor} which handles the lifecycle of the parsing process and processes each record extracted from the input
++	 * Returns the callback implementation of the interface {@link Processor} which handles the lifecycle of the parsing process and processes each record
++	 * extracted from the input
+ 	 *
+ 	 * @param <T> the context type supported by the parser implementation.
+ 	 *
+@@ -179,7 +186,8 @@
+ 	}
+ 
+ 	/**
+-	 * Defines the callback implementation of the interface {@link Processor} which handles the lifecycle of the parsing process and processes each record extracted from the input
++	 * Defines the callback implementation of the interface {@link Processor} which handles the lifecycle of the parsing process and processes each record
++	 * extracted from the input
+ 	 *
+ 	 * @param processor the {@link Processor} instance which should used by the parser to handle each record
+ 	 *
+@@ -197,7 +205,8 @@
+ 	}
+ 
+ 	/**
+-	 * An implementation of {@link CharInputReader} which loads the parser buffer in parallel or sequentially, as defined by the readInputOnSeparateThread property
++	 * An implementation of {@link CharInputReader} which loads the parser buffer in parallel or sequentially, as defined by the readInputOnSeparateThread
++	 * property
+ 	 *
+ 	 * @param whitespaceRangeStart starting range of characters considered to be whitespace.
+ 	 *
+@@ -238,8 +247,10 @@
+ 	}
+ 
+ 	/**
+-	 * Indicates whether fields selected using the field selection methods (defined by the parent class {@link CommonSettings}) should be reordered (defaults to true).
+-	 * <p>When disabled, each parsed record will contain values for all columns, in the order they occur in the input. Fields which were not selected will not be parsed but and the record will contain empty values.
++	 * Indicates whether fields selected using the field selection methods (defined by the parent class {@link CommonSettings}) should be reordered (defaults to
++	 * true).
++	 * <p>When disabled, each parsed record will contain values for all columns, in the order they occur in the input. Fields which were not selected will not
++	 * be parsed but and the record will contain empty values.
+ 	 * <p>When enabled, each parsed record will contain values only for the selected columns. The values will be ordered according to the selection.
+ 	 *
+ 	 * @return true if the selected fields should be reordered and returned by the parser, false otherwise
+@@ -269,8 +280,10 @@
+ 	}
+ 
+ 	/**
+-	 * Defines whether fields selected using the field selection methods (defined by the parent class {@link CommonSettings}) should be reordered (defaults to true).
+-	 * <p>When disabled, each parsed record will contain values for all columns, in the order they occur in the input. Fields which were not selected will not be parsed but the record will contain empty values.
++	 * Defines whether fields selected using the field selection methods (defined by the parent class {@link CommonSettings}) should be reordered (defaults to
++	 * true).
++	 * <p>When disabled, each parsed record will contain values for all columns, in the order they occur in the input. Fields which were not selected will not
++	 * be parsed but the record will contain empty values.
+ 	 * <p>When enabled, each parsed record will contain values only for the selected columns. The values will be ordered according to the selection.
+ 	 *
+ 	 * @param columnReorderingEnabled the flag indicating whether or not selected fields should be reordered and returned by the parser
+@@ -301,9 +314,11 @@
+ 	}
+ 
+ 	/**
+-	 * Returns an instance of CharAppender with the configured limit of maximum characters per column and the default value used to represent a null value (when the String parsed from the input is empty)
++	 * Returns an instance of CharAppender with the configured limit of maximum characters per column and the default value used to represent a null value (when
++	 * the String parsed from the input is empty)
+ 	 *
+-	 * @return an instance of CharAppender with the configured limit of maximum characters per column and the default value used to represent a null value (when the String parsed from the input is empty)
++	 * @return an instance of CharAppender with the configured limit of maximum characters per column and the default value used to represent a null value (when
++	 * the String parsed from the input is empty)
+ 	 */
+ 	protected CharAppender newCharAppender() {
+ 		int chars = getMaxCharsPerColumn();
+@@ -317,7 +332,8 @@
+ 	/**
+ 	 * Indicates whether the parser should detect the line separator automatically.
+ 	 *
+-	 * @return {@code true} if the first line of the input should be used to search for common line separator sequences (the matching sequence will be used as the line separator for parsing). Otherwise {@code false}.
++	 * @return {@code true} if the first line of the input should be used to search for common line separator sequences (the matching sequence will be used as
++	 * the line separator for parsing). Otherwise {@code false}.
+ 	 */
+ 	public final boolean isLineSeparatorDetectionEnabled() {
+ 		return lineSeparatorDetectionEnabled;
+@@ -326,7 +342,8 @@
+ 	/**
+ 	 * Defines whether the parser should detect the line separator automatically.
+ 	 *
+-	 * @param lineSeparatorDetectionEnabled a flag indicating whether the first line of the input should be used to search for common line separator sequences (the matching sequence will be used as the line separator for parsing).
++	 * @param lineSeparatorDetectionEnabled a flag indicating whether the first line of the input should be used to search for common line separator sequences
++	 *                                      (the matching sequence will be used as the line separator for parsing).
+ 	 */
+ 	public final void setLineSeparatorDetectionEnabled(boolean lineSeparatorDetectionEnabled) {
+ 		this.lineSeparatorDetectionEnabled = lineSeparatorDetectionEnabled;
+@@ -513,11 +530,37 @@
+ 	 * Defaults to {@code true}
+ 	 *
+ 	 * @param commentProcessingEnabled flag determining whether comment line check should be performed
+-	 *If disabled/false then parser wont treat any line as comment line including default(#)
+-	 * this condition will supersede the comment character(#)
++	 *                                 If disabled/false then parser wont treat any line as comment line including default(#)
++	 *                                 this condition will supersede the comment character(#)
+ 	 */
+ 	public void setCommentProcessingEnabled(boolean commentProcessingEnabled) {
+ 		this.commentProcessingEnabled = commentProcessingEnabled;
+ 	}
+ 
++	/**
++	 * Provides a custom {@link InputAnalysisProcess} to analyze the input buffer and potentially discover configuration options such as
++	 * column separators is CSV, data formats, etc. The process will be execute only once.
++	 *
++	 * @param inputAnalysisProcess a custom process to analyze the contents of the first input buffer loaded when the parsing starts.
++	 */
++	public void addInputAnalysisProcess(InputAnalysisProcess inputAnalysisProcess) {
++		if (inputAnalysisProcess == null) {
++			return;
++		}
++		if (this.inputAnalysisProcesses == null) {
++			inputAnalysisProcesses = new ArrayList<InputAnalysisProcess>();
++		}
++		inputAnalysisProcesses.add(inputAnalysisProcess);
++	}
++
++	/**
++	 * Returns the sequence of {@link InputAnalysisProcess} to be used for analyzing the input buffer and potentially discover configuration options such as
++	 * column separators is CSV, data formats, etc. Each process will be execute only once.
++	 *
++	 * @return the list of custom processes to analyze the contents of the first input buffer loaded when the parsing starts.
++	 */
++	public List<InputAnalysisProcess> getInputAnalysisProcesses() {
++		return inputAnalysisProcesses;
++	}
++
+ }
+\ No newline at end of file
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java	2024-09-08 01:36:14.317810015 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java	2024-09-08 01:36:14.289809819 +1000
+@@ -46,7 +46,7 @@
+ 	 *                             delimiter or quote character.
+ 	 * @param whitespaceRangeStart starting range of characters considered to be whitespace.
+ 	 */
+-	CsvFormatDetector(int maxRowSamples, CsvParserSettings settings, int whitespaceRangeStart) {
++	public CsvFormatDetector(int maxRowSamples, CsvParserSettings settings, int whitespaceRangeStart) {
+ 		this.MAX_ROW_SAMPLES = maxRowSamples;
+ 		this.whitespaceRangeStart = whitespaceRangeStart;
+ 		allowedDelimiters = settings.getDelimitersForDetection();
+@@ -69,7 +69,7 @@
+ 
+ 	}
+ 
+-	private Map<Character, Integer> calculateTotals(List<Map<Character, Integer>> symbolsPerRow) {
++	protected Map<Character, Integer> calculateTotals(List<Map<Character, Integer>> symbolsPerRow) {
+ 		Map<Character, Integer> out = new HashMap<Character, Integer>();
+ 
+ 		for (Map<Character, Integer> rowStats : symbolsPerRow) {
+@@ -90,7 +90,6 @@
+ 
+ 	@Override
+ 	public void execute(char[] characters, int length) {
+-
+ 		Set<Character> allSymbols = new HashSet<Character>();
+ 		Map<Character, Integer> symbols = new HashMap<Character, Integer>();
+ 		Map<Character, Integer> escape = new HashMap<Character, Integer>();
+@@ -185,10 +184,10 @@
+ 		Set<Character> toRemove = new HashSet<Character>();
+ 
+ 		//combines the number of symbols found in each row and sums the difference.
+-		for (Map<Character, Integer> previous : symbolsPerRow) {
++		for (Map<Character, Integer> prev : symbolsPerRow) {
+ 			for (Map<Character, Integer> current : symbolsPerRow) {
+ 				for (Character symbol : allSymbols) {
+-					Integer previousCount = previous.get(symbol);
++					Integer previousCount = prev.get(symbol);
+ 					Integer currentCount = current.get(symbol);
+ 
+ 					if (previousCount == null && currentCount == null) { // got a symbol that does not appear in all rows? Discard it.
+@@ -265,10 +264,26 @@
+ 		apply(delimiter, quote, quoteEscape);
+ 	}
+ 
+-	private char pickDelimiter(Map<Character, Integer> sums, Map<Character, Integer> totals) {
++	protected char pickDelimiter(Map<Character, Integer> sums, Map<Character, Integer> totals) {
+ 		char delimiterMax = max(sums, totals, suggestedDelimiter);
+ 		char delimiterMin = min(sums, totals, suggestedDelimiter);
+ 
++		if (delimiterMin == ' ' || delimiterMax == ' ') {
++			boolean hasOtherDelimiters = false;
++			for (Map.Entry<Character, Integer> e : sums.entrySet()) {
++				if (e.getValue() == 0 && e.getKey() != ' ') {
++					hasOtherDelimiters = true;
++					break;
++				}
++			}
++
++			if (hasOtherDelimiters) {
++				totals.remove(' ');
++				delimiterMax = max(sums, totals, suggestedDelimiter);
++				delimiterMin = min(sums, totals, suggestedDelimiter);
++			}
++		}
++
+ 		char delimiter;
+ 		out:
+ 		if (delimiterMax != delimiterMin) {
+@@ -304,7 +319,7 @@
+ 	 * @param map    the map of characters and their numbers
+ 	 * @param symbol the character whose number should be increment
+ 	 */
+-	private static void increment(Map<Character, Integer> map, char symbol) {
++	protected void increment(Map<Character, Integer> map, char symbol) {
+ 		increment(map, symbol, 1);
+ 	}
+ 
+@@ -315,7 +330,7 @@
+ 	 * @param symbol        the character whose number should be increment
+ 	 * @param incrementSize the size of the increment
+ 	 */
+-	private static void increment(Map<Character, Integer> map, char symbol, int incrementSize) {
++	protected void increment(Map<Character, Integer> map, char symbol, int incrementSize) {
+ 		Integer count = map.get(symbol);
+ 		if (count == null) {
+ 			count = 0;
+@@ -331,7 +346,7 @@
+ 	 *
+ 	 * @return the character with the lowest number associated.
+ 	 */
+-	private char min(Map<Character, Integer> map, Map<Character, Integer> totals, char defaultChar) {
++	protected char min(Map<Character, Integer> map, Map<Character, Integer> totals, char defaultChar) {
+ 		return getChar(map, totals, defaultChar, true);
+ 	}
+ 
+@@ -343,7 +358,7 @@
+ 	 *
+ 	 * @return the character with the highest number associated.
+ 	 */
+-	private char max(Map<Character, Integer> map, Map<Character, Integer> totals, char defaultChar) {
++	protected char max(Map<Character, Integer> map, Map<Character, Integer> totals, char defaultChar) {
+ 		return getChar(map, totals, defaultChar, false);
+ 	}
+ 
+@@ -357,7 +372,7 @@
+ 	 *
+ 	 * @return the character with the highest/lowest number associated.
+ 	 */
+-	private char getChar(Map<Character, Integer> map, Map<Character, Integer> totals, char defaultChar, boolean min) {
++	protected char getChar(Map<Character, Integer> map, Map<Character, Integer> totals, char defaultChar, boolean min) {
+ 		int val = min ? Integer.MAX_VALUE : Integer.MIN_VALUE;
+ 		for (Entry<Character, Integer> e : map.entrySet()) {
+ 			int sum = e.getValue();
+@@ -390,11 +405,11 @@
+ 		return defaultChar;
+ 	}
+ 
+-	private boolean isSymbol(char ch) {
++	protected boolean isSymbol(char ch) {
+ 		return isAllowedDelimiter(ch) || ch != comment && !Character.isLetterOrDigit(ch) && (ch == '\t' || ch >= ' ');
+ 	}
+ 
+-	private boolean isAllowedDelimiter(char ch) {
++	protected boolean isAllowedDelimiter(char ch) {
+ 		return Arrays.binarySearch(allowedDelimiters, ch) >= 0;
+ 	}
+ 
+@@ -405,5 +420,5 @@
+ 	 * @param quote       the discovered quote character
+ 	 * @param quoteEscape the discovered quote escape character.
+ 	 */
+-	abstract void apply(char delimiter, char quote, char quoteEscape);
++	protected abstract void apply(char delimiter, char quote, char quoteEscape);
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvParser.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvParser.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvParser.java	2024-09-08 01:36:14.317810015 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvParser.java	2024-09-08 01:36:14.289809819 +1000
+@@ -466,7 +466,7 @@
+ 		if (settings.isDelimiterDetectionEnabled() || settings.isQuoteDetectionEnabled()) {
+ 			return new CsvFormatDetector(formatDetectorRowSampleCount, settings, whitespaceRangeStart) {
+ 				@Override
+-				void apply(char delimiter, char quote, char quoteEscape) {
++				protected void apply(char delimiter, char quote, char quoteEscape) {
+ 					if (settings.isDelimiterDetectionEnabled()) {
+ 						CsvParser.this.delimiter = delimiter;
+ 						CsvParser.this.delimiters[0] = delimiter;

@@ -1,0 +1,2562 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/github/classgraph/Classfile.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/github/classgraph/Classfile.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/github/classgraph/Classfile.java	2024-09-22 13:08:58.801841929 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/github/classgraph/Classfile.java	2024-09-22 13:08:58.621840359 +1000
+@@ -55,8 +55,8 @@
+  * sequence, to avoid re-allocating buffer memory.
+  */
+ class Classfile {
+     /** The {@link ClassfileReader} for the current classfile. */
+-    private InputStreamOrByteBufferAdapter inputStreamOrByteBuffer;
++    private ClassfileReader reader;
+ 
+     /** The classpath element that contains this classfile. */
+     private final ClasspathElement classpathElement;
+@@ -654,9 +654,15 @@
+     private String getConstantPoolString(final int cpIdx, final boolean replaceSlashWithDot,
+             final boolean stripLSemicolon) throws ClassfileFormatException, IOException {
+         final int constantPoolStringOffset = getConstantPoolStringOffset(cpIdx, /* subFieldIdx = */ 0);
+-        return constantPoolStringOffset == 0 ? null
+-                : intern(inputStreamOrByteBuffer.readString(constantPoolStringOffset, replaceSlashWithDot,
+-                        stripLSemicolon));
++        if (constantPoolStringOffset == 0) {
++            return null;
++        }
++        final int utfLen = reader.readUnsignedShort(constantPoolStringOffset);
++        if (utfLen == 0) {
++            return "";
++        }
++        return intern(
++                reader.readString(constantPoolStringOffset + 2, utfLen, replaceSlashWithDot, stripLSemicolon));
+     }
+ 
+     /**
+@@ -676,9 +682,15 @@
+     private String getConstantPoolString(final int cpIdx, final int subFieldIdx)
+             throws ClassfileFormatException, IOException {
+         final int constantPoolStringOffset = getConstantPoolStringOffset(cpIdx, subFieldIdx);
+-        return constantPoolStringOffset == 0 ? null
+-                : intern(inputStreamOrByteBuffer.readString(constantPoolStringOffset,
+-                        /* replaceSlashWithDot = */ false, /* stripLSemicolon = */ false));
++        if (constantPoolStringOffset == 0) {
++            return null;
++        }
++        final int utfLen = reader.readUnsignedShort(constantPoolStringOffset);
++        if (utfLen == 0) {
++            return "";
++        }
++        return intern(reader.readString(constantPoolStringOffset + 2, utfLen, /* replaceSlashWithDot = */ false,
++                /* stripLSemicolon = */ false));
+     }
+ 
+     /**
+@@ -765,22 +777,24 @@
+      * @throws IOException
+      *             If an IO exception occurs.
+      */
+-    private boolean constantPoolStringEquals(final int cpIdx, final String asciiString)
++    private boolean constantPoolStringEquals(final int cpIdx, final String asciiStr)
+             throws ClassfileFormatException, IOException {
+-        final int strOffset = getConstantPoolStringOffset(cpIdx, /* subFieldIdx = */ 0);
+-        if (strOffset == 0) {
+-            return asciiString == null;
+-        } else if (asciiString == null) {
++        final int cpStrOffset = getConstantPoolStringOffset(cpIdx, /* subFieldIdx = */ 0);
++        if (cpStrOffset == 0) {
++            return asciiStr == null;
++        } else if (asciiStr == null) {
+             return false;
+         }
+-        final int strLen = inputStreamOrByteBuffer.readUnsignedShort(strOffset);
+-        final int otherLen = asciiString.length();
+-        if (strLen != otherLen) {
++        final int cpStrLen = reader.readUnsignedShort(cpStrOffset);
++        final int asciiStrLen = asciiStr.length();
++        if (cpStrLen != asciiStrLen) {
+             return false;
+         }
+-        final int strStart = strOffset + 2;
+-        for (int i = 0; i < strLen; i++) {
+-            if ((char) (inputStreamOrByteBuffer.buf[strStart + i] & 0xff) != asciiString.charAt(i)) {
++        final int cpStrStart = cpStrOffset + 2;
++        reader.bufferTo(cpStrStart + cpStrLen);
++        final byte[] buf = reader.buf();
++        for (int i = 0; i < cpStrLen; i++) {
++            if ((char) (buf[cpStrStart + i] & 0xff) != asciiStr.charAt(i)) {
+                 return false;
+             }
+         }
+@@ -1005,7 +1016,7 @@
+         }
+ 
+         // Read size of constant pool
+-        cpCount = inputStreamOrByteBuffer.readUnsignedShort();
++        cpCount = reader.readUnsignedShort();
+ 
+         // Allocate storage for constant pool
+         entryOffset = new int[cpCount];
+@@ -1020,29 +1031,29 @@
+                 skipSlot = 0;
+                 continue;
+             }
+-            entryTag[i] = inputStreamOrByteBuffer.readUnsignedByte();
+-            entryOffset[i] = inputStreamOrByteBuffer.curr;
++            entryTag[i] = reader.readUnsignedByte();
++            entryOffset[i] = reader.currPos();
+             switch (entryTag[i]) {
+             case 0: // Impossible, probably buffer underflow
+                 throw new ClassfileFormatException("Unknown constant pool tag 0 in classfile " + relativePath
+                         + " (possible buffer underflow issue). Please report this at "
+                         + "https://github.com/classgraph/classgraph/issues");
+             case 1: // Modified UTF8
+-                final int strLen = inputStreamOrByteBuffer.readUnsignedShort();
+-                inputStreamOrByteBuffer.skip(strLen);
++                final int strLen = reader.readUnsignedShort();
++                reader.skip(strLen);
+                 break;
+             case 3: // int, short, char, byte, boolean are all represented by Constant_INTEGER
+             case 4: // float
+-                inputStreamOrByteBuffer.skip(4);
++                reader.skip(4);
+                 break;
+             case 5: // long
+             case 6: // double
+-                inputStreamOrByteBuffer.skip(8);
++                reader.skip(8);
+                 skipSlot = 1; // double slot
+                 break;
+             case 7: // Class reference (format is e.g. "java/lang/String")
+                 // Forward or backward indirect reference to a modified UTF8 entry
+-                indirectStringRefs[i] = inputStreamOrByteBuffer.readUnsignedShort();
++                indirectStringRefs[i] = reader.readUnsignedShort();
+                 if (classNameCpIdxs != null) {
+                     // If this is a class ref, and inter-class dependencies are enabled, record the dependency
+                     classNameCpIdxs.add(indirectStringRefs[i]);
+@@ -1050,44 +1061,44 @@
+                 break;
+             case 8: // String
+                 // Forward or backward indirect reference to a modified UTF8 entry
+-                indirectStringRefs[i] = inputStreamOrByteBuffer.readUnsignedShort();
++                indirectStringRefs[i] = reader.readUnsignedShort();
+                 break;
+             case 9: // field ref
+                 // Refers to a class ref (case 7) and then a name and type (case 12)
+-                inputStreamOrByteBuffer.skip(4);
++                reader.skip(4);
+                 break;
+             case 10: // method ref
+                 // Refers to a class ref (case 7) and then a name and type (case 12)
+-                inputStreamOrByteBuffer.skip(4);
++                reader.skip(4);
+                 break;
+             case 11: // interface method ref
+                 // Refers to a class ref (case 7) and then a name and type (case 12)
+-                inputStreamOrByteBuffer.skip(4);
++                reader.skip(4);
+                 break;
+             case 12: // name and type
+-                final int nameRef = inputStreamOrByteBuffer.readUnsignedShort();
+-                final int typeRef = inputStreamOrByteBuffer.readUnsignedShort();
++                final int nameRef = reader.readUnsignedShort();
++                final int typeRef = reader.readUnsignedShort();
+                 if (typeSignatureIdxs != null) {
+                     typeSignatureIdxs.add(typeRef);
+                 }
+                 indirectStringRefs[i] = (nameRef << 16) | typeRef;
+                 break;
+             case 15: // method handle
+-                inputStreamOrByteBuffer.skip(3);
++                reader.skip(3);
+                 break;
+             case 16: // method type
+-                inputStreamOrByteBuffer.skip(2);
++                reader.skip(2);
+                 break;
+             case 18: // invoke dynamic
+-                inputStreamOrByteBuffer.skip(4);
++                reader.skip(4);
+                 break;
+             case 19: // module (for module-info.class in JDK9+)
+                 // see https://docs.oracle.com/javase/specs/jvms/se9/html/jvms-4.html#jvms-4.4
+-                indirectStringRefs[i] = inputStreamOrByteBuffer.readUnsignedShort();
++                indirectStringRefs[i] = reader.readUnsignedShort();
+                 break;
+             case 20: // package (for module-info.class in JDK9+)
+                 // see https://docs.oracle.com/javase/specs/jvms/se9/html/jvms-4.html#jvms-4.4
+-                inputStreamOrByteBuffer.skip(2);
++                reader.skip(2);
+                 break;
+             default:
+                 throw new ClassfileFormatException("Unknown constant pool tag " + entryTag[i]
+@@ -1166,13 +1177,13 @@
+      */
+     private void readBasicClassInfo() throws IOException, ClassfileFormatException, SkipClassException {
+         // Modifier flags
+-        classModifiers = inputStreamOrByteBuffer.readUnsignedShort();
++        classModifiers = reader.readUnsignedShort();
+ 
+         isInterface = (classModifiers & 0x0200) != 0;
+         isAnnotation = (classModifiers & 0x2000) != 0;
+ 
+         // The fully-qualified class name of this class, with slashes replaced with dots
+-        final String classNamePath = getConstantPoolString(inputStreamOrByteBuffer.readUnsignedShort());
++        final String classNamePath = getConstantPoolString(reader.readUnsignedShort());
+         if (classNamePath == null) {
+             throw new ClassfileFormatException("Class name is null");
+         }
+@@ -1203,7 +1214,7 @@
+         }
+ 
+         // Superclass name, with slashes replaced with dots
+-        final int superclassNameCpIdx = inputStreamOrByteBuffer.readUnsignedShort();
++        final int superclassNameCpIdx = reader.readUnsignedShort();
+         if (superclassNameCpIdx > 0) {
+             superclassName = getConstantPoolClassName(superclassNameCpIdx);
+         }
+@@ -1219,9 +1230,9 @@
+      */
+     private void readInterfaces() throws IOException {
+         // Interfaces
+-        final int interfaceCount = inputStreamOrByteBuffer.readUnsignedShort();
++        final int interfaceCount = reader.readUnsignedShort();
+         for (int i = 0; i < interfaceCount; i++) {
+-            final String interfaceName = getConstantPoolClassName(inputStreamOrByteBuffer.readUnsignedShort());
++            final String interfaceName = getConstantPoolClassName(reader.readUnsignedShort());
+             if (implementedInterfaces == null) {
+                 implementedInterfaces = new ArrayList<>();
+             }
+@@ -1241,28 +1252,28 @@
+      */
+     private void readFields() throws IOException, ClassfileFormatException {
+         // Fields
+-        final int fieldCount = inputStreamOrByteBuffer.readUnsignedShort();
++        final int fieldCount = reader.readUnsignedShort();
+         for (int i = 0; i < fieldCount; i++) {
+             // Info on modifier flags: http://docs.oracle.com/javase/specs/jvms/se7/html/jvms-4.html#jvms-4.5
+-            final int fieldModifierFlags = inputStreamOrByteBuffer.readUnsignedShort();
++            final int fieldModifierFlags = reader.readUnsignedShort();
+             final boolean isPublicField = ((fieldModifierFlags & 0x0001) == 0x0001);
+             final boolean fieldIsVisible = isPublicField || scanSpec.ignoreFieldVisibility;
+             final boolean getStaticFinalFieldConstValue = scanSpec.enableStaticFinalFieldConstantInitializerValues
+                     && fieldIsVisible;
+             if (!fieldIsVisible || (!scanSpec.enableFieldInfo && !getStaticFinalFieldConstValue)) {
+                 // Skip field
+-                inputStreamOrByteBuffer.readUnsignedShort(); // fieldNameCpIdx
+-                inputStreamOrByteBuffer.readUnsignedShort(); // fieldTypeDescriptorCpIdx
+-                final int attributesCount = inputStreamOrByteBuffer.readUnsignedShort();
++                reader.readUnsignedShort(); // fieldNameCpIdx
++                reader.readUnsignedShort(); // fieldTypeDescriptorCpIdx
++                final int attributesCount = reader.readUnsignedShort();
+                 for (int j = 0; j < attributesCount; j++) {
+-                    inputStreamOrByteBuffer.readUnsignedShort(); // attributeNameCpIdx
+-                    final int attributeLength = inputStreamOrByteBuffer.readInt(); // == 2
+-                    inputStreamOrByteBuffer.skip(attributeLength);
++                    reader.readUnsignedShort(); // attributeNameCpIdx
++                    final int attributeLength = reader.readInt(); // == 2
++                    reader.skip(attributeLength);
+                 }
+             } else {
+-                final int fieldNameCpIdx = inputStreamOrByteBuffer.readUnsignedShort();
++                final int fieldNameCpIdx = reader.readUnsignedShort();
+                 final String fieldName = getConstantPoolString(fieldNameCpIdx);
+-                final int fieldTypeDescriptorCpIdx = inputStreamOrByteBuffer.readUnsignedShort();
++                final int fieldTypeDescriptorCpIdx = reader.readUnsignedShort();
+                 final char fieldTypeDescriptorFirstChar = (char) getConstantPoolStringFirstByte(
+                         fieldTypeDescriptorCpIdx);
+                 String fieldTypeDescriptor;
+@@ -1334,10 +1345,10 @@
+      */
+     private void readMethods() throws IOException, ClassfileFormatException {
+         // Methods
+-        final int methodCount = inputStreamOrByteBuffer.readUnsignedShort();
++        final int methodCount = reader.readUnsignedShort();
+         for (int i = 0; i < methodCount; i++) {
+             // Info on modifier flags: http://docs.oracle.com/javase/specs/jvms/se7/html/jvms-4.html#jvms-4.6
+-            final int methodModifierFlags = inputStreamOrByteBuffer.readUnsignedShort();
++            final int methodModifierFlags = reader.readUnsignedShort();
+             final boolean isPublicMethod = ((methodModifierFlags & 0x0001) == 0x0001);
+             final boolean methodIsVisible = isPublicMethod || scanSpec.ignoreMethodVisibility;
+ 
+@@ -1347,14 +1358,14 @@
+             // Always enable MethodInfo for annotations (this is how annotation constants are defined)
+             final boolean enableMethodInfo = scanSpec.enableMethodInfo || isAnnotation;
+             if (enableMethodInfo || isAnnotation) { // Annotations store defaults in method_info
+-                final int methodNameCpIdx = inputStreamOrByteBuffer.readUnsignedShort();
++                final int methodNameCpIdx = reader.readUnsignedShort();
+                 methodName = getConstantPoolString(methodNameCpIdx);
+-                final int methodTypeDescriptorCpIdx = inputStreamOrByteBuffer.readUnsignedShort();
++                final int methodTypeDescriptorCpIdx = reader.readUnsignedShort();
+                 methodTypeDescriptor = getConstantPoolString(methodTypeDescriptorCpIdx);
+             } else {
+-                inputStreamOrByteBuffer.skip(4); // name_index, descriptor_index
++                reader.skip(4); // name_index, descriptor_index
+             }
+-            final int attributesCount = inputStreamOrByteBuffer.readUnsignedShort();
++            final int attributesCount = reader.readUnsignedShort();
+             String[] methodParameterNames = null;
+             int[] methodParameterModifiers = null;
+             AnnotationInfo[][] methodParameterAnnotations = null;
+@@ -1363,20 +1374,20 @@
+             if (!methodIsVisible || (!enableMethodInfo && !isAnnotation)) {
+                 // Skip method attributes
+                 for (int j = 0; j < attributesCount; j++) {
+-                    inputStreamOrByteBuffer.skip(2); // attribute_name_index
+-                    final int attributeLength = inputStreamOrByteBuffer.readInt();
+-                    inputStreamOrByteBuffer.skip(attributeLength);
++                    reader.skip(2); // attribute_name_index
++                    final int attributeLength = reader.readInt();
++                    reader.skip(attributeLength);
+                 }
+             } else {
+                 // Look for method annotations
+@@ -1475,15 +1486,15 @@
+      */
+     private void readClassAttributes() throws IOException, ClassfileFormatException {
+         // Class attributes (including class annotations, class type variables, module info, etc.)
+-        final int attributesCount = inputStreamOrByteBuffer.readUnsignedShort();
++        final int attributesCount = reader.readUnsignedShort();
+         for (int i = 0; i < attributesCount; i++) {
+-            final int attributeNameCpIdx = inputStreamOrByteBuffer.readUnsignedShort();
+-            final int attributeLength = inputStreamOrByteBuffer.readInt();
++            final int attributeNameCpIdx = reader.readUnsignedShort();
++            final int attributeLength = reader.readInt();
+             if (scanSpec.enableAnnotationInfo //
+                     && (constantPoolStringEquals(attributeNameCpIdx, "RuntimeVisibleAnnotations")
+                             || (!scanSpec.disableRuntimeInvisibleAnnotations && constantPoolStringEquals(
+                                     attributeNameCpIdx, "RuntimeInvisibleAnnotations")))) {
+-                final int annotationCount = inputStreamOrByteBuffer.readUnsignedShort();
++                final int annotationCount = reader.readUnsignedShort();
+                 if (annotationCount > 0) {
+                     if (classAnnotations == null) {
+                         classAnnotations = new AnnotationInfoList();
+@@ -1511,11 +1522,10 @@
+                 }
+             } else if (constantPoolStringEquals(attributeNameCpIdx, "Signature")) {
+                 // Get class type signature, including type variables
+-                typeSignature = getConstantPoolString(inputStreamOrByteBuffer.readUnsignedShort());
++                typeSignature = getConstantPoolString(reader.readUnsignedShort());
+             } else if (constantPoolStringEquals(attributeNameCpIdx, "EnclosingMethod")) {
+-                final String innermostEnclosingClassName = getConstantPoolClassName(
+-                        inputStreamOrByteBuffer.readUnsignedShort());
+-                final int enclosingMethodCpIdx = inputStreamOrByteBuffer.readUnsignedShort();
++                final String innermostEnclosingClassName = getConstantPoolClassName(reader.readUnsignedShort());
++                final int enclosingMethodCpIdx = reader.readUnsignedShort();
+                 String definingMethodName;
+                 if (enclosingMethodCpIdx == 0) {
+                     // A cpIdx of 0 (which is an invalid value) is used for anonymous inner classes declared in
+@@ -1602,19 +1612,17 @@
+         this.scanSpec = scanSpec;
+ 
+         try {
+-            // Open classfile as a ByteBuffer or InputStream
+-            inputStreamOrByteBuffer = classfileResource.openOrRead();
++            // Open a BufferedSequentialReader for the classfile
++            reader = classfileResource.openClassfile();
+ 
+             // Check magic number
+-            if (inputStreamOrByteBuffer.readInt() != 0xCAFEBABE) {
++            if (reader.readInt() != 0xCAFEBABE) {
+                 throw new ClassfileFormatException("Classfile does not have correct magic number");
+             }
+ 
+-            // Read classfile minor version
+-            inputStreamOrByteBuffer.readUnsignedShort();
+-
+-            // Read classfile major version
+-            inputStreamOrByteBuffer.readUnsignedShort();
++            // Read classfile minor and major version
++            reader.readUnsignedShort();
++            reader.readUnsignedShort();
+ 
+             // Read the constant pool
+             readConstantPoolEntries();
+@@ -1635,9 +1643,9 @@
+             readClassAttributes();
+ 
+         } finally {
+-            // Close ByteBuffer or InputStream
++            // Close BufferedSequentialReader
+             classfileResource.close();
+-            inputStreamOrByteBuffer = null;
++            reader = null;
+         }
+ 
+         // Write class info to log 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/github/classgraph/ClasspathElementZip.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/github/classgraph/ClasspathElementZip.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/github/classgraph/ClasspathElementZip.java	2024-09-22 13:08:58.801841929 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/github/classgraph/ClasspathElementZip.java	2024-09-22 13:08:58.621840359 +1000
+@@ -360,92 +356,62 @@
+                 }
+                 markAsOpen();
+                 try {
+-                    inputStream = new InputStreamResourceCloser(this, zipEntry.open());
++                    inputStream = zipEntry.getSlice().open();
+                     length = zipEntry.uncompressedSize;
+                     return inputStream;
+ 
+                 } catch (final IOException e) {
+                     close();
+                     throw e;
+-                } catch (final InterruptedException e) {
+-                    close();
+-                    nestedJarHandler.interruptionChecker.interrupt();
+-                    throw new IOException(e);
+                 }
+             }
+ 
+             @Override
+-            synchronized InputStreamOrByteBufferAdapter openOrRead() throws IOException {
+-                return new InputStreamOrByteBufferAdapter(open());
++            synchronized ClassfileReader openClassfile() throws IOException {
++                if (skipClasspathElement) {
++                    // Shouldn't happen
++                    throw new IOException("Jarfile could not be opened");
++                }
++                return new ClassfileReader(open());
+             }
+
+             @Override
+             public synchronized void close() {
+                 super.close(); // Close inputStream
+-                if (byteBufferWrapper != null) {
+-                    byteBufferWrapper.close(/* log = */ null);
+-                    byteBufferWrapper = null;
+-                    byteBuffer = null;
+-                }
+                 if (byteBuffer != null) {
++                    // All ByteBuffers should wrap arrays, so they don't need to be cleaned
+                     byteBuffer = null;
+                 }
+                 markAsClosed();
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/github/classgraph/Resource.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/github/classgraph/Resource.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/github/classgraph/Resource.java	2024-09-22 13:08:58.805841964 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/github/classgraph/Resource.java	2024-09-22 13:08:58.625840394 +1000
+@@ -42,8 +42,7 @@
+ import java.util.Set;
+ import java.util.zip.ZipEntry;
+ 
+-import nonapi.io.github.classgraph.utils.FileUtils;
+-import nonapi.io.github.classgraph.utils.InputStreamOrByteBufferAdapter;
++import nonapi.io.github.classgraph.fileslice.reader.ClassfileReader;
+ import nonapi.io.github.classgraph.utils.LogNode;
+ import nonapi.io.github.classgraph.utils.URLPathEncoder;
+ 
+@@ -94,202 +93,6 @@
+     // -------------------------------------------------------------------------------------------------------------
+ 
+     /**
+-     * Create an {@link InputStream} from a {@link ByteBuffer}.
+-     *
+-     * @return the input stream
+-     */
+-    protected InputStream byteBufferToInputStream() {
+-        return inputStream == null ? inputStream = FileUtils.byteBufferToInputStream(byteBuffer) : inputStream;
+-    }
+-
+-    /**
+-     * Create a {@link ByteBuffer} from an {@link InputStream}.
+-     *
+-     * @return the byte buffer
+-     * @throws IOException
+-     *             if an I/O exception occurs.
+-     */
+-    protected ByteBuffer inputStreamToByteBuffer() throws IOException {
+-        return byteBuffer == null ? byteBuffer = ByteBuffer.wrap(inputStreamToByteArray()) : byteBuffer;
+-    }
+-
+-    /**
+-     * Read all bytes from an {@link InputStream} and return as a byte array.
+-     *
+-     * @return the contents of the {@link InputStream}.
+-     * @throws IOException
+-     *             if an I/O exception occurs.
+-     */
+-    protected byte[] inputStreamToByteArray() throws IOException {
+-        return FileUtils.readAllBytesAsArray(inputStream, length);
+-    }
+-
+-    /**
+-     * Read/copy contents of a {@link ByteBuffer} as a byte array.
+-     *
+-     * @return the contents of the {@link ByteBuffer} as a byte array.
+-     */
+-    protected byte[] byteBufferToByteArray() {
+-        if (byteBuffer.hasArray()) {
+-            return byteBuffer.array();
+-        } else {
+-            final byte[] byteArray = new byte[byteBuffer.remaining()];
+-            byteBuffer.get(byteArray);
+-            return byteArray;
+-        }
+-    }
+-
+-    // -------------------------------------------------------------------------------------------------------------
+-
+-    /**
+-     * Class for closing the parent {@link Resource} when an {@link InputStream} opened on the resource is closed.
+-     */
+-    protected class InputStreamResourceCloser extends InputStream {
+-
+-        /** The input stream. */
+-        private InputStream inputStream;
+-
+-        /** The parent resource. */
+-        private Resource parentResource;
+-
+-        /**
+-         * Constructor.
+-         *
+-         * @param parentResource
+-         *            the parent resource
+-         * @param inputStream
+-         *            the input stream
+-         * @throws IOException
+-         *             if an I/O exception occurs.
+-         */
+-        protected InputStreamResourceCloser(final Resource parentResource, final InputStream inputStream)
+-                throws IOException {
+-            super();
+-            if (inputStream == null) {
+-                throw new IOException("InputStream cannot be null");
+-            }
+-            this.inputStream = inputStream;
+-            this.parentResource = parentResource;
+-        }
+-
+-        /* (non-Javadoc)
+-         * @see java.io.InputStream#read()
+-         */
+-        @Override
+-        public int read() throws IOException {
+-            if (inputStream == null) {
+-                throw new IOException("InputStream is not open");
+-            }
+-            return inputStream.read();
+-        }
+-
+-        /* (non-Javadoc)
+-         * @see java.io.InputStream#read(byte[], int, int)
+-         */
+-        @Override
+-        public int read(final byte[] b, final int off, final int len) throws IOException {
+-            if (inputStream == null) {
+-                throw new IOException("InputStream is not open");
+-            }
+-            return inputStream.read(b, off, len);
+-        }
+-
+-        /* (non-Javadoc)
+-         * @see java.io.InputStream#read(byte[])
+-         */
+-        @Override
+-        public int read(final byte[] b) throws IOException {
+-            if (inputStream == null) {
+-                throw new IOException("InputStream is not open");
+-            }
+-            return inputStream.read(b);
+-        }
+-
+-        /* (non-Javadoc)
+-         * @see java.io.InputStream#available()
+-         */
+-        @Override
+-        public int available() throws IOException {
+-            if (inputStream == null) {
+-                throw new IOException("InputStream is not open");
+-            }
+-            return inputStream.available();
+-        }
+-
+-        /* (non-Javadoc)
+-         * @see java.io.InputStream#skip(long)
+-         */
+-        @Override
+-        public long skip(final long n) throws IOException {
+-            if (inputStream == null) {
+-                throw new IOException("InputStream is not open");
+-            }
+-            return inputStream.skip(n);
+-        }
+-
+-        /* (non-Javadoc)
+-         * @see java.io.InputStream#markSupported()
+-         */
+-        @Override
+-        public boolean markSupported() {
+-            return inputStream.markSupported();
+-        }
+-
+-        /* (non-Javadoc)
+-         * @see java.io.InputStream#mark(int)
+-         */
+-        @Override
+-        public synchronized void mark(final int readlimit) {
+-            inputStream.mark(readlimit);
+-        }
+-
+-        /* (non-Javadoc)
+-         * @see java.io.InputStream#reset()
+-         */
+-        @Override
+-        public synchronized void reset() throws IOException {
+-            if (inputStream == null) {
+-                throw new IOException("InputStream is not open");
+-            }
+-            inputStream.reset();
+-        }
+-
+-        /**
+-         * Close the wrapped InputStream, but don't close parent resource.
+-         *
+-         * @throws IOException
+-         *             if an I/O exception occurs.
+-         */
+-        void closeInputStream() throws IOException {
+-            if (inputStream != null) {
+-                try {
+-                    inputStream.close();
+-                } catch (final IOException e) {
+-                    // Ignore
+-                }
+-                inputStream = null;
+-            }
+-        }
+-
+-        /**
+-         * Close the parent resource by calling {@link Resource#close()}, which will call
+-         * {@link #closeInputStream()}.
+-         *
+-         * @throws IOException
+-         *             if an I/O exception occurs.
+-         */
+-        @Override
+-        public void close() throws IOException {
+-            if (parentResource != null) {
+-                parentResource.close();
+-                parentResource = null;
+-            }
+-        }
+-    }
+-
+-    // -------------------------------------------------------------------------------------------------------------
+-
+-    /**
+      * Mark the resource as open.
+      *
+      * @throws IOException
+@@ -490,14 +293,13 @@
+     public abstract byte[] load() throws IOException;
+ 
+     /**
+-     * Open a {@link ByteBuffer}, if there is an efficient underlying mechanism for opening one, otherwise open an
+-     * {@link InputStream}.
++     * Open a {@link ClassfileReader} on the resource (for reading classfiles).
+      *
+-     * @return the {@link InputStreamOrByteBufferAdapter}
++     * @return the {@link ClassfileReader}.
+      * @throws IOException
+      *             if an I/O exception occurs.
+      */
+-    abstract InputStreamOrByteBufferAdapter openOrRead() throws IOException;
++    abstract ClassfileReader openClassfile() throws IOException;
+ 
+     /**
+      * Get the length of the resource.
+@@ -591,11 +393,7 @@
+         // Override in subclasses, and call super.close(), then at end, markAsClosed()
+         if (inputStream != null) {
+             try {
+-                if (inputStream instanceof InputStreamResourceCloser) {
+-                    ((InputStreamResourceCloser) inputStream).closeInputStream();
+-                } else {
+-                    inputStream.close();
+-                }
++                inputStream.close();
+             } catch (final IOException e) {
+                 // Ignore
+             }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/nonapi/io/github/classgraph/classpath/ClasspathOrder.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/nonapi/io/github/classgraph/classpath/ClasspathOrder.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/nonapi/io/github/classgraph/classpath/ClasspathOrder.java	2024-09-22 13:08:58.805841964 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/nonapi/io/github/classgraph/classpath/ClasspathOrder.java	2024-09-22 13:08:58.625840394 +1000
+@@ -78,6 +79,23 @@
+             this.classpathElement = classpathElement;
+             this.classLoader = classLoader;
+         }
++
++        @Override
++        public int hashCode() {
++            return Objects.hash(classpathElement, classLoader);
++        }
+
+         @Override
+         public boolean equals(final Object obj) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/FastZipEntry.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/FastZipEntry.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/FastZipEntry.java	2024-09-22 13:08:58.809841999 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/FastZipEntry.java	2024-09-22 13:08:58.625840394 +1000
+@@ -78,6 +68,9 @@
+     /** The file attributes for this resource, or 0 if unknown */
+     public final int fileAttributes;
+ 
+     /** The {@link Slice} for the zip entry's raw data (which can be either stored or deflated). */
++    private Slice slice;
+
+     /**
+      * The version code (&gt;= 9), or 8 for the base layer or a non-versioned jar (whether JDK 7 or 8 compatible).
+      */
+@@ -88,12 +81,6 @@
+      */
+     public final String entryNameUnversioned;
+ 
+-    private final NestedJarHandler nestedJarHandler;
+-    private RecyclableInflater recyclableInflaterInstance;
+
+     // -------------------------------------------------------------------------------------------------------------
+ 
+     /**
+@@ -125,15 +110,14 @@
+      */
+     FastZipEntry(final LogicalZipFile parentLogicalZipFile, final long locHeaderPos, final String entryName,
+             final boolean isDeflated, final long compressedSize, final long uncompressedSize,
+-            final NestedJarHandler nestedJarHandler, final long lastModifiedTimeMillis,
+-            final int lastModifiedTimeMSDOS, final int lastModifiedDateMSDOS, final int fileAttributes) {
++            final long lastModifiedTimeMillis, final int lastModifiedTimeMSDOS, final int lastModifiedDateMSDOS,
++            final int fileAttributes) {
+         this.parentLogicalZipFile = parentLogicalZipFile;
+         this.locHeaderPos = locHeaderPos;
+         this.entryName = entryName;
+         this.isDeflated = isDeflated;
+         this.compressedSize = compressedSize;
+         this.uncompressedSize = !isDeflated && uncompressedSize < 0 ? compressedSize : uncompressedSize;
+-        this.nestedJarHandler = nestedJarHandler;
+         this.lastModifiedTimeMillis = lastModifiedTimeMillis;
+         this.lastModifiedTimeMSDOS = lastModifiedTimeMSDOS;
+         this.lastModifiedDateMSDOS = lastModifiedDateMSDOS;
+@@ -195,430 +179,31 @@
+     // -------------------------------------------------------------------------------------------------------------
+ 
+     /**
+-     * Lazily find zip entry data start offset -- this is deferred until zip entry data needs to be read, in order
+-     * to avoid randomly seeking within zipfile for every entry as the central directory is read.
++     * Lazily get zip entry slice -- this is deferred until zip entry data needs to be read, in order to avoid
++     * randomly seeking within zipfile for every entry as the central directory is read.
+      *
+      * @return the offset within the physical zip file of the entry's start offset.
+      * @throws IOException
+      *             If an I/O exception occurs.
+-     * @throws InterruptedException
+-     *             If the thread was interrupted.
+      */
+-    long getEntryDataStartOffsetWithinPhysicalZipFile() throws IOException, InterruptedException {
+-        if (entryDataStartOffsetWithinPhysicalZipFile == -1L) {
+-            // Create zipfile slice reader for zip entry
+-            try (RecycleOnClose<ZipFileSliceReader, RuntimeException> zipFileSliceReaderRecycleOnClose = //
+-                    parentLogicalZipFile.zipFileSliceReaderRecycler.acquireRecycleOnClose()) {
+-                final ZipFileSliceReader headerReader = zipFileSliceReaderRecycleOnClose.get();
+-                // Check header magic
+-                if (headerReader.getInt(locHeaderPos) != 0x04034b50) {
+-                    throw new IOException("Zip entry has bad LOC header: " + entryName);
+-                }
+-                final long dataStartPos = locHeaderPos + 30 + headerReader.getShort(locHeaderPos + 26)
+-                        + headerReader.getShort(locHeaderPos + 28);
+-                if (dataStartPos > parentLogicalZipFile.len) {
+-                    throw new IOException("Unexpected EOF when trying to read zip entry data: " + entryName);
+-                }
+-                entryDataStartOffsetWithinPhysicalZipFile = parentLogicalZipFile.startOffsetWithinPhysicalZipFile
+-                        + dataStartPos;
+-            }
+-        }
+-        return entryDataStartOffsetWithinPhysicalZipFile;
+-    }
+-
+-    // -------------------------------------------------------------------------------------------------------------
+-
+-    /**
+-     * True if the entire zip entry can be opened as a single ByteBuffer slice.
+-     *
+-     * @return true if the entire zip entry can be opened as a single ByteBuffer slice -- the entry must be STORED,
+-     *         and span only one 2GB buffer chunk.
+-     * @throws IOException
+-     *             If an I/O exception occurs.
+-     * @throws InterruptedException
+-     *             If the thread was interrupted.
+-     */
+-    public boolean canGetAsSlice() throws IOException, InterruptedException {
+-        final long dataStartOffsetWithinPhysicalZipFile = getEntryDataStartOffsetWithinPhysicalZipFile();
+-        return !isDeflated //
+-                && dataStartOffsetWithinPhysicalZipFile / FileUtils.MAX_BUFFER_SIZE //
+-                        == (dataStartOffsetWithinPhysicalZipFile + uncompressedSize) / FileUtils.MAX_BUFFER_SIZE;
+-    }
+-
+-    /**
+-     * Open the ZipEntry as a ByteBuffer slice. Only call this method if {@link #canGetAsSlice()} returned true.
+-     *
+-     * @return the ZipEntry as a ByteBuffer.
+-     * @throws IOException
+-     *             If an I/O exception occurs.
+-     * @throws InterruptedException
+-     *             If the thread was interrupted.
+-     */
+-    public ByteBufferWrapper getAsSlice() throws IOException, InterruptedException {
+-        // Check the file is STORED and resides in only one chunk
+-        if (!canGetAsSlice()) {
+-            throw new IllegalArgumentException("Cannot open zip entry as a slice");
+-        }
+-        final int sliceLength = (int) uncompressedSize;
+-
+-        // Fetch the ByteBuffer for the applicable chunk
+-        final long dataStartOffsetWithinPhysicalZipFile = getEntryDataStartOffsetWithinPhysicalZipFile();
+-        final int chunkIdx = (int) (dataStartOffsetWithinPhysicalZipFile / FileUtils.MAX_BUFFER_SIZE);
+-        final long chunkStart = chunkIdx * (long) FileUtils.MAX_BUFFER_SIZE;
+-        final int sliceStart = (int) (dataStartOffsetWithinPhysicalZipFile - chunkStart);
+-
+-        // Duplicate and slice the ByteBuffer
+-        return parentLogicalZipFile.physicalZipFile.getByteBuffer(chunkIdx).slice(sliceStart, sliceLength);
+-    }
+-
+-    // -------------------------------------------------------------------------------------------------------------
+-
+-    /**
+-     * Open the data of the zip entry as an {@link InputStream}, inflating the data if the entry is deflated.
+-     *
+-     * @return the input stream
+-     * @throws IOException
+-     *             If an I/O exception occurs.
+-     * @throws InterruptedException
+-     *             if the thread was interrupted.
+-     */
+-    public InputStream open() throws IOException, InterruptedException {
+-        if (recyclableInflaterInstance != null) {
+-            throw new IOException("Zip entry already open");
+-        }
+-        if (isDeflated) {
+-            recyclableInflaterInstance = nestedJarHandler.inflaterRecycler.acquire();
+-        }
+-        return new InputStream() {
+-            /** The data start offset within the physical zip file. */
+-            private final long dataStartOffsetWithinPhysicalZipFile = getEntryDataStartOffsetWithinPhysicalZipFile();
+-
+-            /** A scratch buffer. */
+-            private final byte[] scratch = new byte[8 * 1024];
+-
+-            /** The current 2GB chunk of the zip entry. */
+-            private ByteBufferWrapper currChunkByteBuf;
+-
+-            /** True if the current 2GB chunk is the last chunk in the zip entry. */
+-            private boolean isLastChunk;
+-
+-            /** The index of the current 2GB chunk. */
+-            private int currChunkIdx;
+-
+-            /** True if the end of the zip entry has been reached. */
+-            private boolean eof;
+-
+-            /** The {@link Inflater} instance, or null if the entry is stored rather than deflated. */
+-            private final Inflater inflater = isDeflated ? recyclableInflaterInstance.getInflater() : null;
+-
+-            /** True if this {@link InputStream} has been closed. */
+-            private final AtomicBoolean closed = new AtomicBoolean(false);
+-
+-            /** The size of the {@link Inflate} buffer to use. */
+-            private static final int INFLATE_BUF_SIZE = 8 * 1024;
+-
+-            // Open the first 2GB chunk.
+-            {
+-                // Calculate the chunk index for the first chunk
+-                currChunkIdx = (int) (dataStartOffsetWithinPhysicalZipFile / FileUtils.MAX_BUFFER_SIZE);
+-
+-                // Calculate the start position within the first chunk, and set the position of the slice.
+-                // N.B. the cast to Buffer is necessary, see:
+-                // https://github.com/plasma-umass/doppio/issues/497#issuecomment-334740243
+-                // https://github.com/classgraph/classgraph/issues/284#issuecomment-443612800
+-                final int chunkPos = (int) (dataStartOffsetWithinPhysicalZipFile
+-                        - (((long) currChunkIdx) * (long) FileUtils.MAX_BUFFER_SIZE));
+-
+-                // Calculate end pos for the first chunk, and truncate it if it overflows 2GB
+-                final int chunkLength = (int) Math.min(FileUtils.MAX_BUFFER_SIZE, compressedSize);
+-                // True if there's only one chunk (first chunk is also last chunk)
+-                isLastChunk = chunkLength == compressedSize;
+-
+-                // Get the MappedByteBuffer for the 2GB chunk, duplicate it and slice it
+-                currChunkByteBuf = parentLogicalZipFile.physicalZipFile.getByteBuffer(currChunkIdx).slice(chunkPos,
+-                        chunkLength);
+-            }
+-
+-            /** Advance to the next 2GB chunk. */
+-            private boolean readNextChunk() throws IOException, InterruptedException {
+-                currChunkIdx++;
+-                isLastChunk = currChunkIdx >= parentLogicalZipFile.physicalZipFile.numChunks() - 1;
+-                if (currChunkIdx >= parentLogicalZipFile.physicalZipFile.numChunks()) {
+-                    // Ran out of chunks
+-                    return false;
+-                }
+-
+-                // Get the MappedByteBuffer for the next 2GB chunk, and duplicate it
+-                currChunkByteBuf = parentLogicalZipFile.physicalZipFile.getByteBuffer(currChunkIdx).duplicate();
+-                return true;
+-            }
+-
+-            /**
+-             * Inflate deflated data.
+-             *
+-             * @param buf
+-             *            the buffer to inflate into.
+-             * @param off
+-             *            the offset within buf to start writing.
+-             * @param len
+-             *            the number of bytes of uncompressed data to read.
+-             * @return the number of bytes read.
+-             * @throws IOException
+-             *             if an I/O exception occurred.
+-             * @throws InterruptedException
+-             *             if the thread was interrupted.
+-             */
+-            private int readDeflated(final byte[] buf, final int off, final int len)
+-                    throws IOException, InterruptedException {
+-                try {
+-                    final byte[] inflateBuf = new byte[INFLATE_BUF_SIZE];
+-                    int numInflatedBytes;
+-                    while ((numInflatedBytes = inflater.inflate(buf, off, len)) == 0) {
+-                        if (inflater.finished() || inflater.needsDictionary()) {
+-                            eof = true;
+-                            return -1;
+-                        }
+-                        if (inflater.needsInput()) {
+-                            // Check if there's still data left in the current chunk
+-                            if (!currChunkByteBuf.hasRemaining()
+-                                    // No more bytes in current chunk -- get next chunk, and then make sure
+-                                    // that currChunkByteBuf.hasRemaining() subsequently returns true
+-                                    && !(readNextChunk() && currChunkByteBuf.hasRemaining())) {
+-                                // Ran out of data in the current chunk, and could not read a new chunk
+-                                throw new IOException("Unexpected EOF in deflated data");
+-                            }
+-                            // Set inflater input for the current chunk
+-
+-                            // In JDK11+: simply use the following instead of all the lines below:
+-                            //     inflater.setInput(currChunkByteBuf);
+-                            // N.B. the ByteBuffer version of setInput doesn't seem to need the extra
+-                            // padding byte at the end when using the "nowrap" Inflater option.
+-
+-                            // Copy from the ByteBuffer into a temporary byte[] array (needed for JDK<11).
+-                            try {
+-                                final int remaining = currChunkByteBuf.remaining();
+-                                if (isLastChunk && remaining < inflateBuf.length) {
+-                                    // An extra dummy byte is needed at the end of the input stream when
+-                                    // using the "nowrap" Inflater option.
+-                                    // See: ZipFile.ZipFileInputStream.fill()
+-                                    currChunkByteBuf.get(inflateBuf, 0, remaining);
+-                                    inflateBuf[remaining] = (byte) 0;
+-                                    inflater.setInput(inflateBuf, 0, remaining + 1);
+-                                } else if (isLastChunk && remaining == inflateBuf.length) {
+-                                    // If this is the last chunk to read, and the number of remaining
+-                                    // bytes is exactly the size of the buffer, read one byte fewer than
+-                                    // the number of remaining bytes, to cause the last byte to be read
+-                                    // in an extra pass.
+-                                    currChunkByteBuf.get(inflateBuf, 0, remaining - 1);
+-                                    inflater.setInput(inflateBuf, 0, remaining - 1);
+-                                } else {
+-                                    // There are more than inflateBuf.length bytes remaining to be read,
+-                                    // or this is not the last chunk (i.e. read all remaining bytes in
+-                                    // this chunk, which will trigger the next chunk to be read on the
+-                                    // next loop iteration)
+-                                    final int bytesToRead = Math.min(inflateBuf.length, remaining);
+-                                    currChunkByteBuf.get(inflateBuf, 0, bytesToRead);
+-                                    inflater.setInput(inflateBuf, 0, bytesToRead);
+-                                }
+-                            } catch (final BufferUnderflowException e) {
+-                                // Should not happen
+-                                throw new IOException("Unexpected EOF in deflated data");
+-                            }
+-                        }
+-                    }
+-                    return numInflatedBytes;
+-                } catch (final DataFormatException e) {
+-                    throw new ZipException(
+-                            e.getMessage() != null ? e.getMessage() : "Invalid deflated zip entry data");
+-                }
+-            }
+-
+-            /**
+-             * Copy stored (non-deflated) data from ByteBuffer to target buffer.
+-             *
+-             * @param buf
+-             *            the buffer to copy the stored entry into.
+-             * @param off
+-             *            the offset within buf to start writing.
+-             * @param len
+-             *            the number of bytes to read.
+-             * @return the number of bytes read.
+-             * @throws IOException
+-             *             if an I/O exception occurred.
+-             * @throws InterruptedException
+-             *             if the thread was interrupted.
+-             */
+-            private int readStored(final byte[] buf, final int off, final int len)
+-                    throws IOException, InterruptedException {
+-                int read = 0;
+-                while (read < len) {
+-                    if (!currChunkByteBuf.hasRemaining() && !readNextChunk()) {
+-                        return read == 0 ? -1 : read;
+-                    }
+-                    final int remainingToRead = len - read;
+-                    final int remainingInBuf = currChunkByteBuf.remaining();
+-                    final int numBytesRead = Math.min(remainingToRead, remainingInBuf);
+-                    currChunkByteBuf.get(buf, off + read, numBytesRead);
+-                    read += numBytesRead;
+-                }
+-                return read;
+-            }
+-
+-            /**
+-             * Skip stored (non-deflated) data in ByteBuffer.
+-             *
+-             * @param n
+-             *            the number of bytes to skip.
+-             * @throws IOException
+-             *             if an I/O exception occurred or the thread was interrupted.
+-             */
+-            private void skipStored(final long n) throws IOException {
+-                try {
+-                    long skipped = 0;
+-                    while (skipped < n) {
+-                        if (!currChunkByteBuf.hasRemaining() && !readNextChunk()) {
+-                            throw new EOFException("Unexpected EOF while skipping (non-deflated) zip entry data");
+-                        }
+-                        final long remainingToSkip = n - skipped;
+-                        final int remainingInBuf = currChunkByteBuf.remaining();
+-                        final int numBytesToSkip = (int) Math.min(FileUtils.MAX_BUFFER_SIZE,
+-                                Math.min(remainingToSkip, remainingInBuf));
+-                        currChunkByteBuf.skip(numBytesToSkip);
+-                        skipped += numBytesToSkip;
+-                    }
+-                } catch (final InterruptedException e) {
+-                    nestedJarHandler.interruptionChecker.interrupt();
+-                    throw new IOException("Thread was interrupted");
+-                }
+-            }
+-
+-            @Override
+-            public int read(final byte[] buf, final int off, final int len) throws IOException {
+-                if (closed.get()) {
+-                    throw new IOException("Stream closed");
+-                }
+-                if (buf == null) {
+-                    throw new NullPointerException();
+-                } else if (off < 0 || len < 0 || len > buf.length - off) {
+-                    throw new IndexOutOfBoundsException();
+-                } else if (len == 0) {
+-                    return 0;
+-                } else if (parentLogicalZipFile.physicalZipFile.length() == 0) {
+-                    return -1;
+-                }
+-                try {
+-                    if (isDeflated) {
+-                        return readDeflated(buf, off, len);
+-                    } else {
+-                        return readStored(buf, off, len);
+-                    }
+-                } catch (final InterruptedException e) {
+-                    nestedJarHandler.interruptionChecker.interrupt();
+-                    throw new IOException("Thread was interrupted");
+-                }
+-            }
+-
+-            @Override
+-            public int read() throws IOException {
+-                if (closed.get()) {
+-                    throw new IOException("Stream closed");
+-                }
+-                return read(scratch, 0, 1) == -1 ? -1 : scratch[0] & 0xff;
+-            }
++    public Slice getSlice() throws IOException {
++        if (slice == null) {
++            final RandomAccessReader randomAccessReader = parentLogicalZipFile.slice.randomAccessReader();
+ 
+-            @Override
+-            public int available() throws IOException {
+-                if (closed.get()) {
+-                    throw new IOException("Stream closed");
+-                }
+-                if (inflater.finished()) {
+-                    eof = true;
+-                }
+-                return eof ? 0 : 1;
++            // Check header magic
++            if (randomAccessReader.readInt(locHeaderPos) != 0x04034b50) {
++                throw new IOException("Zip entry has bad LOC header: " + entryName);
+             }
+-
+-            @Override
+-            public long skip(final long n) throws IOException {
+-                if (closed.get()) {
+-                    throw new IOException("Stream closed");
+-                }
+-                if (n < 0) {
+-                    throw new IllegalArgumentException("Invalid skip value");
+-                }
+-                if (isDeflated) {
+-                    long total = 0;
+-                    while (total < n) {
+-                        final int bytesToSkip = (int) Math.min(n - total, scratch.length);
+-                        final int numSkipped = read(scratch, 0, bytesToSkip);
+-                        if (numSkipped == -1) {
+-                            eof = true;
+-                            break;
+-                        }
+-                        total += numSkipped;
+-                    }
+-                } else {
+-                    skipStored(n);
+-                }
+-                return n;
++            final long dataStartPos = locHeaderPos + 30 + randomAccessReader.readShort(locHeaderPos + 26)
++                    + randomAccessReader.readShort(locHeaderPos + 28);
++            if (dataStartPos > parentLogicalZipFile.slice.sliceLength) {
++                throw new IOException("Unexpected EOF when trying to read zip entry data: " + entryName);
+             }
+ 
+-            @Override
+-            public boolean markSupported() {
+-                return false;
+-            }
+-
+-            @Override
+-            public synchronized void mark(final int readlimit) {
+-                throw new IllegalArgumentException("Not supported");
+-            }
+-
+-            @Override
+-            public synchronized void reset() throws IOException {
+-                throw new IllegalArgumentException("Not supported");
+-            }
+-
+-            @Override
+-            public void close() throws IOException {
+-                if (!closed.getAndSet(true)) {
+-                    currChunkByteBuf = null;
+-                    if (recyclableInflaterInstance != null) {
+-                        // Reset and recycle the Inflater
+-                        nestedJarHandler.inflaterRecycler.recycle(recyclableInflaterInstance);
+-                        recyclableInflaterInstance = null;
+-                    }
+-                }
+-            }
+-        };
+-    }
+-
+-    /**
+-     * Load the content of the zip entry, and return it as a byte array.
+-     *
+-     * @return the entry as a byte[] array
+-     * @throws IOException
+-     *             If an I/O exception occurs.
+-     * @throws InterruptedException
+-     *             If the thread was interrupted.
+-     */
+-    public byte[] load() throws IOException, InterruptedException {
+-        try (InputStream is = open()) {
+-            return FileUtils.readAllBytesAsArray(is, uncompressedSize);
+-        }
+-    }
+-
+-    /**
+-     * Load the content of the zip entry, and return it as a String (converting from UTF-8 byte format).
+-     *
+-     * @return the entry as a String
+-     * @throws IOException
+-     *             If an I/O exception occurs.
+-     * @throws InterruptedException
+-     *             If the thread was interrupted.
+-     */
+-    public String loadAsString() throws IOException, InterruptedException {
+-        try (InputStream is = open()) {
+-            return FileUtils.readAllBytesAsString(is, uncompressedSize);
++            // Create a new Slice that wraps just the data of the zip entry, and mark whether it is deflated
++            slice = parentLogicalZipFile.slice.slice(dataStartPos, compressedSize, isDeflated, uncompressedSize);
+         }
++        return slice;
+     }
+ 
+     // -------------------------------------------------------------------------------------------------------------
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/LogicalZipFile.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/LogicalZipFile.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/LogicalZipFile.java	2024-09-22 13:08:58.809841999 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/LogicalZipFile.java	2024-09-22 13:08:58.625840394 +1000
+@@ -32,10 +32,6 @@
+ import java.io.EOFException;
+ import java.io.IOException;
+ import java.io.UnsupportedEncodingException;
+-import java.nio.ByteBuffer;
+-import java.nio.charset.CharacterCodingException;
+-import java.nio.charset.CharsetDecoder;
+-import java.nio.charset.CodingErrorAction;
+ import java.nio.charset.StandardCharsets;
+ import java.util.AbstractMap.SimpleEntry;
+ import java.util.ArrayList;
+@@ -49,7 +45,8 @@
+ import java.util.concurrent.ConcurrentHashMap;
+ 
+ import io.github.classgraph.ClassGraphException;
+-import nonapi.io.github.classgraph.recycler.RecycleOnClose;
++import nonapi.io.github.classgraph.fileslice.ArraySlice;
++import nonapi.io.github.classgraph.fileslice.reader.RandomAccessReader;
+ import nonapi.io.github.classgraph.utils.CollectionUtils;
+ import nonapi.io.github.classgraph.utils.FileUtils;
+ import nonapi.io.github.classgraph.utils.Join;
+@@ -59,7 +56,7 @@
+ /**
+  * A logical zipfile, which represents a zipfile contained within a ZipFileSlice of a PhysicalZipFile.
+  */
+-public class LogicalZipFile extends ZipFileSlice implements AutoCloseable {
++public class LogicalZipFile extends ZipFileSlice {
+     /** The zipfile entries. */
+     public List<FastZipEntry> entries;
+ 
+@@ -152,10 +149,7 @@
+      */
+     LogicalZipFile(final ZipFileSlice zipFileSlice, final LogNode log) throws IOException, InterruptedException {
+         super(zipFileSlice);
+-        try (RecycleOnClose<ZipFileSliceReader, RuntimeException> zipFileSliceReaderRecycleOnClose = //
+-                zipFileSliceReaderRecycler.acquireRecycleOnClose()) {
+-            readCentralDirectory(zipFileSliceReaderRecycleOnClose.get(), log);
+-        }
++        readCentralDirectory(log);
+     }
+ 
+     // -------------------------------------------------------------------------------------------------------------
+@@ -288,7 +282,7 @@
+     private void parseManifest(final FastZipEntry manifestZipEntry, final LogNode log)
+             throws IOException, InterruptedException {
+         // Load contents of manifest entry as a byte array
+-        final byte[] manifest = manifestZipEntry.load();
++        final byte[] manifest = manifestZipEntry.getSlice().load();
+ 
+         // Find field keys (separated by newlines)
+         for (int i = 0; i < manifest.length;) {
+@@ -437,47 +429,68 @@
+      * @throws InterruptedException
+      *             if the thread was interrupted.
+      */
+-    private void readCentralDirectory(final ZipFileSliceReader zipFileSliceReader, final LogNode log)
+-            throws IOException, InterruptedException {
++    private void readCentralDirectory(final LogNode log) throws IOException, InterruptedException {
++        final RandomAccessReader reader = slice.randomAccessReader();
+ 
+         long eocdPos = -1;
+-        for (long i = len - 22; i >= 0; --i) {
+-            if (zipFileSliceReader.getInt(i) == 0x06054b50) {
++        for (long i = slice.sliceLength - 22, iMin = slice.sliceLength - 22 - 32; i >= iMin; --i) {
++            if (reader.readInt(i) == 0x06054b50) {
+                 eocdPos = i;
+                 break;
+             }
+         }
+         if (eocdPos < 0) {
++            final int bytesToRead = (int) Math.min(slice.sliceLength, 22 + (1 << 16));
++            final byte[] eocdBytes = new byte[bytesToRead];
++            final long readStartOff = slice.sliceLength - bytesToRead;
++            if (reader.read(readStartOff, eocdBytes, 0, bytesToRead) < bytesToRead) {
++                throw new IOException("Zipfile is truncated");
++            }
++            final RandomAccessReader eocdReader = new ArraySlice(eocdBytes, /* isDeflatedZipEntry = */ false,
++                    /* inflatedLengthHint = */ 0L, physicalZipFile.nestedJarHandler).randomAccessReader();
++            for (long i = eocdBytes.length - 22; i >= 0; --i) {
++                if (eocdReader.readInt(i) == 0x06054b50) {
++                    eocdPos = i + readStartOff;
++                    break;
++                }
++            }
++        }
++        if (eocdPos < 0) {
+             throw new IOException("Jarfile central directory signature not found: " + getPath());
+         }
+-        long numEnt = zipFileSliceReader.getShort(eocdPos + 8);
+-        if (zipFileSliceReader.getShort(eocdPos + 4) > 0 || zipFileSliceReader.getShort(eocdPos + 6) > 0
+-                || numEnt != zipFileSliceReader.getShort(eocdPos + 10)) {
++        long numEnt = reader.readUnsignedShort(eocdPos + 8);
++        if (reader.readUnsignedShort(eocdPos + 4) > 0 || reader.readUnsignedShort(eocdPos + 6) > 0
++                || numEnt != reader.readUnsignedShort(eocdPos + 10)) {
+             throw new IOException("Multi-disk jarfiles not supported: " + getPath());
+         }
+-        long cenSize = zipFileSliceReader.getInt(eocdPos + 12) & 0xffffffffL;
++        long cenSize = reader.readUnsignedInt(eocdPos + 12);
+         if (cenSize > eocdPos) {
+             throw new IOException(
+                     "Central directory size out of range: " + cenSize + " vs. " + eocdPos + ": " + getPath());
+         }
+-        long cenOff = zipFileSliceReader.getInt(eocdPos + 16) & 0xffffffffL;
++        long cenOff = reader.readUnsignedInt(eocdPos + 16);
+         long cenPos = eocdPos - cenSize;
+ 
+         // Check for Zip64 End Of Central Directory Locator record
+         final long zip64cdLocIdx = eocdPos - 20;
+-        if (zip64cdLocIdx >= 0 && zipFileSliceReader.getInt(zip64cdLocIdx) == 0x07064b50) {
+-            if (zipFileSliceReader.getInt(zip64cdLocIdx + 4) > 0
+-                    || zipFileSliceReader.getInt(zip64cdLocIdx + 16) > 1) {
++        if (zip64cdLocIdx >= 0 && reader.readInt(zip64cdLocIdx) == 0x07064b50) {
++            if (reader.readInt(zip64cdLocIdx + 4) > 0 || reader.readInt(zip64cdLocIdx + 16) > 1) {
+                 throw new IOException("Multi-disk jarfiles not supported: " + getPath());
+             }
+-            final long eocdPos64 = zipFileSliceReader.getLong(zip64cdLocIdx + 8);
+-            if (zipFileSliceReader.getInt(eocdPos64) != 0x06064b50) {
++            final long eocdPos64 = reader.readLong(zip64cdLocIdx + 8);
++            if (reader.readInt(eocdPos64) != 0x06064b50) {
+                 throw new IOException("Zip64 central directory at location " + eocdPos64
+                         + " does not have Zip64 central directory header: " + getPath());
+             }
+-            final long numEnt64 = zipFileSliceReader.getLong(eocdPos64 + 24);
+-            if (zipFileSliceReader.getInt(eocdPos64 + 16) > 0 || zipFileSliceReader.getInt(eocdPos64 + 20) > 0
+-                    || numEnt64 != zipFileSliceReader.getLong(eocdPos64 + 32)) {
++            final long numEnt64 = reader.readLong(eocdPos64 + 24);
++            if (reader.readInt(eocdPos64 + 16) > 0 || reader.readInt(eocdPos64 + 20) > 0
++                    || numEnt64 != reader.readLong(eocdPos64 + 32)) {
+                 throw new IOException("Multi-disk jarfiles not supported: " + getPath());
+             }
+             if (numEnt == 0xffff) {
+@@ -487,7 +500,7 @@
+                 numEnt = -1L;
+             }
+ 
+-            final long cenSize64 = zipFileSliceReader.getLong(eocdPos64 + 40);
++            final long cenSize64 = reader.readLong(eocdPos64 + 40);
+             if (cenSize == 0xffffffffL) {
+                 cenSize = cenSize64;
+             } else if (cenSize != cenSize64) {
+@@ -498,7 +511,7 @@
+             // Recalculate the central directory position
+             cenPos = eocdPos64 - cenSize;
+ 
+-            final long cenOff64 = zipFileSliceReader.getLong(eocdPos64 + 48);
++            final long cenOff64 = reader.readLong(eocdPos64 + 48);
+             if (cenOff == 0xffffffffL) {
+                 cenOff = cenOff64;
+             } else if (cenOff != cenOff64) {
+@@ -515,27 +528,39 @@
+ 
+         // Read entries into a byte array, if central directory is smaller than 2GB. If central directory
+         // is larger than 2GB, need to read each entry field from the file directly using ZipFileSliceReader.
+-        final byte[] entryBytes = cenSize > FileUtils.MAX_BUFFER_SIZE ? null : new byte[(int) cenSize];
+-        if (entryBytes != null) {
+-            zipFileSliceReader.read(cenPos, entryBytes, 0, (int) cenSize);
++        RandomAccessReader cenReader;
++        if (cenSize > FileUtils.MAX_BUFFER_SIZE) {
++            cenReader = slice.slice(cenPos, cenSize, /* isDeflatedZipEntry = */ false, /* inflatedSizeHint = */ 0L)
++                    .randomAccessReader();
++        } else {
++            // Read the central directory into RAM for speed, then wrap it in an ArraySlice
++            // (random access is faster for ArraySlice than for FileSlice)
++            final byte[] entryBytes = new byte[(int) cenSize];
++            if (reader.read(cenPos, entryBytes, 0, (int) cenSize) < cenSize) {
++                // Should not happen
++                throw new IOException("Zipfile is truncated");
++            }
++            cenReader = new ArraySlice(entryBytes, /* isDeflatedZipEntry = */ false, /* inflatedSizeHint = */ 0L,
++                    physicalZipFile.nestedJarHandler).randomAccessReader();
+         }
+ 
+         if (numEnt == -1L) {
+             // numEnt and numEnt64 were inconsistent -- manually count entries
+             numEnt = 0;
+             for (long entOff = 0; entOff + 46 <= cenSize;) {
+-                final int sig = entryBytes != null ? ZipFileSliceReader.getInt(entryBytes, entOff)
+-                        : zipFileSliceReader.getInt(cenPos + entOff);
++                final int sig = cenReader.readInt(entOff);
+                 if (sig != 0x02014b50) {
+                     throw new IOException("Invalid central directory signature: 0x" + Integer.toString(sig, 16)
+                             + ": " + getPath());
+                 }
+-                final int filenameLen = entryBytes != null ? ZipFileSliceReader.getShort(entryBytes, entOff + 28)
+-                        : zipFileSliceReader.getShort(cenPos + entOff + 28);
+-                final int extraFieldLen = entryBytes != null ? ZipFileSliceReader.getShort(entryBytes, entOff + 30)
+-                        : zipFileSliceReader.getShort(cenPos + entOff + 30);
+-                final int commentLen = entryBytes != null ? ZipFileSliceReader.getShort(entryBytes, entOff + 32)
+-                        : zipFileSliceReader.getShort(cenPos + entOff + 32);
++                final int filenameLen = cenReader.readUnsignedShort(entOff + 28);
++                final int extraFieldLen = cenReader.readUnsignedShort(entOff + 30);
++                final int commentLen = cenReader.readUnsignedShort(entOff + 32);
+                 entOff += 46 + filenameLen + extraFieldLen + commentLen;
+                 numEnt++;
+             }
+@@ -548,31 +573,26 @@
+         }
+ 
+         // Make sure there's no DoS attack vector by using a fake number of entries
+-        if (entryBytes != null && numEnt > entryBytes.length / 46) {
++        if (numEnt > cenSize / 46) {
+             // The smallest directory entry is 46 bytes in size
+-            throw new IOException("Too many zipfile entries: " + numEnt + " (expected a max of "
+-                    + entryBytes.length / 46 + " based on central directory size)");
++            throw new IOException("Too many zipfile entries: " + numEnt + " (expected a max of " + cenSize / 46
++                    + " based on central directory size)");
+         }
+ 
+         // Enumerate entries
+         entries = new ArrayList<>((int) numEnt);
+         FastZipEntry manifestZipEntry = null;
+-        CharsetDecoder decoder = null;
+         try {
+             int entSize = 0;
+             for (long entOff = 0; entOff + 46 <= cenSize; entOff += entSize) {
+-                final int sig = entryBytes != null ? ZipFileSliceReader.getInt(entryBytes, entOff)
+-                        : zipFileSliceReader.getInt(cenPos + entOff);
++                final int sig = cenReader.readInt(entOff);
+                 if (sig != 0x02014b50) {
+                     throw new IOException("Invalid central directory signature: 0x" + Integer.toString(sig, 16)
+                             + ": " + getPath());
+                 }
+-                final int filenameLen = entryBytes != null ? ZipFileSliceReader.getShort(entryBytes, entOff + 28)
+-                        : zipFileSliceReader.getShort(cenPos + entOff + 28);
+-                final int extraFieldLen = entryBytes != null ? ZipFileSliceReader.getShort(entryBytes, entOff + 30)
+-                        : zipFileSliceReader.getShort(cenPos + entOff + 30);
+-                final int commentLen = entryBytes != null ? ZipFileSliceReader.getShort(entryBytes, entOff + 32)
+-                        : zipFileSliceReader.getShort(cenPos + entOff + 32);
++                final int filenameLen = cenReader.readUnsignedShort(entOff + 28);
++                final int extraFieldLen = cenReader.readUnsignedShort(entOff + 30);
++                final int commentLen = cenReader.readUnsignedShort(entOff + 32);
+                 entSize = 46 + filenameLen + extraFieldLen + commentLen;
+ 
+                 // Get and sanitize entry name
+@@ -584,9 +604,7 @@
+                     }
+                     break;
+                 }
+-                final String entryName = entryBytes != null
+-                        ? ZipFileSliceReader.getString(entryBytes, filenameStartOff, filenameLen)
+-                        : zipFileSliceReader.getString(cenPos + filenameStartOff, filenameLen);
++                final String entryName = cenReader.readString(filenameStartOff, filenameLen);
+                 String entryNameSanitized = FileUtils.sanitizeEntryPath(entryName, /* removeInitialSlash = */ true);
+                 if (entryNameSanitized.isEmpty() || entryName.endsWith("/")) {
+                     // Skip directory entries
+@@ -594,8 +612,7 @@
+                 }
+ 
+                 // Check entry flag bits
+-                final int flags = entryBytes != null ? ZipFileSliceReader.getShort(entryBytes, entOff + 8)
+-                        : zipFileSliceReader.getShort(cenPos + entOff + 8);
++                final int flags = cenReader.readUnsignedShort(entOff + 8);
+                 if ((flags & 1) != 0) {
+                     if (log != null) {
+                         log.log("Skipping encrypted zip entry: " + entryNameSanitized);
+@@ -604,9 +621,7 @@
+                 }
+ 
+                 // Check compression method
+-                final int compressionMethod = entryBytes != null
+-                        ? ZipFileSliceReader.getShort(entryBytes, entOff + 10)
+-                        : zipFileSliceReader.getShort(cenPos + entOff + 10);
++                final int compressionMethod = cenReader.readUnsignedShort(entOff + 10);
+                 if (compressionMethod != /* stored */ 0 && compressionMethod != /* deflated */ 8) {
+                     if (log != null) {
+                         log.log("Skipping zip entry with invalid compression method " + compressionMethod + ": "
+@@ -617,17 +632,13 @@
+                 final boolean isDeflated = compressionMethod == /* deflated */ 8;
+ 
+                 // Get compressed and uncompressed size
+-                long compressedSize = (entryBytes != null ? ZipFileSliceReader.getInt(entryBytes, entOff + 20)
+-                        : zipFileSliceReader.getInt(cenPos + entOff + 20)) & 0xffffffffL;
+-                long uncompressedSize = (entryBytes != null ? ZipFileSliceReader.getInt(entryBytes, entOff + 24)
+-                        : zipFileSliceReader.getInt(cenPos + entOff + 24)) & 0xffffffffL;
++                long compressedSize = (cenReader.readUnsignedInt(entOff + 20));
++                long uncompressedSize = (cenReader.readUnsignedInt(entOff + 24));
+ 
+                 // Get external file attributes
+-                final int fileAttributes = entryBytes != null ? ZipFileSliceReader.getShort(entryBytes, entOff + 40)
+-                        : zipFileSliceReader.getShort(cenPos + entOff + 40);
++                final int fileAttributes = cenReader.readUnsignedShort(entOff + 40);
+ 
+-                long pos = entryBytes != null ? ZipFileSliceReader.getInt(entryBytes, entOff + 42)
+-                        : zipFileSliceReader.getInt(cenPos + entOff + 42);
++                long pos = cenReader.readInt(entOff + 42);
+ 
+                 // Check for Zip64 header in extra fields
+                 // See:
+@@ -637,10 +648,8 @@
+                 if (extraFieldLen > 0) {
+                     for (int extraFieldOff = 0; extraFieldOff + 4 < extraFieldLen;) {
+                         final long tagOff = filenameEndOff + extraFieldOff;
+-                        final int tag = entryBytes != null ? ZipFileSliceReader.getShort(entryBytes, tagOff)
+-                                : zipFileSliceReader.getShort(cenPos + tagOff);
+-                        final int size = entryBytes != null ? ZipFileSliceReader.getShort(entryBytes, tagOff + 2)
+-                                : zipFileSliceReader.getShort(cenPos + tagOff + 2);
++                        final int tag = cenReader.readUnsignedShort(tagOff);
++                        final int size = cenReader.readUnsignedShort(tagOff + 2);
+                         if (extraFieldOff + 4 + size > extraFieldLen) {
+                             // Invalid size
+                             if (log != null) {
+@@ -650,18 +659,14 @@
+                         }
+                         if (tag == 1 && size >= 20) {
+                             // Zip64 extended information extra field
+-                            final long uncompressedSize64 = entryBytes != null
+-                                    ? ZipFileSliceReader.getLong(entryBytes, tagOff + 4 + 0)
+-                                    : zipFileSliceReader.getLong(cenPos + tagOff + 4 + 0);
++                            final long uncompressedSize64 = cenReader.readLong(tagOff + 4 + 0);
+                             if (uncompressedSize == 0xffffffffL) {
+                                 uncompressedSize = uncompressedSize64;
+                             } else if (uncompressedSize != uncompressedSize64) {
+                                 throw new IOException("Mismatch in uncompressed size: " + uncompressedSize + " vs. "
+                                         + uncompressedSize64 + ": " + entryNameSanitized);
+                             }
+-                            final long compressedSize64 = entryBytes != null
+-                                    ? ZipFileSliceReader.getLong(entryBytes, tagOff + 4 + 8)
+-                                    : zipFileSliceReader.getLong(cenPos + tagOff + 4 + 8);
++                            final long compressedSize64 = cenReader.readLong(tagOff + 4 + 8);
+                             if (compressedSize == 0xffffffffL) {
+                                 compressedSize = compressedSize64;
+                             } else if (compressedSize != compressedSize64) {
+@@ -670,9 +675,7 @@
+                             }
+                             // Only compressed size and uncompressed size are required fields
+                             if (size >= 28) {
+-                                final long pos64 = entryBytes != null
+-                                        ? ZipFileSliceReader.getLong(entryBytes, tagOff + 4 + 16)
+-                                        : zipFileSliceReader.getLong(cenPos + tagOff + 4 + 16);
++                                final long pos64 = cenReader.readLong(tagOff + 4 + 16);
+                                 if (pos == 0xffffffffL) {
+                                     pos = pos64;
+                                 } else if (pos != pos64) {
+@@ -684,20 +687,14 @@
+ 
+                         } else if (tag == 0x5455 && size >= 5) {
+                             // Extended Unix timestamp
+-                            final byte bits = entryBytes != null
+-                                    ? ZipFileSliceReader.getByte(entryBytes, tagOff + 4 + 0)
+-                                    : zipFileSliceReader.getByte(cenPos + tagOff + 4 + 0);
++                            final byte bits = cenReader.readByte(tagOff + 4 + 0);
+                             if ((bits & 1) == 1 && size >= 5 + 8) {
+-                                lastModifiedMillis = (entryBytes != null
+-                                        ? ZipFileSliceReader.getLong(entryBytes, tagOff + 4 + 1)
+-                                        : zipFileSliceReader.getLong(cenPos + tagOff + 4 + 1)) * 1000L;
++                                lastModifiedMillis = cenReader.readLong(tagOff + 4 + 1) * 1000L;
+                             }
+ 
+                         } else if (tag == 0x5855 && size >= 20) {
+                             // Unix extra field (deprecated)
+-                            lastModifiedMillis = (entryBytes != null
+-                                    ? ZipFileSliceReader.getLong(entryBytes, tagOff + 4 + 8)
+-                                    : zipFileSliceReader.getLong(cenPos + tagOff + 4 + 8)) * 1000L;
++                            lastModifiedMillis = cenReader.readLong(tagOff + 4 + 8) * 1000L;
+                             // There are also optional UID and GID fields in this extra field (currently ignored)
+ 
+                         } else if (tag == 0x7855) {
+@@ -705,26 +702,17 @@
+ 
+                         } else if (tag == 0x7075) {
+                             // Info-ZIP Unicode path extra field
+-                            final byte version = entryBytes != null
+-                                    ? ZipFileSliceReader.getByte(entryBytes, tagOff + 4 + 0)
+-                                    : zipFileSliceReader.getByte(cenPos + tagOff + 4 + 0);
++                            final byte version = cenReader.readByte(tagOff + 4 + 0);
+                             if (version != 1) {
+                                 throw new IOException("Unknown Unicode entry name format " + version
+                                         + " in extra field: " + entryNameSanitized);
+                             } else if (size > 9) {
+-                                final byte[] utf8Bytes = (entryBytes != null
+-                                        ? ZipFileSliceReader.getBytes(entryBytes, tagOff + 9, size - 9)
+-                                        : zipFileSliceReader.getBytes(cenPos + tagOff + 9, size - 9));
+-                                if (decoder == null) {
+-                                    decoder = StandardCharsets.UTF_8.newDecoder();
+-                                    decoder.onMalformedInput(CodingErrorAction.REPORT)
+-                                            .onUnmappableCharacter(CodingErrorAction.REPORT);
+-                                }
++                                // Replace non-Unicode entry name with Unicode version
+                                 try {
+-                                    // Replace non-Unicode entry name with Unicode version
+-                                    entryNameSanitized = decoder.decode(ByteBuffer.wrap(utf8Bytes)).toString();
+-                                } catch (final CharacterCodingException e) {
+-                                    throw new IOException("Malformed Unicode entry name: " + entryNameSanitized);
++                                    entryNameSanitized = cenReader.readString(tagOff + 9, size - 9);
++                                } catch (final IllegalArgumentException e) {
++                                    throw new IOException("Malformed extended Unicode entry name for entry: "
++                                            + entryNameSanitized);
+                                 }
+                             }
+                         }
+@@ -736,13 +724,8 @@
+                 int lastModifiedDateMSDOS = 0;
+                 if (lastModifiedMillis == 0L) {
+                     // If Unix timestamp was not provided, convert zip entry timestamp from MS-DOS format
+-                    lastModifiedTimeMSDOS = entryBytes != null
+-                            ? ZipFileSliceReader.getShort(entryBytes, entOff + 12)
+-                            : zipFileSliceReader.getShort(cenPos + entOff + 12);
+-
+-                    lastModifiedDateMSDOS = entryBytes != null
+-                            ? ZipFileSliceReader.getShort(entryBytes, entOff + 14)
+-                            : zipFileSliceReader.getShort(cenPos + entOff + 14);
++                    lastModifiedTimeMSDOS = cenReader.readUnsignedShort(entOff + 12);
++                    lastModifiedDateMSDOS = cenReader.readUnsignedShort(entOff + 14);
+                 }
+ 
+                 if (compressedSize < 0 || pos < 0) {
+@@ -756,7 +739,7 @@
+                     }
+                     continue;
+                 }
+-                if (locHeaderPos + 4 >= len) {
++                if (locHeaderPos + 4 >= slice.sliceLength) {
+                     if (log != null) {
+                         log.log("Unexpected EOF when trying to read LOC header: " + entryNameSanitized);
+                     }
+@@ -765,8 +748,8 @@
+ 
+                 // Add zip entry
+                 final FastZipEntry entry = new FastZipEntry(this, locHeaderPos, entryNameSanitized, isDeflated,
+-                        compressedSize, uncompressedSize, physicalZipFile.nestedJarHandler, lastModifiedMillis,
+-                        lastModifiedTimeMSDOS, lastModifiedDateMSDOS, fileAttributes);
++                        compressedSize, uncompressedSize, lastModifiedMillis, lastModifiedTimeMSDOS,
++                        lastModifiedDateMSDOS, fileAttributes);
+                 entries.add(entry);
+ 
+                 // Record manifest entry
+@@ -837,40 +820,10 @@
+     // -------------------------------------------------------------------------------------------------------------
+ 
+     /* (non-Javadoc)
+-     * @see nonapi.io.github.classgraph.fastzipfilereader.ZipFileSlice#equals(java.lang.Object)
+-     */
+-    @Override
+-    public boolean equals(final Object o) {
+-        return super.equals(o);
+-    }
+-
+-    /* (non-Javadoc)
+-     * @see nonapi.io.github.classgraph.fastzipfilereader.ZipFileSlice#hashCode()
+-     */
+-    @Override
+-    public int hashCode() {
+-        return super.hashCode();
+-    }
+-
+-    /* (non-Javadoc)
+      * @see nonapi.io.github.classgraph.fastzipfilereader.ZipFileSlice#toString()
+      */
+     @Override
+     public String toString() {
+         return getPath();
+     }
+-
+-    /* (non-Javadoc)
+-     * @see java.lang.AutoCloseable#close()
+-     */
+-    @Override
+-    public void close() {
+-        if (zipFileSliceReaderRecycler != null) {
+-            zipFileSliceReaderRecycler.close();
+-        }
+-        if (entries != null) {
+-            entries.clear();
+-            entries = null;
+-        }
+-    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/NestedJarHandler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/NestedJarHandler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/NestedJarHandler.java	2024-09-22 13:08:58.809841999 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/NestedJarHandler.java	2024-09-22 13:08:58.625840394 +1000
+@@ -68,7 +75,7 @@
+ /** Open and read jarfiles, which may be nested within other jarfiles. */
+ public class NestedJarHandler {
+     /** The {@link ScanSpec}. */
+-    final ScanSpec scanSpec;
++    public final ScanSpec scanSpec;
+ 
+     /**
+      * A singleton map from a zipfile's {@link File} to the {@link PhysicalZipFile} for that file, used to ensure
+@@ -78,23 +85,10 @@
+     canonicalFileToPhysicalZipFileMap = new SingletonMap<File, PhysicalZipFile, IOException>() {
+         @Override
+         public PhysicalZipFile newInstance(final File canonicalFile, final LogNode log) throws IOException {
+-            if (closed.get()) {
+-                throw ClassGraphException
+-                        .newClassGraphException(NestedJarHandler.class.getSimpleName() + " already closed");
+-            }
+-            final PhysicalZipFile physicalZipFile = new PhysicalZipFile(canonicalFile, NestedJarHandler.this, log);
+-            allocatedPhysicalZipFiles.add(physicalZipFile);
+
+-            return physicalZipFile;
++            return new PhysicalZipFile(canonicalFile, NestedJarHandler.this, log);
+         }
+     };
+ 
+-    /** The allocated {@link PhysicalZipFile} instances. */
+-    private Queue<PhysicalZipFile> allocatedPhysicalZipFiles = new ConcurrentLinkedQueue<>();
+-    /** The allocated {@link LogicalZipFile} instances. */
+-    private final Queue<LogicalZipFile> allocatedLogicalZipFiles = new ConcurrentLinkedQueue<>();
+
+     /**
+      * A singleton map from a {@link FastZipEntry} to the {@link ZipFileSlice} wrapping either the zip entry data,
+      * if the entry is stored, or a ByteBuffer, if the zip entry was inflated to memory, or a physical file on disk
+@@ -122,13 +115,12 @@
+                 }
+ 
+                 // Read the InputStream for the child zip entry to a RAM buffer, or spill to disk if it's too large 
+-                final PhysicalZipFile physicalZipFile = new PhysicalZipFile(childZipEntry.open(),
+-                        childZipEntry.uncompressedSize > 0L
+-                                && childZipEntry.uncompressedSize < FileUtils.MAX_BUFFER_SIZE
++                final PhysicalZipFile physicalZipFile = new PhysicalZipFile(childZipEntry.getSlice().open(),
++                        childZipEntry.uncompressedSize >= 0L
++                                && childZipEntry.uncompressedSize <= FileUtils.MAX_BUFFER_SIZE
+                                         ? (int) childZipEntry.uncompressedSize
+                                         : -1,
+                         childZipEntry.entryName, NestedJarHandler.this, log);
+-                allocatedPhysicalZipFiles.add(physicalZipFile);
+ 
+                 // Create a new logical slice of the extracted inner zipfile
+                 childZipEntrySlice = new ZipFileSlice(physicalZipFile, childZipEntry);
+@@ -143,14 +135,8 @@
+         @Override
+         public LogicalZipFile newInstance(final ZipFileSlice zipFileSlice, final LogNode log)
+                 throws IOException, InterruptedException {
+-            if (closed.get()) {
+-                throw ClassGraphException
+-                        .newClassGraphException(NestedJarHandler.class.getSimpleName() + " already closed");
+-            }
+-            final LogicalZipFile logicalZipFile = new LogicalZipFile(zipFileSlice, log);
+-            allocatedLogicalZipFiles.add(logicalZipFile);
+-            return logicalZipFile;
++            return new LogicalZipFile(zipFileSlice, log);
+         }
+     };
+ 
+@@ -164,10 +150,6 @@
+                 @Override
+                 public Entry<LogicalZipFile, String> newInstance(final String nestedJarPathRaw, final LogNode log)
+                         throws IOException, InterruptedException {
+-                    if (closed.get()) {
+-                        throw ClassGraphException
+-                                .newClassGraphException(NestedJarHandler.class.getSimpleName() + " already closed");
+-                    }
+                     final String nestedJarPath = FastPathResolver.resolve(nestedJarPathRaw);
+                     final int lastPlingIdx = nestedJarPath.lastIndexOf('!');
+                     if (lastPlingIdx < 0) {
+@@ -352,10 +340,6 @@
+                     return new Recycler<ModuleReaderProxy, IOException>() {
+                         @Override
+                         public ModuleReaderProxy newInstance() throws IOException {
+-                            if (closed.get()) {
+-                                throw ClassGraphException.newClassGraphException(
+-                                        NestedJarHandler.class.getSimpleName() + " already closed");
+-                            }
+                             return moduleRef.open();
+                         }
+                     };
+@@ -363,28 +347,17 @@
+             };
+ 
+     /** A recycler for {@link Inflater} instances. */
+-    Recycler<RecyclableInflater, RuntimeException> //
++    private Recycler<RecyclableInflater, RuntimeException> //
+     inflaterRecycler = new Recycler<RecyclableInflater, RuntimeException>() {
+         @Override
+         public RecyclableInflater newInstance() throws RuntimeException {
+-            if (closed.get()) {
+-                throw ClassGraphException
+-                        .newClassGraphException(NestedJarHandler.class.getSimpleName() + " already closed");
+-            }
+             return new RecyclableInflater();
+         }
+     };
+ 
+-    private Set<ReferenceEqualityKey<ByteBufferWrapper>> mappedByteBuffers = Collections
+-            .newSetFromMap(new ConcurrentHashMap<ReferenceEqualityKey<ByteBufferWrapper>, Boolean>());
+-    private Set<MappedByteBufferResources> mappedByteBufferResources = Collections
+-            .newSetFromMap(new ConcurrentHashMap<MappedByteBufferResources, Boolean>());
++    private Set<RandomAccessFile> openFiles = Collections
++            .newSetFromMap(new ConcurrentHashMap<RandomAccessFile, Boolean>());
+ 
+     /** Any temporary files created while scanning. */
+     private Set<File> tempFiles = Collections.newSetFromMap(new ConcurrentHashMap<File, Boolean>());
+@@ -398,6 +371,12 @@
+     /** The interruption checker. */
+     public InterruptionChecker interruptionChecker;
+ 
++    private static final int DEFAULT_BUFFER_SIZE = 16384;
++    private static final int MAX_INITIAL_BUFFER_SIZE = 16 * 1024 * 1024;
+
+     // -------------------------------------------------------------------------------------------------------------
+ 
+     /**
+@@ -416,32 +395,6 @@
+      * @param byteBuffer
+      *            the byte buffer
+      */
+-    public void addMappedByteBuffer(final ByteBufferWrapper byteBuffer) {
+-        mappedByteBuffers.add(new ReferenceEqualityKey<ByteBufferWrapper>(byteBuffer));
+-    }
+
+-    public void unmapByteBuffer(final ByteBufferWrapper byteBuffer, final LogNode log) {
+-        if (mappedByteBuffers.remove(new ReferenceEqualityKey<ByteBufferWrapper>(byteBuffer))) {
+-            byteBuffer.close(log);
+-        }
+-    }
+ 
+     // -------------------------------------------------------------------------------------------------------------
+@@ -506,6 +459,38 @@
+      * @param file
+      *            the file to open.
+      */
++    public RandomAccessFile openFile(final File file) throws IOException {
++        try {
++            final RandomAccessFile raf = new RandomAccessFile(file, "r");
++            openFiles.add(raf);
++            return raf;
++        } catch (final SecurityException e) {
++            throw new IOException("Could not open file " + file + " : " + e.getMessage());
++        }
++    }
+@@ -534,27 +519,382 @@ 
+     // -------------------------------------------------------------------------------------------------------------
+ 
+     /** Wrap an {@link InputStream} with an {@link InflaterInputStream}, recycling the {@link Inflater} instance. */
++    public InputStream openInflaterInputStream(final InputStream rawInputStream) throws IOException {
++        return new InputStream() {
+             // Gen Inflater instance with nowrap set to true (needed by zip entries)
++            private final RecyclableInflater recyclableInflater = inflaterRecycler.acquire();
++            private final Inflater inflater = recyclableInflater.getInflater();
++            private final AtomicBoolean closed = new AtomicBoolean();
++            private final byte[] buf = new byte[INFLATE_BUF_SIZE];
++            private static final int INFLATE_BUF_SIZE = 8192;
+
++            @Override
++            public int read() throws IOException {
++                if (closed.get()) {
++                    throw new IOException("Already closed");
++                } else if (inflater.finished()) {
++                    return -1;
++                }
++                final int numDeflatedBytesRead = read(buf, 0, 1);
++                if (numDeflatedBytesRead < 0) {
++                    return -1;
++                } else {
++                    return buf[0] & 0xff;
++                }
++            }
+
++            @Override
++            public int read(final byte outBuf[], final int off, final int len) throws IOException {
++                if (closed.get()) {
++                    throw new IOException("Already closed");
++                } else if (len < 0) {
++                    throw new IllegalArgumentException("len cannot be negative");
++                } else if (len == 0) {
++                    return 0;
++                }
++                try {
+                     // Keep fetching data from rawInputStream until 
++                    int totInflatedBytes = 0;
++                    while (!inflater.finished() && totInflatedBytes < len) {
++                        final int numInflatedBytes = inflater.inflate(outBuf, off + totInflatedBytes,
++                                len - totInflatedBytes);
++                        if (numInflatedBytes == 0) {
++                            if (inflater.needsDictionary()) {
+                                 // Should not happen for jarfiles
++                                throw new IOException("Inflater needs preset dictionary");
++                            } else if (inflater.needsInput()) {
+                                 // Read a chunk of data from the raw InputStream
++                                final int numRawBytesRead = rawInputStream.read(buf, 0, buf.length);
++                                if (numRawBytesRead == -1) {
+                                     // An extra dummy byte is needed at the end of the input stream when
+                                     // using the "nowrap" Inflater option.
+                                     // See: ZipFile.ZipFileInflaterInputStream.fill()
++                                    buf[0] = (byte) 0;
++                                    inflater.setInput(buf, 0, 1);
++                                } else {
+                                     // Deflate the chunk of data
++                                    inflater.setInput(buf, 0, numRawBytesRead);
++                                }
++                            }
++                        } else {
++                            totInflatedBytes += numInflatedBytes;
++                        }
++                    }
++                    if (totInflatedBytes == 0) {
+                         // If no bytes were inflated, return -1 as required by read() API contract
++                        return -1;
++                    }
++                    return totInflatedBytes;
++
++                } catch (final DataFormatException e) {
++                    throw new ZipException(
++                            e.getMessage() != null ? e.getMessage() : "Invalid deflated zip entry data");
++                }
++            }
+ 
++            @Override
++            public void close() {
++                if (!closed.getAndSet(true)) {
++                    try {
++                        rawInputStream.close();
++                    } catch (final IOException e) {
+                         // Ignore
++                    } finally {
+                         // Reset and recycle inflater instance
++                        inflaterRecycler.recycle(recyclableInflater);
++                    }
++                }
++            }
++        };
++    }
+@@843,843@@
++    public static byte[] readAllBytesAsArray(final InputStream inputStream, final long uncompressedLengthHint)
++            throws IOException {
++        try (InputStream inptStream = inputStream) {
++            if (uncompressedLengthHint > FileUtils.MAX_BUFFER_SIZE) {
++                throw new IOException("InputStream is too large to read");
++            }
++            final int bufferSize = uncompressedLengthHint < 1L
++                    ? DEFAULT_BUFFER_SIZE
++                    : Math.min((int) uncompressedLengthHint, MAX_INITIAL_BUFFER_SIZE);
++            byte[] buf = new byte[bufferSize];
++            int totBytesRead = 0;
++            for (int bytesRead;;) {
++                while ((bytesRead = inptStream.read(buf, totBytesRead, buf.length - totBytesRead)) > 0) {
++                    totBytesRead += bytesRead;
++                }
++                if (bytesRead < 0) {
++                    break;
++                }
++                final int extraByte;
++                try {
++                    extraByte = inptStream.read();
++                    if (extraByte == -1) {
++                        break;
++                    }
++                } catch (final ZipException e) {
++                    throw new RuntimeException(e);
++                }
++                if (buf.length == FileUtils.MAX_BUFFER_SIZE) {
++                    throw new IOException("InputStream too large to read into array");
++                }
++                buf = Arrays.copyOf(buf, (int) Math.min(buf.length * 2L, FileUtils.MAX_BUFFER_SIZE));
++                buf[totBytesRead++] = (byte) extraByte;
++            }
++            return totBytesRead == buf.length ? buf : Arrays.copyOf(buf, totBytesRead);
++        }
++    }
+
+     /**
+      * Close zipfiles, modules, and recyclers, and delete temporary files. Called by {@link ScanResult#close()}.
+      * 
+@@ -564,10 +904,6 @@
+     public void close(final LogNode log) {
+         if (!closed.getAndSet(true)) {
+             boolean interrupted = false;
+-            if (inflaterRecycler != null) {
+-                inflaterRecycler.forceClose();
+-                inflaterRecycler = null;
+-            }
+             if (moduleRefToModuleReaderProxyRecyclerMap != null) {
+                 boolean completedWithoutInterruption = false;
+                 while (!completedWithoutInterruption) {
+@@ -593,54 +929,31 @@
+                 nestedPathToLogicalZipFileAndPackageRootMap.clear();
+                 nestedPathToLogicalZipFileAndPackageRootMap = null;
+             }
+-            for (LogicalZipFile logicalZipFile; (logicalZipFile = allocatedLogicalZipFiles.poll()) != null;) {
+-                logicalZipFile.close();
+-            }
+             if (canonicalFileToPhysicalZipFileMap != null) {
+-                while (!canonicalFileToPhysicalZipFileMap.isEmpty()) {
+-                    try {
+-                        for (final Entry<File, PhysicalZipFile> ent : new ArrayList<>(
+-                                canonicalFileToPhysicalZipFileMap.entries())) {
+-                            final PhysicalZipFile physicalZipFile = ent.getValue();
+-                            physicalZipFile.close();
+-                            canonicalFileToPhysicalZipFileMap.remove(ent.getKey());
+-                        }
+-                    } catch (final InterruptedException e) {
+-                        interrupted = false;
+-                    }
+-                }
++                canonicalFileToPhysicalZipFileMap.clear();
+                 canonicalFileToPhysicalZipFileMap = null;
+             }
+-            if (allocatedPhysicalZipFiles != null) {
+-                for (PhysicalZipFile physicalZipFile; (physicalZipFile = allocatedPhysicalZipFiles
+-                        .poll()) != null;) {
+-                    physicalZipFile.close();
+-                }
+-                allocatedPhysicalZipFiles.clear();
+-                allocatedPhysicalZipFiles = null;
+-            }
+             if (fastZipEntryToZipFileSliceMap != null) {
+                 fastZipEntryToZipFileSliceMap.clear();
+                 fastZipEntryToZipFileSliceMap = null;
+             }
+-            if (mappedByteBufferResources != null) {
+-                for (final MappedByteBufferResources bufRes : mappedByteBufferResources) {
+-                    bufRes.close(log);
+-                }
+-                mappedByteBufferResources = null;
+-            }
+-            if (mappedByteBuffers != null) {
+-                while (!mappedByteBuffers.isEmpty()) {
+-                    for (final ReferenceEqualityKey<ByteBufferWrapper> byteBufferRef : new ArrayList<>(
+-                            mappedByteBuffers)) {
+-                        unmapByteBuffer(byteBufferRef.get(), log);
++            if (openFiles != null) {
++                while (!openFiles.isEmpty()) {
++                    for (final RandomAccessFile openFile : new ArrayList<>(openFiles)) {
++                        try {
++                            openFile.close();
++                        } catch (final IOException e) {
++                        }
++                        openFiles.remove(openFile);
+                     }
+                 }
+-                mappedByteBuffers = null;
++                openFiles.clear();
++                openFiles = null;
++            }
++            if (inflaterRecycler != null) {
++                inflaterRecycler.forceClose();
++                inflaterRecycler = null;
+             }
+             // Temp files have to be deleted last, after all PhysicalZipFiles are closed and files are unmapped
+             if (tempFiles != null) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/PhysicalZipFile.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/PhysicalZipFile.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/PhysicalZipFile.java	2024-09-22 13:08:58.809841999 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/PhysicalZipFile.java	2024-09-22 13:08:58.625840394 +1000
+@@ -28,39 +28,35 @@
+ import nonapi.io.github.classgraph.utils.FastPathResolver;
+ import nonapi.io.github.classgraph.utils.FileUtils;
+ import nonapi.io.github.classgraph.utils.LogNode;
+ 
+ /** A physical zipfile, which is mmap'd using a {@link FileChannel}. */
+-class PhysicalZipFile implements Closeable {
++class PhysicalZipFile {
+     /** The {@link File} backing this {@link PhysicalZipFile}, if any. */
+     private final File file;
+ 
+     /** The path to the zipfile. */
+     private final String path;
+ 
+-    private MappedByteBufferResources byteBufferResources;
++    Slice slice;
+ 
+     /** The nested jar handler. */
+     NestedJarHandler nestedJarHandler;
+ 
+-    boolean isDeflatedToRam;
+-    private final AtomicBoolean closed = new AtomicBoolean(false);
++    private int hashCode;
+ 
+     /**
+      * Construct a {@link PhysicalZipFile} from a file on disk.
+@@ -82,16 +78,14 @@
+         this.file = file;
+         this.nestedJarHandler = nestedJarHandler;
+         this.path = FastPathResolver.resolve(FileUtils.CURR_DIR_PATH, file.getPath());
+
+-        this.byteBufferResources = new MappedByteBufferResources(file, nestedJarHandler, log);
++        this.slice = new FileSlice(file, nestedJarHandler);
+     }
+ 
+     /**
+@@ -101,23 +95,18 @@
+      * @throws IOException
+      *             if an I/O exception occurs.
+      */
+-    PhysicalZipFile(final ByteBuffer byteBuffer, final File outermostFile, final String path,
++    PhysicalZipFile(final byte[] arr, final File outermostFile, final String path,
+             final NestedJarHandler nestedJarHandler) throws IOException {
+         this.file = outermostFile;
+         this.path = path;
+         this.nestedJarHandler = nestedJarHandler;
+-        this.isDeflatedToRam = true;
+-
+-        // Wrap the ByteBuffer
+-        this.byteBufferResources = new MappedByteBufferResources(byteBuffer, nestedJarHandler);
+-        if (this.byteBufferResources.length() == 0L) {
+-            throw new IOException("Zipfile is empty: " + path);
+-        }
++        this.slice = new ArraySlice(arr, /* isDeflatedZipEntry = */ false, /* inflatedSizeHint = */ 0L,
++                nestedJarHandler);
+     }
+ 
+     /**
+-     * Construct a {@link PhysicalZipFile} from an InputStream, which is downloaded to a {@link ByteBuffer} in RAM,
+-     * or spilled to disk if the content of the InputStream is too large.
++     * Construct a {@link PhysicalZipFile} by reading from the {@link InputStream} to an array in RAM, or spill to
++     * disk if the {@link InputStream} is too long.
+      *
+      * @param inputStream
+      *            the input stream
+@@ -133,36 +122,15 @@
+      * @throws IOException
+      *             if an I/O exception occurs.
+      */
+-    PhysicalZipFile(final InputStream inputStream, final int inputStreamLengthHint, final String path,
+-            final NestedJarHandler nestedJarHandler, final LogNode log)
+-            throws IOException {
++    PhysicalZipFile(final InputStream inputStream, final long inputStreamLengthHint, final String path,
++            final NestedJarHandler nestedJarHandler, final LogNode log) throws IOException {
+         this.nestedJarHandler = nestedJarHandler;
+         this.path = path;
+-        this.isDeflatedToRam = true;
+-
+-        // Wrap the ByteBuffer
+-        this.byteBufferResources = new MappedByteBufferResources(inputStream, inputStreamLengthHint, path,
+-                nestedJarHandler, log);
+-        if (this.byteBufferResources.length() == 0L) {
+-            throw new IOException("Zipfile is empty: " + path);
+-        }
+-        this.file = byteBufferResources.getMappedFile();
+-    }
+-
+-    /**
+-     * Get a chunk of the file, where chunkIdx denotes which 2GB chunk of the file to return (0 for the first 2GB of
+-     * the file, or for files smaller than 2GB; 1 for the 2-4GB chunk, etc.).
+-     * 
+-     * @param chunkIdx
+-     *            The index of the 2GB chunk to read
+-     * @return The {@link MappedByteBuffer} for the requested file chunk, up to 2GB in size.
+-     * @throws IOException
+-     *             If the chunk could not be mmap'd.
+-     * @throws InterruptedException
+-     *             If the thread was interrupted.
+-     */
+-    ByteBufferWrapper getByteBuffer(final int chunkIdx) throws IOException, InterruptedException {
+-        return byteBufferResources.getByteBuffer(chunkIdx);
++        // Try downloading the InputStream to a byte array. If this succeeds, this will result in an ArraySlice.
++        // If it fails, the InputStream will be spilled to disk, resulting in a FileSlice.
++        this.slice = nestedJarHandler.readAllBytesWithSpilloverToDisk(inputStream, /* tempFileBaseName = */ path,
++                inputStreamLengthHint, log);
++        this.file = this.slice instanceof FileSlice ? ((FileSlice) this.slice).file : null;
+     }
+ 
+     /**
+@@ -191,22 +159,7 @@
+      * wrapped.
+      */
+     public long length() {
+-        return byteBufferResources.length();
+-    }
+-
+-    /**
+-     * Get the number of 2GB chunks that are available in this PhysicalZipFile.
+-     */
+-    public int numChunks() {
+-        return byteBufferResources.numChunks();
+-    }
+-
+-    /* (non-Javadoc)
+-     * @see java.lang.Object#toString()
+-     */
+-    @Override
+-    public String toString() {
+-        return path;
++        return slice.sliceLength;
+     }
+ 
+     /* (non-Javadoc)
+@@ -214,33 +167,34 @@
+      */
+     @Override
+     public int hashCode() {
+-        return file == null ? 0 : file.hashCode();
++        if (hashCode == 0) {
++            hashCode = (file == null ? 0 : file.hashCode());
++            if (hashCode == 0) {
++                hashCode = 1;
++            }
++        }
++        return hashCode;
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/RecyclableInflater.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/RecyclableInflater.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/RecyclableInflater.java	2024-09-22 13:08:58.809841999 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/RecyclableInflater.java	2024-09-22 13:08:58.625840394 +1000
+@@ -37,7 +37,7 @@
+  * Wrapper class that allows an {@link Inflater} instance to be reset for reuse and then recycled by a
+  * {@link Recycler}.
+  */
+-class RecyclableInflater implements Resettable, AutoCloseable {
++public class RecyclableInflater implements Resettable, AutoCloseable {
+     /** Create a new {@link Inflater} instance with the "nowrap" option (which is needed for zipfile entries). */
+     private final Inflater inflater = new Inflater(/* nowrap = */ true);
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/ZipFileSlice.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/ZipFileSlice.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/ZipFileSlice.java	2024-09-22 13:08:58.809841999 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/nonapi/io/github/classgraph/fastzipfilereader/ZipFileSlice.java	2024-09-22 13:08:58.625840394 +1000
+@@ -40,32 +41,10 @@
+     private final ZipFileSlice parentZipFileSlice;
+     /** The underlying physical zipfile. */
+     public final PhysicalZipFile physicalZipFile;
+-    final long startOffsetWithinPhysicalZipFile;
+-    final long len;
+     /** For the toplevel zipfile slice, the zipfile path; For nested slices, the name/path of the zipfile entry. */
+     private final String pathWithinParentZipFileSlice;
+-    final Recycler<ZipFileSliceReader, RuntimeException> zipFileSliceReaderRecycler;
+-    private Recycler<ZipFileSliceReader, RuntimeException> newZipFileSliceReaderRecycler() {
+-        return new Recycler<ZipFileSliceReader, RuntimeException>() {
+-            @Override
+-            public ZipFileSliceReader newInstance() throws RuntimeException {
+-                return new ZipFileSliceReader(ZipFileSlice.this);
+-            }
+-        };
+-    }
+
++    public Slice slice;
+ 
+     /**
+      * Create a ZipFileSlice that wraps a toplevel {@link PhysicalZipFile}.
+@@ -76,14 +55,13 @@
+     ZipFileSlice(final PhysicalZipFile physicalZipFile) {
+         this.parentZipFileSlice = null;
+         this.physicalZipFile = physicalZipFile;
+-        this.startOffsetWithinPhysicalZipFile = 0;
+-        this.len = physicalZipFile.length();
++        this.slice = physicalZipFile.slice;
+         this.pathWithinParentZipFileSlice = physicalZipFile.getPath();
+-        this.zipFileSliceReaderRecycler = newZipFileSliceReaderRecycler();
+     }
+ 
+     /**
+@@ -93,14 +71,12 @@
+     ZipFileSlice(final PhysicalZipFile physicalZipFile, final FastZipEntry zipEntry) {
+         this.parentZipFileSlice = zipEntry.parentLogicalZipFile;
+         this.physicalZipFile = physicalZipFile;
+-        this.startOffsetWithinPhysicalZipFile = 0;
+-        this.len = physicalZipFile.length();
++        this.slice = physicalZipFile.slice;
+         this.pathWithinParentZipFileSlice = zipEntry.entryName;
+-        this.zipFileSliceReaderRecycler = newZipFileSliceReaderRecycler();
+     }
+ 
+     /**
+@@ -112,10 +88,8 @@
+     ZipFileSlice(final FastZipEntry zipEntry) throws IOException, InterruptedException {
+         this.parentZipFileSlice = zipEntry.parentLogicalZipFile;
+         this.physicalZipFile = zipEntry.parentLogicalZipFile.physicalZipFile;
+-        this.startOffsetWithinPhysicalZipFile = zipEntry.getEntryDataStartOffsetWithinPhysicalZipFile();
+-        this.len = zipEntry.compressedSize;
++        this.slice = zipEntry.getSlice();
+         this.pathWithinParentZipFileSlice = zipEntry.entryName;
+-        this.zipFileSliceReaderRecycler = newZipFileSliceReaderRecycler();
+     }
+ 
+     /**
+@@ -127,11 +101,8 @@
+     ZipFileSlice(final ZipFileSlice other) {
+         this.parentZipFileSlice = other.parentZipFileSlice;
+         this.physicalZipFile = other.physicalZipFile;
+-        this.startOffsetWithinPhysicalZipFile = other.startOffsetWithinPhysicalZipFile;
+-        this.len = other.len;
++        this.slice = other.slice;
+         this.pathWithinParentZipFileSlice = other.pathWithinParentZipFileSlice;
+-        // Reuse the recycler for clones
+-        this.zipFileSliceReaderRecycler = other.zipFileSliceReaderRecycler;
+     }
+ 
+     /**
+@@ -207,26 +178,27 @@
+     @Override
+-    public int hashCode() {
+-        return physicalZipFile.getPath().hashCode() ^ (int) startOffsetWithinPhysicalZipFile ^ (int) len;
++    public boolean equals(final Object o) {
++        if (o == this) {
++            return true;
++        } else if (!(o instanceof ZipFileSlice)) {
++            return false;
++        } else {
++            final ZipFileSlice other = (ZipFileSlice) o;
++            return Objects.equals(physicalZipFile, other.physicalZipFile) && Objects.equals(slice, other.slice)
++                    && Objects.equals(pathWithinParentZipFileSlice, other.pathWithinParentZipFileSlice);
++        }
+     }
+ 
+     /* (non-Javadoc)
+      * @see nonapi.io.github.classgraph.fastzipfilereader.ZipFileSlice#hashCode()
+      */
+     @Override
+-    public boolean equals(final Object obj) {
+-        if (obj == this) {
+-            return true;
+-        } else if (!(obj instanceof ZipFileSlice)) {
+-            return false;
+-        }
+-        final ZipFileSlice other = (ZipFileSlice) obj;
+-        return startOffsetWithinPhysicalZipFile == other.startOffsetWithinPhysicalZipFile && len == other.len
+-                && this.physicalZipFile.equals(other.physicalZipFile);
++    public int hashCode() {
++        return Objects.hash(physicalZipFile, slice, pathWithinParentZipFileSlice);
+     }
+ 
+     /* (non-Javadoc)
+@@ -234,11 +206,10 @@
+      */
+     @Override
+     public String toString() {
+-        return "["
+-                + (physicalZipFile.isDeflatedToRam ? "ByteBuffer deflated to RAM from " + getPath()
+-                        : physicalZipFile.getFile() == null ? "ByteBuffer downloaded to RAM from " + getPath()
+-                                : physicalZipFile.getFile())
+-                + " ; byte range: " + startOffsetWithinPhysicalZipFile + ".."
+-                + (startOffsetWithinPhysicalZipFile + len) + " / " + physicalZipFile.length() + "]";
++        final String path = getPath();
++        final String fileStr = physicalZipFile.getFile() == null ? null : physicalZipFile.getFile().toString();
++        return "[" + (fileStr == null || !fileStr.equals(path) ? path + " -> " + fileStr : path) + " ; byte range: "
++                + slice.sliceStartPos + ".." + (slice.sliceStartPos + slice.sliceLength) + " / "
++                + physicalZipFile.length() + "]";
+     }
+ }
+\ No newline at end of file
+Only in ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/nonapi/io/github/classgraph/fastzipfilereader: ZipFileSliceReader.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/nonapi/io/github/classgraph: fileslice
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/nonapi/io/github/classgraph/recycler/Recycler.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/nonapi/io/github/classgraph/recycler/Recycler.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/nonapi/io/github/classgraph/recycler/Recycler.java	2024-09-22 13:08:58.809841999 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/nonapi/io/github/classgraph/recycler/Recycler.java	2024-09-22 13:08:58.629840429 +1000
+@@ -112,11 +112,15 @@
+      */
+     public final void recycle(final T instance) {
+         if (instance != null) {
+-            usedInstances.remove(instance);
++            if (!usedInstances.remove(instance)) {
++                throw new IllegalArgumentException("Tried to recycle an instance that was not in use");
++            }
+             if (instance instanceof Resettable) {
+                 ((Resettable) instance).reset();
+             }
+-            unusedInstances.add(instance);
++            if (!unusedInstances.add(instance)) {
++                throw new IllegalArgumentException("Tried to recycle an instance twice");
++            }
+         }
+     }
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/nonapi/io/github/classgraph/utils/FileUtils.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/nonapi/io/github/classgraph/utils/FileUtils.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/nonapi/io/github/classgraph/utils/FileUtils.java	2024-09-22 13:08:58.809841999 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/nonapi/io/github/classgraph/utils/FileUtils.java	2024-09-22 13:08:58.629840429 +1000
+@@ -31,19 +31,16 @@
+ import java.io.File;
+ import java.io.FileNotFoundException;
+ import java.io.IOException;
+-import java.io.InputStream;
+ import java.lang.reflect.Field;
+ import java.lang.reflect.Method;
+ import java.nio.ByteBuffer;
+ import java.nio.MappedByteBuffer;
+-import java.nio.charset.StandardCharsets;
+ import java.nio.file.LinkOption;
+ import java.nio.file.Path;
+ import java.nio.file.Paths;
+ import java.security.AccessController;
+ import java.security.PrivilegedAction;
+ import java.util.ArrayList;
+-import java.util.Arrays;
+ import java.util.List;
+ 
+ import io.github.classgraph.ClassGraphException;
+@@ -63,32 +60,17 @@
+     private static Object theUnsafe;
+ 
+     /**
+-     * The minimum filesize at which it becomes more efficient to read a file with a memory-mapped file channel
+-     * rather than an InputStream. Based on benchmark testing using the following benchmark, averaged over three
+-     * separate runs, then plotted as a speedup curve for 1, 2, 4 and 8 concurrent threads:
+-     * 
+-     * https://github.com/lukehutch/FileReadingBenchmark
+-     */
+-    public static final int FILECHANNEL_FILE_SIZE_THRESHOLD;
+-
+-    /**
+      * The current directory path (only reads the current directory once, the first time this field is accessed, so
+      * will not reflect subsequent changes to the current directory).
+      */
+     public static final String CURR_DIR_PATH;
+ 
+-    /** The default size of a file buffer. */
+-    private static final int DEFAULT_BUFFER_SIZE = 16384;
+-
+     /**
+      * The maximum size of a file buffer array. Eight bytes smaller than {@link Integer#MAX_VALUE}, since some VMs
+      * reserve header words in arrays.
+      */
+     public static final int MAX_BUFFER_SIZE = Integer.MAX_VALUE - 8;
+ 
+-    /** The maximum initial buffer size. */
+-    private static final int MAX_INITIAL_BUFFER_SIZE = 16 * 1024 * 1024;
+-
+     // -------------------------------------------------------------------------------------------------------------
+ 
+     /**
+@@ -119,182 +101,6 @@
+     }
+ 
+     // -------------------------------------------------------------------------------------------------------------
+-
+-    static {
+-        switch (VersionFinder.OS) {
+-        case Linux:
+-            // On Linux, FileChannel is more efficient once file sizes are larger than 16kb,
+-            // and the speedup increases superlinearly, reaching 1.5-3x for a filesize of 1MB
+-            // (and the performance increase does not level off at 1MB either -- that is as
+-            // far as this was benchmarked).
+-        case MacOSX:
+-            // On older/slower Mac OS X machines, FileChannel is always 10-20% slower than InputStream,
+-            // except for very large files (>1MB), and only for single-threaded reading.
+-            // But on newer/faster Mac OS X machines, you get a 10-20% speedup between 16kB and 128kB,
+-            // then a much larger speedup for files larger than 128kb (topping out at about 2.5x speedup).
+-            // It's probably worth setting the threshold to 16kB to get the 10-20% speedup for files
+-            // larger than 16kB in size on modern machines.
+-        case Solaris:
+-        case BSD:
+-        case Unix:
+-            // No testing has been performed yet on the other unices, so just pick the same val as MacOSX and Linux
+-            FILECHANNEL_FILE_SIZE_THRESHOLD = 16384;
+-            break;
+-
+-        case Windows:
+-            // Windows is always 10-20% faster with FileChannel than with InputStream, even for small files.
+-            FILECHANNEL_FILE_SIZE_THRESHOLD = -1;
+-            break;
+-
+-        case Unknown:
+-            // For any other operating system
+-        default:
+-            FILECHANNEL_FILE_SIZE_THRESHOLD = 16384;
+-            break;
+-        }
+-    }
+-
+-    // -------------------------------------------------------------------------------------------------------------
+-
+-    /**
+-     * Read all the bytes in an {@link InputStream}.
+-     * 
+-     * @param inputStream
+-     *            The {@link InputStream}.
+-     * @param fileSizeHint
+-     *            The file size, if known, otherwise -1L.
+-     * @return The contents of the {@link InputStream} as a byte array.
+-     * @throws IOException
+-     *             If the contents could not be read.
+-     */
+-    private static byte[] readAllBytes(final InputStream inputStream, final long fileSizeHint) throws IOException {
+-        if (fileSizeHint > MAX_BUFFER_SIZE) {
+-            throw new IOException("InputStream is too large to read");
+-        }
+-        final int bufferSize = fileSizeHint < 1L
+-                // If fileSizeHint is zero or unknown, use default buffer size 
+-                ? DEFAULT_BUFFER_SIZE
+-                // fileSizeHint is just a hint -- limit the max allocated buffer size, so that invalid ZipEntry
+-                // lengths do not become a memory allocation attack vector
+-                : Math.min((int) fileSizeHint, MAX_INITIAL_BUFFER_SIZE);
+-        byte[] buf = new byte[bufferSize];
+-        int totBytesRead = 0;
+-        for (int bytesRead;;) {
+-            while ((bytesRead = inputStream.read(buf, totBytesRead, buf.length - totBytesRead)) > 0) {
+-                // Fill buffer until nothing more can be read
+-                totBytesRead += bytesRead;
+-            }
+-            if (bytesRead < 0) {
+-                // Reached end of stream
+-                break;
+-            }
+-            // bytesRead == 0 => grow buffer (avoid integer overflow in next line)
+-            if (buf.length <= MAX_BUFFER_SIZE - buf.length) {
+-                buf = Arrays.copyOf(buf, buf.length * 2);
+-            } else {
+-                if (buf.length == MAX_BUFFER_SIZE) {
+-                    // Try reading one more byte, just in case the stream is exactly MAX_BUFFER_SIZE in length
+-                    if (inputStream.read() == -1) {
+-                        break;
+-                    } else {
+-                        throw new IOException("InputStream too large to read into array");
+-                    }
+-                }
+-                // Can't double the size of the buffer, but increase it to max size
+-                buf = Arrays.copyOf(buf, MAX_BUFFER_SIZE);
+-            }
+-        }
+-        // Return buffer and number of bytes read
+-        return totBytesRead == buf.length ? buf : Arrays.copyOf(buf, totBytesRead);
+-    }
+-
+-    /**
+-     * Read all the bytes in an {@link InputStream} as a byte array.
+-     * 
+-     * @param inputStream
+-     *            The {@link InputStream}.
+-     * @param fileSizeHint
+-     *            The file size, if known, otherwise -1L.
+-     * @return The contents of the {@link InputStream} as a byte array.
+-     * @throws IOException
+-     *             If the contents could not be read.
+-     */
+-    public static byte[] readAllBytesAsArray(final InputStream inputStream, final long fileSizeHint)
+-            throws IOException {
+-        return readAllBytes(inputStream, fileSizeHint);
+-    }
+-
+-    /**
+-     * Read all the bytes in an {@link InputStream} as a {@link ByteBuffer}.
+-     * 
+-     * @param inputStream
+-     *            The {@link InputStream}.
+-     * @param fileSizeHint
+-     *            The file size, if known, otherwise -1L.
+-     * @return The contents of the {@link InputStream} as a {@link ByteBuffer}.
+-     * @throws IOException
+-     *             If the contents could not be read.
+-     */
+-    public static ByteBuffer readAllBytesAsByteBuffer(final InputStream inputStream, final long fileSizeHint)
+-            throws IOException {
+-        final byte[] buf = readAllBytes(inputStream, fileSizeHint);
+-        return ByteBuffer.wrap(buf, 0, buf.length);
+-    }
+-
+-    /**
+-     * Read all the bytes in an {@link InputStream} as a String.
+-     * 
+-     * @param inputStream
+-     *            The {@link InputStream}.
+-     * @param fileSizeHint
+-     *            The file size, if known, otherwise -1L.
+-     * @return The contents of the {@link InputStream} as a String.
+-     * @throws IOException
+-     *             If the contents could not be read.
+-     */
+-    public static String readAllBytesAsString(final InputStream inputStream, final long fileSizeHint)
+-            throws IOException {
+-        final byte[] buf = readAllBytes(inputStream, fileSizeHint);
+-        return new String(buf, 0, buf.length, StandardCharsets.UTF_8);
+-    }
+-
+-    // -------------------------------------------------------------------------------------------------------------
+-
+-    /**
+-     * Produce an {@link InputStream} that is able to read from a {@link ByteBuffer}.
+-     * 
+-     * @param byteBuffer
+-     *            The {@link ByteBuffer}.
+-     * @return An {@link InputStream} that reads from the {@link ByteBuffer}.
+-     */
+-    public static InputStream byteBufferToInputStream(final ByteBuffer byteBuffer) {
+-        // https://stackoverflow.com/questions/4332264/wrapping-a-bytebuffer-with-an-inputstream/6603018#6603018
+-        return new InputStream() {
+-            /** The intermediate buffer. */
+-            final ByteBuffer buf = byteBuffer;
+-
+-            @Override
+-            public int read() {
+-                if (!buf.hasRemaining()) {
+-                    return -1;
+-                }
+-                return buf.get() & 0xFF;
+-            }
+-
+-            @Override
+-            public int read(final byte[] bytes, final int off, final int len) {
+-                if (!buf.hasRemaining()) {
+-                    return -1;
+-                }
+-
+-                final int bytesRead = Math.min(len, buf.remaining());
+-                buf.get(bytes, off, bytesRead);
+-                return bytesRead;
+-            }
+-        };
+-    }
+-
+-    // -------------------------------------------------------------------------------------------------------------
+ 
+     /**
+      * Sanitize relative paths against "zip slip" vulnerability, by removing path segments if ".." is found in the
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/nonapi/io/github/classgraph/utils: StringUtils.java

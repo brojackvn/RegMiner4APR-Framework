@@ -1,0 +1,12 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java	2024-09-08 01:36:15.033815029 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java	2024-09-08 01:36:15.013814889 +1000
+@@ -178,7 +178,7 @@
+ 
+ 		sums.keySet().removeAll(toRemove);
+ 
+-		char delimiter = min(sums, totals, suggestedDelimiter);
++		char delimiter = max(sums, totals, suggestedDelimiter);
+ 		char quote = doubleQuoteCount >= singleQuoteCount ? '"' : '\'';
+ 
+ 		escape.remove(delimiter);

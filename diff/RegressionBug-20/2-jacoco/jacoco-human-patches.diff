@@ -1,0 +1,882 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/backend/datasource/PhysicalDbGroup.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/backend/datasource/PhysicalDbGroup.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/backend/datasource/PhysicalDbGroup.java	2024-09-08 01:36:10.361782309 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/backend/datasource/PhysicalDbGroup.java	2024-09-08 01:36:10.281781749 +1000
+@@ -50,7 +50,7 @@
+     private final LoadBalancer loadBalancer = new RandomLoadBalancer();
+     private final ReentrantReadWriteLock adjustLock = new ReentrantReadWriteLock();
+ 
+-    private boolean useless = false;
++    private boolean useless = true;
+ 
+     public PhysicalDbGroup(String name, DbGroupConfig config, PhysicalDbInstance writeDbInstances, PhysicalDbInstance[] readDbInstances, int rwSplitMode) {
+         this.groupName = name;
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/backend/heartbeat/MySQLHeartbeat.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/backend/heartbeat/MySQLHeartbeat.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/backend/heartbeat/MySQLHeartbeat.java	2024-09-08 01:36:10.365782337 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/backend/heartbeat/MySQLHeartbeat.java	2024-09-08 01:36:10.281781749 +1000
+@@ -19,6 +19,7 @@
+ import java.util.Map;
+ import java.util.concurrent.ScheduledFuture;
+ import java.util.concurrent.atomic.AtomicBoolean;
++import java.util.concurrent.atomic.AtomicInteger;
+ import java.util.concurrent.atomic.AtomicLong;
+ 
+ import static java.util.concurrent.TimeUnit.MINUTES;
+@@ -46,7 +47,7 @@
+     protected volatile int status;
+     private String heartbeatSQL;
+     private long heartbeatTimeout; // during the time, heart failed will ignore
+-    private volatile int errorCount = 0;
++    private final AtomicInteger errorCount = new AtomicInteger(0);
+     private AtomicLong startErrorTime = new AtomicLong(-1L);
+     private volatile boolean isStop = true;
+     private volatile int dbSynStatus = DB_SYN_NORMAL;
+@@ -131,13 +132,13 @@
+ 
+     // only use when heartbeat connection is closed
+     boolean doHeartbeatRetry() {
+-        if (errorRetryCount > 0 && ++errorCount <= errorRetryCount) {
++        if (errorRetryCount > 0 && errorCount.get() < errorRetryCount) {
+             // should continue checking error status
+             if (detector != null) {
+                 detector.quit();
+             }
+             isChecking.set(false);
+-            LOGGER.warn("retry to do heartbeat for the " + errorCount + " times");
++            LOGGER.warn("retry to do heartbeat for the " + errorCount.incrementAndGet() + " times");
+             heartbeat(); // error count not enough, heart beat again
+             recordErrorCount();
+             return true;
+@@ -157,8 +158,8 @@
+         startErrorTime.compareAndSet(-1, System.currentTimeMillis());
+         Map<String, String> labels = AlertUtil.genSingleLabel("dbInstance", this.source.getDbGroupConfig().getName() + "-" + this.source.getConfig().getInstanceName());
+         AlertUtil.alert(AlarmCode.HEARTBEAT_FAIL, Alert.AlertLevel.WARN, "heartbeat status:" + this.status, "mysql", this.source.getConfig().getId(), labels);
+-        if (errorRetryCount > 0 && ++errorCount <= errorRetryCount) {
+-            LOGGER.warn("retry to do heartbeat for the " + errorCount + " times");
++        if (errorRetryCount > 0 && errorCount.get() < errorRetryCount) {
++            LOGGER.warn("retry to do heartbeat for the " + errorCount.incrementAndGet() + " times");
+             heartbeat(); // error count not enough, heart beat again
+             recordErrorCount();
+         }
+@@ -190,7 +191,7 @@
+         switch (status) {
+             case TIMEOUT_STATUS:
+                 this.status = INIT_STATUS;
+-                this.errorCount = 0;
++                this.errorCount.set(0);
+                 this.startErrorTime.set(-1);
+                 if (isStop) {
+                     detector.quit();
+@@ -202,7 +203,7 @@
+                 break;
+             default:
+                 this.status = OK_STATUS;
+-                this.errorCount = 0;
++                this.errorCount.set(0);
+                 this.startErrorTime.set(-1);
+                 Map<String, String> labels = AlertUtil.genSingleLabel("dbInstance", this.source.getDbGroupConfig().getName() + "-" + this.source.getConfig().getInstanceName());
+                 AlertUtil.alertResolve(AlarmCode.HEARTBEAT_FAIL, Alert.AlertLevel.WARN, "mysql", this.source.getConfig().getId(), labels);
+@@ -274,7 +275,7 @@
+     }
+ 
+     public int getErrorCount() {
+-        return errorCount;
++        return errorCount.get();
+     }
+ 
+     public HeartbeatRecorder getRecorder() {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/backend/mysql/nio/handler/util/HandlerTool.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/backend/mysql/nio/handler/util/HandlerTool.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/backend/mysql/nio/handler/util/HandlerTool.java	2024-09-08 01:36:10.365782337 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/backend/mysql/nio/handler/util/HandlerTool.java	2024-09-08 01:36:10.285781777 +1000
+@@ -103,6 +103,7 @@
+         ret.fixFields();
+         return ret;
+     }
++
+     /**
+      * create Item, the Item value referenced by field and changed by field changes
+      *
+@@ -249,6 +250,7 @@
+             args.add(newArg);
+         }
+         ItemFunc ret = (ItemFunc) f.reStruct(args, allPushDown, fields);
++        ret.setCharsetIndex(f.getCharsetIndex());
+         ret.setItemName(f.getPushDownName() == null ? f.getItemName() : f.getPushDownName());
+         return ret;
+     }
+@@ -293,7 +295,7 @@
+         int index = findField(col, fields, startIndex);
+         if (index < 0)
+             throw new MySQLOutPutException(ErrorCode.ER_QUERYHANDLER, "", "field not found:" + col);
+-        ItemField ret = new ItemField(fields.get(index), col.getCharsetIndex());
++        ItemField ret = new ItemField(fields.get(index));
+         ret.setItemName(col.getPushDownName() == null ? col.getItemName() : col.getPushDownName());
+         return ret;
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/config/ConfigInitializer.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/config/ConfigInitializer.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/config/ConfigInitializer.java	2024-09-08 01:36:10.369782365 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/config/ConfigInitializer.java	2024-09-08 01:36:10.289781805 +1000
+@@ -53,24 +53,33 @@
+     public ConfigInitializer(boolean lowerCaseNames) {
+         TraceManager.TraceObject traceObject = TraceManager.threadTrace("load-config-file");
+         try {
++            //load user.xml
++            XMLUserLoader userLoader = new XMLUserLoader(null, this);
++            this.users = userLoader.getUsers();
++            this.blacklistConfig = userLoader.getBlacklistConfig();
++
+             //load db.xml
+             XMLDbLoader dbLoader = new XMLDbLoader(null, this);
+             this.dbGroups = dbLoader.getDbGroups();
+ 
+-            //load sharding.xml
+-            XMLShardingLoader shardingLoader = new XMLShardingLoader(lowerCaseNames, this);
+-            this.schemas = shardingLoader.getSchemas();
+-            this.erRelations = shardingLoader.getErRelations();
+-            this.shardingNodes = initShardingNodes(shardingLoader.getShardingNode());
+-            this.functions = shardingLoader.getFunctions();
++            if (userLoader.isContainsShardingUser()) {
++                //load sharding.xml
++                XMLShardingLoader shardingLoader = new XMLShardingLoader(lowerCaseNames, this);
++                this.schemas = shardingLoader.getSchemas();
++                this.erRelations = shardingLoader.getErRelations();
++                this.shardingNodes = initShardingNodes(shardingLoader.getShardingNode());
++                this.functions = shardingLoader.getFunctions();
+ 
+-            //load user.xml
+-            XMLUserLoader userLoader = new XMLUserLoader(null, this);
+-            this.users = userLoader.getUsers();
+-            this.blacklistConfig = userLoader.getBlacklistConfig();
++                deleteUselessShardingNode();
++            } else {
++                this.schemas = Collections.EMPTY_MAP;
++                this.erRelations = Collections.EMPTY_MAP;
++                this.shardingNodes = Collections.EMPTY_MAP;
++                this.functions = Collections.EMPTY_MAP;
++            }
+ 
+-            deleteRedundancyConf();
+-            checkWriteHost();
++            checkRwSplitDbGroup();
++            checkWriteDbInstance();
+         } finally {
+             TraceManager.finishSpan(traceObject);
+         }
+@@ -93,12 +102,16 @@
+         LOGGER.info(problem);
+     }
+ 
+-    private void checkWriteHost() {
++    private void checkWriteDbInstance() {
+         if (this.dbGroups.isEmpty()) {
+             return;
+         }
+         //Mark all dbInstance whether they are fake or not
+         for (PhysicalDbGroup dbGroup : this.dbGroups.values()) {
++            if (dbGroup.isUseless()) {
++                LOGGER.info("dbGroup " + dbGroup.getGroupName() + " is useless,server will create heartbeat,not create pool");
++            }
++
+             for (PhysicalDbInstance dbInstance : dbGroup.getDbInstances(true)) {
+                 if (checkDbInstanceFake(dbInstance)) {
+                     dbInstance.setFakeNode(true);
+@@ -107,12 +120,6 @@
+                 }
+             }
+         }
+-        // if there are dbGroups exists. no empty shardingNodes allowed
+-        for (ShardingNode shardingNode : this.shardingNodes.values()) {
+-            if (shardingNode.getDbGroup() == null) {
+-                throw new ConfigException("dbGroup not exists " + shardingNode.getDbGroupName());
+-            }
+-        }
+     }
+ 
+     private boolean checkDbInstanceFake(PhysicalDbInstance source) {
+@@ -124,13 +131,11 @@
+         return false;
+     }
+ 
+-    private void deleteRedundancyConf() {
+-        Set<String> allUseShardingNode = new HashSet<>();
+-
++    private void deleteUselessShardingNode() {
+         if (schemas.size() == 0) {
+             errorInfos.add(new ErrorInfo("Xml", "WARNING", "No sharding available"));
+         }
+-
++        Set<String> allUseShardingNode = new HashSet<>();
+         for (SchemaConfig sc : schemas.values()) {
+             // check shardingNode / dbGroup
+             Set<String> shardingNodeNames = sc.getAllShardingNodes();
+@@ -144,15 +149,18 @@
+             allUseShardingNode.addAll(redundancy.getShardingNodes());
+         }
+ 
+-        Set<String> allUseDbGroups = new HashSet<>();
+         //delete redundancy shardingNode
+         Iterator<Map.Entry<String, ShardingNode>> iterator = this.shardingNodes.entrySet().iterator();
++        PhysicalDbGroup shardingNodeGroup;
+         while (iterator.hasNext()) {
+             Map.Entry<String, ShardingNode> entry = iterator.next();
+             String shardingNodeName = entry.getKey();
+             if (allUseShardingNode.contains(shardingNodeName)) {
+-                if (entry.getValue().getDbGroup() != null) {
+-                    allUseDbGroups.add(entry.getValue().getDbGroup().getGroupName());
++                shardingNodeGroup = entry.getValue().getDbGroup();
++                if (shardingNodeGroup != null) {
++                    shardingNodeGroup.setUseless(false);
++                } else {
++                    throw new ConfigException("dbGroup not exists " + entry.getValue().getDbGroupName());
+                 }
+             } else {
+                 LOGGER.info("shardingNode " + shardingNodeName + " is useless,server will ignore it");
+@@ -160,37 +168,25 @@
+                 iterator.remove();
+             }
+         }
+-        allUseShardingNode.clear();
++    }
+ 
++    private void checkRwSplitDbGroup() {
+         // include rwSplit dbGroup
+         RwSplitUserConfig rwSplitUserConfig;
+-        HashSet<String> rwGroups = new HashSet<>();
++        PhysicalDbGroup group;
+         for (UserConfig config : this.users.values()) {
+             if (config instanceof RwSplitUserConfig) {
+                 rwSplitUserConfig = (RwSplitUserConfig) config;
+-                String group = rwSplitUserConfig.getDbGroup();
+-                if (!this.dbGroups.containsKey(group)) {
+-                    throw new ConfigException("The user's group[" + rwSplitUserConfig.getName() + "." + group + "] for rwSplit isn't configured in db.xml.");
+-                }
+-                if (allUseDbGroups.contains(group)) {
+-                    throw new ConfigException("The group[" + rwSplitUserConfig.getName() + "." + group + "] has been used by sharding node, can't be used by rwSplit.");
++                group = this.dbGroups.get(rwSplitUserConfig.getDbGroup());
++                if (group == null) {
++                    throw new ConfigException("The user's group[" + rwSplitUserConfig.getName() + "." + rwSplitUserConfig.getDbGroup() + "] for rwSplit isn't configured in db.xml.");
++                } else if (!group.isUseless()) {
++                    throw new ConfigException("The group[" + rwSplitUserConfig.getName() + "." + rwSplitUserConfig.getDbGroup() + "] has been used by sharding node, can't be used by rwSplit.");
+                 } else {
+-                    rwGroups.add(group);
++                    group.setUseless(false);
+                 }
+             }
+         }
+-        allUseDbGroups.addAll(rwGroups);
+-
+-        //mark useless db_group: have heartbeat/ have not pool init
+-        for (Map.Entry<String, PhysicalDbGroup> dbGroupEntry : this.dbGroups.entrySet()) {
+-            dbGroupEntry.getValue().setUseless(false);
+-            if (allUseDbGroups.size() < this.dbGroups.size() && !allUseDbGroups.contains(dbGroupEntry.getKey())) {
+-                LOGGER.info("dbGroup " + dbGroupEntry.getKey() + " is useless,server will create heartbeat,not create pool");
+-                errorInfos.add(new ErrorInfo("Xml", "WARNING", "dbGroup " + dbGroupEntry.getKey() + " is useless"));
+-                dbGroupEntry.getValue().setUseless(true);
+-            }
+-        }
+-        allUseDbGroups.clear();
+     }
+ 
+     public void testConnection() {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/config/loader/xml/XMLUserLoader.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/config/loader/xml/XMLUserLoader.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/config/loader/xml/XMLUserLoader.java	2024-09-08 01:36:10.369782365 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/config/loader/xml/XMLUserLoader.java	2024-09-08 01:36:10.289781805 +1000
+@@ -28,11 +28,10 @@
+ import java.sql.SQLException;
+ import java.util.*;
+ import java.util.concurrent.atomic.AtomicInteger;
++import java.util.regex.Pattern;
+ 
+ import static com.actiontech.dble.services.manager.information.tables.DbleRwSplitEntry.*;
+ 
+-import java.util.regex.Pattern;
+-
+ public class XMLUserLoader {
+     public static final String TYPE_MANAGER_USER = "managerUser";
+     public static final String TYPE_SHARDING_USER = "shardingUser";
+@@ -46,6 +45,8 @@
+     private AtomicInteger userId = new AtomicInteger(0);
+     private static final Pattern DML_PATTERN = Pattern.compile("^[0|1]{4}$");
+     private Document document;
++    // whether db.xml contains shardingUser
++    private boolean containsShardingUser;
+ 
+     public XMLUserLoader() {
+         this.users = Maps.newHashMap();
+@@ -136,10 +137,14 @@
+         }
+     }
+ 
+-
+     private void loadManagerUser(Element root, String xmlFile) {
+         NodeList list = root.getElementsByTagName(TYPE_MANAGER_USER);
+-        for (int i = 0, n = list.getLength(); i < n; i++) {
++        int size = list.getLength();
++        if (size == 0) {
++            return;
++        }
++
++        for (int i = 0; i < size; i++) {
+             Node node = list.item(i);
+             if (node instanceof Element) {
+                 Element element = (Element) node;
+@@ -164,7 +169,13 @@
+ 
+     private void loadShardingUser(Element root, String xmlFile, Map<String, WallProvider> blackListMap) {
+         NodeList list = root.getElementsByTagName(TYPE_SHARDING_USER);
+-        for (int i = 0, n = list.getLength(); i < n; i++) {
++        int size = list.getLength();
++        if (size == 0) {
++            return;
++        }
++
++        this.containsShardingUser = true;
++        for (int i = 0; i < size; i++) {
+             Node node = list.item(i);
+             if (node instanceof Element) {
+                 Element element = (Element) node;
+@@ -210,7 +221,11 @@
+ 
+     private void loadRwSplitUser(Element root, String xmlFile, Map<String, WallProvider> blackListMap) {
+         NodeList list = root.getElementsByTagName(TYPE_RWSPLIT_USER);
+-        for (int i = 0, n = list.getLength(); i < n; i++) {
++        int size = list.getLength();
++        if (size == 0) {
++            return;
++        }
++        for (int i = 0; i < size; i++) {
+             Node node = list.item(i);
+             if (node instanceof Element) {
+                 Element element = (Element) node;
+@@ -497,4 +512,9 @@
+         }
+         return privilegesConfig;
+     }
++
++    public boolean isContainsShardingUser() {
++        return containsShardingUser;
++    }
++
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/config/ServerConfig.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/config/ServerConfig.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/config/ServerConfig.java	2024-09-08 01:36:10.369782365 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/config/ServerConfig.java	2024-09-08 01:36:10.289781805 +1000
+@@ -64,10 +64,12 @@
+         //read sharding.xml,db.xml and user.xml
+         confInitNew = new ConfigInitializer(false);
+         this.users = confInitNew.getUsers();
+-        this.schemas = confInitNew.getSchemas();
+         this.dbGroups = confInitNew.getDbGroups();
++
++        this.schemas = confInitNew.getSchemas();
+         this.shardingNodes = confInitNew.getShardingNodes();
+         this.erRelations = confInitNew.getErRelations();
++        this.functions = confInitNew.getFunctions();
+         this.fullyConfigured = confInitNew.isFullyConfigured();
+         ConfigUtil.setSchemasForPool(dbGroups, shardingNodes);
+ 
+@@ -75,17 +77,17 @@
+ 
+         this.lock = new ReentrantReadWriteLock();
+         this.blacklistConfig = confInitNew.getBlacklistConfig();
+-        this.functions = confInitNew.getFunctions();
+     }
+ 
+ 
+     public ServerConfig(ConfigInitializer confInit) {
+         //read sharding.xml,db.xml and user.xml
+         this.users = confInit.getUsers();
+-        this.schemas = confInit.getSchemas();
+         this.dbGroups = confInit.getDbGroups();
++        this.schemas = confInit.getSchemas();
+         this.shardingNodes = confInit.getShardingNodes();
+         this.erRelations = confInit.getErRelations();
++        this.functions = confInit.getFunctions();
+         this.fullyConfigured = confInit.isFullyConfigured();
+         ConfigUtil.setSchemasForPool(dbGroups, shardingNodes);
+ 
+@@ -93,7 +95,6 @@
+ 
+         this.lock = new ReentrantReadWriteLock();
+         this.blacklistConfig = confInit.getBlacklistConfig();
+-        this.functions = confInit.getFunctions();
+     }
+ 
+     private void waitIfChanging() {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/config/Versions.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/config/Versions.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/config/Versions.java	2024-09-08 01:36:10.369782365 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/config/Versions.java	2024-09-08 01:36:10.289781805 +1000
+@@ -14,7 +14,7 @@
+ 
+     public static final byte PROTOCOL_VERSION = 10;
+ 
+-    private static byte[] serverVersion = "5.6.29-dble-3.20.10.99-6304e99cf687081680b6bf291800c1f279b22b8b-20240827175136".getBytes();
++    private static byte[] serverVersion = "5.6.29-dble-3.20.10.99-2a13f54c867840e6b8108b50982386e8572ec1d2-20240827175451".getBytes();
+     public static final byte[] VERSION_COMMENT = "dble Server (ActionTech)".getBytes();
+     public static final String ANNOTATION_NAME = "dble:";
+     public static final String ROOT_PREFIX = "dble";
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/net/connection/FrontendConnection.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/net/connection/FrontendConnection.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/net/connection/FrontendConnection.java	2024-09-08 01:36:10.373782394 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/net/connection/FrontendConnection.java	2024-09-08 01:36:10.293781833 +1000
+@@ -1,6 +1,6 @@
+ package com.actiontech.dble.net.connection;
+ 
+-import com.actiontech.dble.config.model.db.PoolConfig;
++import com.actiontech.dble.config.model.SystemConfig;
+ import com.actiontech.dble.net.IOProcessor;
+ import com.actiontech.dble.net.SocketWR;
+ import com.actiontech.dble.net.service.AbstractService;
+@@ -22,16 +22,16 @@
+ public class FrontendConnection extends AbstractConnection {
+ 
+     private static final long AUTH_TIMEOUT = 15 * 1000L;
+-    private final boolean isManager;
+ 
+-    protected final long idleTimeout = PoolConfig.DEFAULT_IDLE_TIMEOUT;
+-    private AtomicBoolean isCleanUp = new AtomicBoolean(false);
++    private final boolean isManager;
++    private final long idleTimeout;
++    private final AtomicBoolean isCleanUp;
+ 
+     public FrontendConnection(NetworkChannel channel, SocketWR socketWR, boolean isManager) throws IOException {
+         super(channel, socketWR);
+         this.isManager = isManager;
+         InetSocketAddress localAddress = (InetSocketAddress) channel.getLocalAddress();
+-        InetSocketAddress remoteAddress = null;
++        InetSocketAddress remoteAddress;
+         if (channel instanceof SocketChannel) {
+             remoteAddress = (InetSocketAddress) ((SocketChannel) channel).getRemoteAddress();
+         } else if (channel instanceof AsynchronousSocketChannel) {
+@@ -42,6 +42,8 @@
+         this.host = remoteAddress.getHostString();
+         this.port = localAddress.getPort();
+         this.localPort = remoteAddress.getPort();
++        this.idleTimeout = SystemConfig.getInstance().getIdleTimeout();
++        this.isCleanUp = new AtomicBoolean(false);
+     }
+ 
+     @Override
+@@ -83,7 +85,6 @@
+         }
+     }
+ 
+-
+     public boolean isManager() {
+         return isManager;
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/plan/common/field/FieldUtil.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/plan/common/field/FieldUtil.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/plan/common/field/FieldUtil.java	2024-09-08 01:36:10.373782394 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/plan/common/field/FieldUtil.java	2024-09-08 01:36:10.297781861 +1000
+@@ -5,6 +5,7 @@
+ 
+ package com.actiontech.dble.plan.common.field;
+ 
++import com.actiontech.dble.config.Fields;
+ import com.actiontech.dble.plan.common.item.FieldTypes;
+ 
+ import java.util.List;
+@@ -149,7 +150,7 @@
+             return FieldTypes.MYSQL_TYPE_TIMESTAMP;
+         } else if (realType == FieldTypes.MYSQL_TYPE_NEWDATE) {
+             return FieldTypes.MYSQL_TYPE_DATE;
+-        /* Note: NEWDECIMAL is a type, not only a real_type */
++            /* Note: NEWDECIMAL is a type, not only a real_type */
+         } else {
+             return realType;
+         }
+@@ -1430,6 +1431,16 @@
+             },
+     };
+ 
++    public static boolean isBinaryType(int dataType) {
++        return dataType == Fields.FIELD_TYPE_MEDIUM_BLOB || dataType == Fields.FIELD_TYPE_BLOB || dataType == Fields.FIELD_TYPE_LONG_BLOB ||
++                dataType == Fields.FIELD_TYPE_TINY_BLOB;
++    }
++
++    public static boolean isNumberType(int dataType) {
++        return dataType == Fields.FIELD_TYPE_LONG || dataType == Fields.FIELD_TYPE_LONGLONG || dataType == Fields.FIELD_TYPE_TINY ||
++                dataType == Fields.FIELD_TYPE_SHORT || dataType == Fields.FIELD_TYPE_BIT || dataType == Fields.FIELD_TYPE_NEW_DECIMAL ||
++                dataType == Fields.FIELD_TYPE_FLOAT || dataType == Fields.FIELD_TYPE_DOUBLE;
++    }
+ 
+     public static boolean isNumberType(String dataType) {
+         if (dataType == null) return false;
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/plan/common/item/ItemField.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/plan/common/item/ItemField.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/plan/common/item/ItemField.java	2024-09-08 01:36:10.373782394 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/plan/common/item/ItemField.java	2024-09-08 01:36:10.297781861 +1000
+@@ -49,17 +49,12 @@
+         setField(field);
+     }
+ 
+-    public ItemField(Field field, int charsetIndex) {
+-        this(field);
+-        this.charsetIndex = charsetIndex;
+-    }
+-
+     /**
+      * save index
+      *
+      * @param index
+      */
+-    public ItemField(int index, int charsetIndex) {
++    public ItemField(int index) {
+         super(null, "", "");
+         this.index = index;
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/plan/NamedField.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/plan/NamedField.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/plan/NamedField.java	2024-09-08 01:36:10.373782394 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/plan/NamedField.java	2024-09-08 01:36:10.297781861 +1000
+@@ -16,6 +16,7 @@
+     private final int hashCode;
+     // which node of the field belong
+     public final PlanNode planNode;
++    private int charsetIndex;
+ 
+     public NamedField(String inputSchema, String inputTable, String name, PlanNode planNode) {
+         String tempTableSchmea;
+@@ -57,6 +58,14 @@
+         return name;
+     }
+ 
++    public int getCharsetIndex() {
++        return charsetIndex;
++    }
++
++    public void setCharsetIndex(int charsetIndex) {
++        this.charsetIndex = charsetIndex;
++    }
++
+     @Override
+     public boolean equals(Object obj) {
+         if (obj == null)
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/plan/node/PlanNode.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/plan/node/PlanNode.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/plan/node/PlanNode.java	2024-09-08 01:36:10.377782421 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/plan/node/PlanNode.java	2024-09-08 01:36:10.301781889 +1000
+@@ -266,6 +266,7 @@
+         for (Item selected : this.getColumnsSelected()) {
+             Item copySel = selected.cloneItem();
+             copySel.setItemName(selected.getItemName());
++            copySel.setCharsetIndex(selected.getCharsetIndex());
+             to.columnsSelected.add(copySel);
+         }
+         for (Order groupBy : this.getGroupBys()) {
+@@ -300,6 +301,7 @@
+                 String tmpFieldTable = child.getAlias() == null ? coutField.getTable() : child.getAlias();
+                 String tmpFieldName = coutField.getName();
+                 NamedField tmpField = new NamedField(tmpFieldSchema, tmpFieldTable, tmpFieldName, coutField.planNode);
++                tmpField.setCharsetIndex(coutField.getCharsetIndex());
+                 if (innerFields.containsKey(tmpField) && getParent() != null)
+                     throw new MySQLOutPutException(ErrorCode.ER_DUP_FIELDNAME, "42S21", "Duplicate column name '" + tmpFieldName + "'");
+                 innerFields.put(tmpField, coutField);
+@@ -408,7 +410,7 @@
+ 
+     protected void dealSingleStarColumn(List<Item> newSels) {
+         for (NamedField field : innerFields.keySet()) {
+-            ItemField col = new ItemField(field.getSchema(), field.getTable(), field.getName());
++            ItemField col = new ItemField(field.getSchema(), field.getTable(), field.getName(), field.getCharsetIndex());
+             newSels.add(col);
+         }
+     }
+@@ -425,7 +427,7 @@
+                     boolean found = false;
+                     for (NamedField field : innerFields.keySet()) {
+                         if (selTable.equals(field.getTable())) {
+-                            ItemField col = new ItemField(field.getSchema(), field.getTable(), field.getName());
++                            ItemField col = new ItemField(field.getSchema(), field.getTable(), field.getName(), field.getCharsetIndex());
+                             newSels.add(col);
+                             found = true;
+                         } else if (found) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/plan/node/TableNode.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/plan/node/TableNode.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/plan/node/TableNode.java	2024-09-08 01:36:10.377782421 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/plan/node/TableNode.java	2024-09-08 01:36:10.301781889 +1000
+@@ -36,6 +36,7 @@
+     private TableMeta tableMeta;
+     private List<String> columns;
+     private List<SQLHint> hintList;
++    private int charsetIndex = 63;
+ 
+     private TableNode() {
+     }
+@@ -61,9 +62,10 @@
+         this.keepFieldSchema = true;
+     }
+ 
+-    public TableNode(String catalog, String tableName, ProxyMetaManager metaManager) throws SQLNonTransientException {
++    public TableNode(String catalog, String tableName, ProxyMetaManager metaManager, int charsetIndex) throws SQLNonTransientException {
+         if (catalog == null || tableName == null)
+             throw new RuntimeException("Table db or name is null error!");
++        this.charsetIndex = charsetIndex;
+         this.schema = catalog;
+         this.tableName = tableName;
+         ServerConfig config = DbleServer.getInstance().getConfig();
+@@ -121,11 +123,13 @@
+         if (tableMeta != null) {
+             for (ColumnMeta cm : tableMeta.getColumns()) {
+                 NamedField tmpField = new NamedField(schema, tmpTable, cm.getName(), this);
++                tmpField.setCharsetIndex(charsetIndex);
+                 innerFields.put(tmpField, tmpField);
+             }
+         } else {
+             for (String col : columns) {
+                 NamedField tmpField = new NamedField(schema, tmpTable, col, this);
++                tmpField.setCharsetIndex(charsetIndex);
+                 innerFields.put(tmpField, tmpField);
+             }
+         }
+@@ -159,7 +163,7 @@
+                 newSelects.add(sel);
+             else {
+                 for (NamedField innerField : innerFields.keySet()) {
+-                    ItemField col = new ItemField(null, sel.getTableName(), innerField.getName());
++                    ItemField col = new ItemField(null, sel.getTableName(), innerField.getName(), charsetIndex);
+                     newSelects.add(col);
+                 }
+             }
+@@ -232,4 +236,11 @@
+         this.hintList = hintList;
+     }
+ 
++    public int getCharsetIndex() {
++        return charsetIndex;
++    }
++
++    public void setCharsetIndex(int charsetIndex) {
++        this.charsetIndex = charsetIndex;
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/plan/visitor/MySQLPlanNodeVisitor.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/plan/visitor/MySQLPlanNodeVisitor.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/plan/visitor/MySQLPlanNodeVisitor.java	2024-09-08 01:36:10.377782421 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/plan/visitor/MySQLPlanNodeVisitor.java	2024-09-08 01:36:10.305781917 +1000
+@@ -222,7 +222,7 @@
+                 return true;
+             } else {
+                 try {
+-                    table = new TableNode(schema, tableName, this.metaManager);
++                    table = new TableNode(schema, tableName, this.metaManager, charsetIndex);
+                 } catch (SQLNonTransientException e) {
+                     throw new MySQLOutPutException(e.getErrorCode(), e.getSQLState(), e.getMessage());
+                 }
+@@ -374,6 +374,7 @@
+             MySQLItemVisitor ev = new MySQLItemVisitor(currentDb, this.charsetIndex, this.metaManager, this.usrVariables);
+             expr.accept(ev);
+             Item selItem = ev.getItem();
++            selItem.setCharsetIndex(charsetIndex);
+             if (selItem.isWithSubQuery()) {
+                 setSubQueryNode(selItem);
+             }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/rwsplit/RWSplitNonBlockingSession.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/rwsplit/RWSplitNonBlockingSession.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/rwsplit/RWSplitNonBlockingSession.java	2024-09-08 01:36:10.381782449 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/rwsplit/RWSplitNonBlockingSession.java	2024-09-08 01:36:10.305781917 +1000
+@@ -28,11 +28,11 @@
+         this.rwSplitService = service;
+     }
+ 
+-    public void execute(boolean master, Callback callback) {
++    public void execute(Boolean master, Callback callback) {
+         execute(master, null, callback);
+     }
+ 
+-    public void execute(boolean master, byte[] originPacket, Callback callback) {
++    public void execute(Boolean master, byte[] originPacket, Callback callback) {
+         try {
+             RWSplitHandler handler = new RWSplitHandler(rwSplitService, originPacket, callback);
+             if (conn != null && !conn.isClosed()) {
+@@ -44,7 +44,7 @@
+                 return;
+             }
+ 
+-            PhysicalDbInstance instance = rwGroup.select(master);
++            PhysicalDbInstance instance = rwGroup.select(canRunOnMaster(master));
+             checkDest(!instance.isReadInstance());
+             instance.getConnection(rwSplitService.getSchema(), handler, null, false);
+         } catch (IOException e) {
+@@ -55,6 +55,13 @@
+         }
+     }
+ 
++    private Boolean canRunOnMaster(Boolean master) {
++        if (!rwSplitService.isAutocommit() || rwSplitService.isTxStart()) {
++            return true;
++        }
++        return master;
++    }
++
+     private void checkDest(boolean isMaster) throws SQLSyntaxErrorException {
+         String dest = rwSplitService.getExpectedDest();
+         if (dest == null) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/server/handler/SetHandler.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/server/handler/SetHandler.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/server/handler/SetHandler.java	2024-09-08 01:36:10.381782449 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/server/handler/SetHandler.java	2024-09-08 01:36:10.309781945 +1000
+@@ -126,9 +126,9 @@
+             throw new SQLSyntaxErrorException("setting GLOBAL value is not supported");
+         } else if (setStatement.getAccessModel() != null) {
+             if (setStatement.getAccessModel().equals("ONLY")) {
+-                item = newSetItem(VersionUtil.TX_READ_ONLY, new SQLBooleanExpr(true));
++                item = newSetItem(VersionUtil.TX_READ_ONLY, new SQLIntegerExpr(1));
+             } else {
+-                item = newSetItem(VersionUtil.TX_READ_ONLY, new SQLBooleanExpr(false));
++                item = newSetItem(VersionUtil.TX_READ_ONLY, new SQLIntegerExpr(0));
+             }
+         } else {
+             item = newSetItem(VersionUtil.TRANSACTION_ISOLATION, new SQLCharExpr(setStatement.getIsolationLevel()));
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/server/parser/ServerParse.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/server/parser/ServerParse.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/server/parser/ServerParse.java	2024-09-08 01:36:10.381782449 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/server/parser/ServerParse.java	2024-09-08 01:36:10.309781945 +1000
+@@ -1058,7 +1058,8 @@
+ 
+     // ROLLBACK
+     protected static int rollbackCheck(String stmt, int offset) {
+-        if (stmt.length() > offset + 6) {
++        int len = stmt.length();
++        if (len > offset + 6) {
+             char c1 = stmt.charAt(++offset);
+             char c2 = stmt.charAt(++offset);
+             char c3 = stmt.charAt(++offset);
+@@ -1068,10 +1069,41 @@
+             if ((c1 == 'L' || c1 == 'l') && (c2 == 'L' || c2 == 'l') &&
+                     (c3 == 'B' || c3 == 'b') && (c4 == 'A' || c4 == 'a') &&
+                     (c5 == 'C' || c5 == 'c') && (c6 == 'K' || c6 == 'k')) {
++                char tmp;
++                while (len > ++offset) {
++                    tmp = stmt.charAt(offset);
++                    if (ParseUtil.isSpace(tmp)) {
++                        continue;
++                    }
++                    switch (tmp) {
++                        case '/':
++                            offset = ParseUtil.comment(stmt, offset);
++                            break;
++                        case 't':
++                        case 'T':
++                            return ROLLBACK_SAVEPOINT;
++                        case 'w':
++                        case 'W':
++                            return rollbackWorkCheck(stmt, offset);
++                        default:
++                            break;
++                    }
++                }
++                return ROLLBACK;
++            }
++        }
++        return OTHER;
++    }
++
++    protected static int rollbackWorkCheck(String stmt, int offset) {
++        if (stmt.length() > offset + 3) {
++            char c1 = stmt.charAt(++offset);
++            char c2 = stmt.charAt(++offset);
++            char c3 = stmt.charAt(++offset);
++            if ((c1 == 'O' || c1 == 'o') && (c2 == 'R' || c2 == 'r') &&
++                    (c3 == 'K' || c3 == 'k')) {
+                 if (stmt.length() == ++offset || ParseUtil.isEOF(stmt, offset) || ParseUtil.isMultiEof(stmt, offset)) {
+                     return ROLLBACK;
+-                } else {
+-                    return ROLLBACK_SAVEPOINT;
+                 }
+             }
+         }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/server/util/SetItemUtil.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/server/util/SetItemUtil.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/server/util/SetItemUtil.java	2024-09-08 01:36:10.381782449 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/server/util/SetItemUtil.java	2024-09-08 01:36:10.309781945 +1000
+@@ -55,10 +55,16 @@
+     }
+ 
+     public static String getCharsetClientVal(SQLExpr valueExpr) throws SQLSyntaxErrorException {
++        if (valueExpr instanceof SQLVariantRefExpr) {
++            return valueExpr.toString();
++        }
++
+         String charsetClient = parseStringValue(valueExpr);
+         if (charsetClient == null || charsetClient.equalsIgnoreCase("null")) {
+             throw new SQLSyntaxErrorException("Variable 'character_set_client' can't be set to the value of 'NULL'");
+-        } else if (checkCharset(charsetClient)) {
++        }
++
++        if (checkCharset(charsetClient)) {
+             if (!CharsetUtil.checkCharsetClient(charsetClient)) {
+                 throw new SQLSyntaxErrorException("Variable 'character_set_client' can't be set to the value of '" + charsetClient + "'");
+             }
+@@ -194,10 +200,12 @@
+         } else if (valueExpr instanceof SQLIntegerExpr) {
+             SQLIntegerExpr value = (SQLIntegerExpr) valueExpr;
+             strValue = value.getNumber().toString();
+-        } else if (valueExpr instanceof SQLDefaultExpr || valueExpr instanceof SQLNullExpr) {
++        } else if (valueExpr instanceof SQLDefaultExpr || valueExpr instanceof SQLNullExpr ||
++                valueExpr instanceof SQLVariantRefExpr) {
+             strValue = valueExpr.toString();
+         } else if (valueExpr instanceof SQLBooleanExpr) {
+-            strValue = valueExpr.toString();
++            // SQLBooleanExpr toString is xFalse
++            strValue = valueExpr.toString().substring(1);
+         }
+         return strValue;
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/services/rwsplit/RWSplitQueryHandler.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/services/rwsplit/RWSplitQueryHandler.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/services/rwsplit/RWSplitQueryHandler.java	2024-09-08 01:36:10.385782477 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/services/rwsplit/RWSplitQueryHandler.java	2024-09-08 01:36:10.317782001 +1000
+@@ -46,7 +46,7 @@
+                         break;
+                     case RwSplitServerParse.SHOW:
+                     case RwSplitServerParse.SELECT:
+-                        session.execute(false, null);
++                        session.execute(null, null);
+                         break;
+                     case RwSplitServerParse.SET:
+                         SetHandler.handle(sql, session.getService(), rs >>> 8);
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/services/rwsplit/RWSplitService.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/services/rwsplit/RWSplitService.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/services/rwsplit/RWSplitService.java	2024-09-08 01:36:10.385782477 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/services/rwsplit/RWSplitService.java	2024-09-08 01:36:10.317782001 +1000
+@@ -193,7 +193,7 @@
+             int sqlType = rs & 0xff;
+             switch (sqlType) {
+                 case ServerParse.SELECT:
+-                    session.execute(false, data, null);
++                    session.execute(null, data, null);
+                     break;
+                 default:
+                     session.execute(true, data, null);
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/sqlengine/SetTestJob.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/sqlengine/SetTestJob.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/actiontech/dble/sqlengine/SetTestJob.java	2024-09-08 01:36:10.385782477 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/actiontech/dble/sqlengine/SetTestJob.java	2024-09-08 01:36:10.317782001 +1000
+@@ -10,18 +10,19 @@
+ import com.actiontech.dble.backend.mysql.nio.handler.ResetConnHandler;
+ import com.actiontech.dble.backend.mysql.nio.handler.ResponseHandler;
+ import com.actiontech.dble.config.ErrorCode;
+-import com.actiontech.dble.config.Fields;
+ import com.actiontech.dble.net.connection.BackendConnection;
+ import com.actiontech.dble.net.mysql.ErrorPacket;
+ import com.actiontech.dble.net.mysql.FieldPacket;
+ import com.actiontech.dble.net.mysql.ResetConnectionPacket;
+ import com.actiontech.dble.net.mysql.RowDataPacket;
+ import com.actiontech.dble.net.service.AbstractService;
++import com.actiontech.dble.plan.common.field.FieldUtil;
+ import com.actiontech.dble.server.variables.MysqlVariable;
+ import com.actiontech.dble.services.BusinessService;
+ import com.actiontech.dble.services.mysqlsharding.MySQLResponseService;
+ import com.actiontech.dble.services.mysqlsharding.ShardingService;
+ import com.actiontech.dble.services.rwsplit.RWSplitService;
++import com.actiontech.dble.util.HexFormatUtil;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ 
+@@ -165,14 +166,17 @@
+     public boolean rowResponse(byte[] row, RowDataPacket rowPacket, boolean isLeft, AbstractService service) {
+         RowDataPacket rowDataPk = new RowDataPacket(fieldPackets.size());
+         rowDataPk.read(row);
++
++        FieldPacket fieldPacket;
+         for (int i = 0; i < userVariableSize; i++) {
+             if (rowDataPk.getValue(i) == null) {
+                 continue;
+             }
+-            int type = fieldPackets.get(i).getType();
+-            if (type == Fields.FIELD_TYPE_LONG || type == Fields.FIELD_TYPE_LONGLONG || type == Fields.FIELD_TYPE_NEW_DECIMAL ||
+-                    type == Fields.FIELD_TYPE_FLOAT | type == Fields.FIELD_TYPE_DOUBLE) {
++            fieldPacket = fieldPackets.get(i);
++            if (FieldUtil.isNumberType(fieldPacket.getType())) {
+                 setItems[i].setValue(new String(rowDataPk.getValue(i)));
++            } else if (FieldUtil.isBinaryType(fieldPacket.getType()) && (fieldPacket.getFlags() & FieldUtil.BINARY_FLAG) != 0) {
++                setItems[i].setValue("0x" + HexFormatUtil.bytesToHexString(rowDataPk.getValue(i)));
+             } else {
+                 setItems[i].setValue("'" + new String(rowDataPk.getValue(i)) + "'");
+             }

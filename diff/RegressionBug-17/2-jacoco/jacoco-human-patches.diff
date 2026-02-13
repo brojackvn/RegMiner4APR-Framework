@@ -1,0 +1,17 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/pom.xml ./RegMiner4APR-Regression-Bugs/BFC/pom.xml
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/pom.xml	2024-09-22 12:59:38.155950233 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/pom.xml	2024-09-22 12:59:37.999948547 +1000
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/JSONPath.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/JSONPath.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/JSONPath.java	2024-09-22 12:59:38.155950233 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/JSONPath.java	2024-09-22 12:59:38.003948591 +1000
+@@ -3301,6 +3301,10 @@
+             return null;
+         }
+ 
++        if (index == 0) {
++            return currentObject;
++        }
+
+         throw new UnsupportedOperationException();
+     }
+ 

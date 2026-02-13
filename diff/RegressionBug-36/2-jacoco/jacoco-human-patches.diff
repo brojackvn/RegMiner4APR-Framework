@@ -1,0 +1,30 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java	2024-09-08 01:36:15.021814946 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java	2024-09-08 01:36:15.001814805 +1000
+@@ -178,7 +178,26 @@
+ 
+ 		sums.keySet().removeAll(toRemove);
+ 
+-		char delimiter = max(sums, totals, suggestedDelimiter);
++		char delimiterMax = max(sums, totals, suggestedDelimiter);
++		char delimiterMin = min(sums, totals, suggestedDelimiter);
+
++		char delimiter;
++		out:
++		if (delimiterMax != delimiterMin) {
++			if (sums.get(delimiterMin) == 0 && sums.get(delimiterMax) != 0) {
++				delimiter = delimiterMin;
++				break out;
++			}
++			if(totals.get(delimiterMin) > totals.get(delimiterMax)){
++				delimiter = delimiterMin;
++				break out;
++			}
++			delimiter = delimiterMax;
++		} else {
++			delimiter = delimiterMax;
++		}
+
+ 		char quote = doubleQuoteCount >= singleQuoteCount ? '"' : '\'';
+ 
+ 		escape.remove(delimiter);

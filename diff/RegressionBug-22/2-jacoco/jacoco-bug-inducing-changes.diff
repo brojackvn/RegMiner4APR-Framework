@@ -1,0 +1,79 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/visitor/SQLASTOutputVisitor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/visitor/SQLASTOutputVisitor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/visitor/SQLASTOutputVisitor.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/visitor/SQLASTOutputVisitor.java
+@@ -53,7 +53,7 @@
+ 
+     protected final Appendable appender;
+     private String indent = "\t";
+-    private int indentCount = 0;
++    protected int indentCount = 0;
+     private boolean prettyFormat = true;
+     protected boolean ucase = true;
+     protected int selectListNumberOfLine = 5;
+@@ -166,11 +166,11 @@
+     }
+ 
+     public void decrementIndent() {
+-        this.indentCount -= 1;
++        this.indentCount--;
+     }
+ 
+     public void incrementIndent() {
+-        this.indentCount += 1;
++        this.indentCount++;
+     }
+ 
+     public boolean isParameterized() {
+@@ -214,9 +214,30 @@
+         }
+     }
+ 
++    public void print(long value) {
++        if (this.appender == null) {
++            return;
++        }
++        if (appender instanceof StringBuilder) {
++            ((StringBuilder) appender).append(value);
++        } else if (appender instanceof StringBuffer) {
++            ((StringBuffer) appender).append(value);
++        } else {
++            print0(Long.toString(value));
++        }
+     }
+ 
+     public void print(Date date) {
+         if (this.appender == null) {
+@@ -957,7 +975,7 @@
+     }
+ 
+     public boolean visit(SQLIntegerExpr x) {
+-        int val = x.getNumber().intValue();
++        long val = x.getNumber().longValue();
+         SQLObject parent = x.getParent();
+ 
+         if (val == 1) {
+@@ -992,7 +1011,8 @@
+             return false;
+         }
+ 
+-        return SQLASTOutputVisitorUtils.visit(this, x);
++        print(val);
++        return false;
+     }
+ 
+     public boolean visit(SQLMethodInvokeExpr x) {
+@@ -1612,7 +1639,14 @@
+             }
+         }
+ 
+-        expr.accept(this);
++        if (expr instanceof SQLIdentifierExpr) {
++            visit((SQLIdentifierExpr) expr);
++        } else if (expr instanceof SQLPropertyExpr) {
++            visit((SQLPropertyExpr) expr);
++        } else {
++            expr.accept(this);
++        }
+     }
+ 
+     public boolean visit(SQLExprTableSource x) {

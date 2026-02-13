@@ -1,0 +1,82 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/deserializer/JavaBeanDeserializer.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/deserializer/JavaBeanDeserializer.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/deserializer/JavaBeanDeserializer.java	2024-09-22 13:08:51.253776185 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/deserializer/JavaBeanDeserializer.java	2024-09-22 13:08:51.109774933 +1000
+@@ -502,6 +503,15 @@
+ 
+                         if (lexer.matchStat > 0) {
+                             matchField = true;
++                            valueParsed = true;
++                        } else if (lexer.matchStat == JSONLexer.NOT_MATCH_NAME) {
++                            continue;
++                        }
++                    } else if (fieldClass == BigInteger.class) {
++                        fieldValue = lexer.scanFieldBigInteger(name_chars);
++                        if (lexer.matchStat > 0) {
++                            matchField = true;
+                             valueParsed = true;
+                         } else if (lexer.matchStat == JSONLexer.NOT_MATCH_NAME) {
+                             continue;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/JSONLexerBase.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/JSONLexerBase.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/JSONLexerBase.java	2024-09-22 13:08:51.249776151 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/JSONLexerBase.java	2024-09-22 13:08:51.105774898 +1000
+@@ -3507,6 +3499,138 @@
++    public BigInteger scanFieldBigInteger(char[] fieldName) {
++        matchStat = UNKNOWN;
+
++        if (!charArrayCompare(fieldName)) {
++            matchStat = NOT_MATCH_NAME;
++            return null;
++        }
+
++        int offset = fieldName.length;
++        char chLocal = charAt(bp + (offset++));
++        final boolean quote = chLocal == '"';
++        if (quote) {
++            chLocal = charAt(bp + (offset++));
++        }
+
++        boolean negative = chLocal == '-';
++        if (negative) {
++            chLocal = charAt(bp + (offset++));
++        }
+
++        BigInteger value;
++        if (chLocal >= '0' && chLocal <= '9') {
++            long intVal = chLocal - '0';
++            for (;;) {
++                chLocal = charAt(bp + (offset++));
++                if (chLocal >= '0' && chLocal <= '9') {
++                    intVal = intVal * 10 + (chLocal - '0');
++                    continue;
++                } else {
++                    break;
++                }
++            }
+
++            int start, count;
++            if (quote) {
++                if (chLocal != '"') {
++                    matchStat = NOT_MATCH;
++                    return null;
++                } else {
++                    chLocal = charAt(bp + (offset++));
++                }
++                start = bp + fieldName.length + 1;
++                count = bp + offset - start - 2;
++            } else {
++                start = bp + fieldName.length;
++                count = bp + offset - start - 1;
++            }
+
++            if (count < 20 || (negative && count < 21)) {
++                value = BigInteger.valueOf(negative ? -intVal : intVal);
++            } else {
++                String strVal = this.subString(start, count);
++                value = new BigInteger(strVal);
++            }
++        } else if (chLocal == 'n' && charAt(bp + offset) == 'u' && charAt(bp + offset + 1) == 'l' && charAt(bp + offset + 2) == 'l') {
++            matchStat = VALUE_NULL;
++            value = null;
+             offset += 3;
+             chLocal = charAt(bp + offset++);
+ 

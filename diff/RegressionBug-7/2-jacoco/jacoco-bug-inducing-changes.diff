@@ -1,0 +1,1106 @@
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator: AviatorEvaluatorInstance.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/AviatorEvaluator.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/AviatorEvaluator.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/AviatorEvaluator.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/AviatorEvaluator.java
+@@ -107,28 +44,72 @@
+   /**
+    * Aviator version
+    */
+-  public static final String VERSION = "2.1.1";
++  public static final String VERSION = "3.0.0";
+ 
+-  public static int BYTECODE_VER = Opcodes.V1_6;
++  @Deprecated
++  public static final Map<String, Object> FUNC_MAP = getInstance().getFuncMap();
+ 
+-  private static OutputStream traceOutputStream = System.out;
++  @Deprecated
++  public static final Map<OperatorType, AviatorFunction> OPS_MAP = getInstance().getOpsMap();
+ 
+-  private static final ConcurrentHashMap<Options, Object> options =
+-      new ConcurrentHashMap<Options, Object>();
+-  private static FunctionMissing functionMissing;
+
++  @Deprecated
++  public static int BYTECODE_VER = getInstance().getBytecodeVersion();
+ 
++  private static class StaticHolder {
++    private static AviatorEvaluatorInstance INSTANCE = new AviatorEvaluatorInstance();
++  }
+
++  public static AviatorEvaluatorInstance getInstance() {
++    return StaticHolder.INSTANCE;
++  }
+
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/BaseExpression.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/BaseExpression.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/BaseExpression.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/BaseExpression.java
+@@ -16,11 +18,12 @@
+   private List<String> varNames;
+   private List<String> varFullNames;
+   private String expression;
++  protected AviatorEvaluatorInstance instance;
+ 
+
+-  public BaseExpression(List<String> varNames) {
++  public BaseExpression(AviatorEvaluatorInstance instance, List<String> varNames) {
+     super();
+     this.varFullNames = varNames;
++    this.instance = instance;
+     LinkedHashSet<String> tmp = new LinkedHashSet<String>(varNames.size());
+     // process nested names
+     for (String name : varNames) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/ClassExpression.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/ClassExpression.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/ClassExpression.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/ClassExpression.java
+@@ -30,10 +33,28 @@
++  public void setLambdaBootstraps(Map<String, LambdaFunctionBootstrap> lambdaBootstraps) {
++    this.lambdaBootstraps = lambdaBootstraps;
+   }
+ 
++  public ClassExpression(AviatorEvaluatorInstance instance, List<String> varNames) {
++    super(instance, varNames);
++  }
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator: ClassPathConfigFunctionLoader.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/code/asm/ASMCodeGenerator.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/code/asm/ASMCodeGenerator.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/code/asm/ASMCodeGenerator.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/code/asm/ASMCodeGenerator.java
+@@ -75,7 +85,14 @@
+  *
+  */
+ public class ASMCodeGenerator implements CodeGenerator {
+-  private static final String FIELD_PREFIX = "var_";
+
++  private static final String FIELD_PREFIX = "f";
++  private AviatorEvaluatorInstance instance;
++  private Env compileEnv;
+   // Class Writer to generate class
+   // private final ClassWriter clazzWriter;
+   // Trace visitor
+@@ -88,6 +105,10 @@
+   private final String className;
+   // Class loader to define generated class
+   private final AviatorClassLoader classLoader;
++  private LambdaGenerator lambdaGenerator;
++  private Parser parser;
+ 
+   private static final AtomicLong CLASS_COUNTER = new AtomicLong();
+ 
+@@ -101,22 +122,36 @@
+ 
+   private int fieldCounter = 0;
+ 
+-  private final Map<String/* variable name */, String/* inner var name */> innerVarMap = new HashMap<String, String>();
+-  private final Map<String/* method name */, String/* inner method name */> innerMethodMap = new HashMap<String, String>();
++  private Map<String/* variable name */, String/* inner var name */> innerVars = Collections.emptyMap();
++  private Map<String/* method name */, String/* inner method name */> innerMethodMap = Collections.emptyMap();
+ 
+-  private Map<String, Integer/* counter */> varTokens = new LinkedHashMap<String, Integer>();
+-  private Map<String, Integer/* counter */> methodTokens = new HashMap<String, Integer>();
++  private Map<String, Integer/* counter */> varTokens = Collections.emptyMap();
++  private Map<String, Integer/* counter */> methodTokens = Collections.emptyMap();
+ 
+   private final Map<Label, Map<String/* inner name */, Integer/* local index */>> labelNameIndexMap =
+-      new HashMap<Label, Map<String, Integer>>();
++      new IdentityHashMap<Label, Map<String, Integer>>();
+
++  private Map<String, LambdaFunctionBootstrap> lambdaBootstraps;
+ 
+   private static final Label START_LABEL = new Label();
+ 
+   private Label currentLabel = START_LABEL;
+ 
++  private CodeGenerator parentCodeGenerator;
+
++  @Override
++  public void setParser(Parser parser) {
++    this.parser = parser;
++  }
++
+ 
+   private void setMaxStacks(int newMaxStacks) {
+     if (newMaxStacks > this.maxStacks) {
+@@ -125,8 +160,12 @@
+   }
+ 
+-  public ASMCodeGenerator(AviatorClassLoader classLoader, OutputStream traceOut, boolean trace) {
++  public ASMCodeGenerator(AviatorEvaluatorInstance instance, AviatorClassLoader classLoader,
++      OutputStream traceOut, boolean trace) {
+     this.classLoader = classLoader;
++    this.instance = instance;
++    this.compileEnv = new Env();
++    this.compileEnv.setInstance(this.instance);
+     // Generate inner class name
+     this.className = "Script_" + System.currentTimeMillis() + "_" + CLASS_COUNTER.getAndIncrement();
+     // Auto compute frames
+@@ -149,8 +199,8 @@
+ 
+   private void startVisitMethodCode() {
+     this.mv = this.classWriter.visitMethod(ACC_PUBLIC + +ACC_FINAL, "execute0",
+-        "(Ljava/util/Map;)Ljava/lang/Object;",
+-        "(Ljava/util/Map<Ljava/lang/String;Ljava/lang/Object;>;)Ljava/lang/Object;", null);
++        "(Lcom/googlecode/aviator/utils/Env;)Ljava/lang/Object;",
++        "(Lcom/googlecode/aviator/utils/Env;)Ljava/lang/Object;", null);
+     this.mv.visitCode();
+   }
+ 
+@@ -189,15 +239,16 @@
+    */
+   private void makeConstructor() {
+     {
+-      this.mv =
+-          this.classWriter.visitMethod(ACC_PUBLIC, "<init>", "(Ljava/util/List;)V", null, null);
++      this.mv = this.classWriter.visitMethod(ACC_PUBLIC, "<init>",
++          "(Lcom/googlecode/aviator/AviatorEvaluatorInstance;Ljava/util/List;)V", null, null);
+       this.mv.visitCode();
+       this.mv.visitVarInsn(ALOAD, 0);
+       this.mv.visitVarInsn(ALOAD, 1);
++      this.mv.visitVarInsn(ALOAD, 2);
+       this.mv.visitMethodInsn(INVOKESPECIAL, "com/googlecode/aviator/ClassExpression", "<init>",
+-          "(Ljava/util/List;)V");
+-      if (!this.innerVarMap.isEmpty()) {
+-        for (Map.Entry<String, String> entry : this.innerVarMap.entrySet()) {
++          "(Lcom/googlecode/aviator/AviatorEvaluatorInstance;Ljava/util/List;)V");
++      if (!this.innerVars.isEmpty()) {
++        for (Map.Entry<String, String> entry : this.innerVars.entrySet()) {
+           String outterName = entry.getKey();
+           String innerName = entry.getValue();
+           this.mv.visitVarInsn(ALOAD, 0);
+@@ -233,7 +285,7 @@
+ 
+ 
+   private void visitClass() {
+-    this.classWriter.visit(AviatorEvaluator.BYTECODE_VER, ACC_PUBLIC + ACC_SUPER, this.className,
++    this.classWriter.visit(instance.getBytecodeVersion(), ACC_PUBLIC + ACC_SUPER, this.className,
+         null, "com/googlecode/aviator/ClassExpression", null);
+   }
+ 
+@@ -524,7 +583,7 @@
+ 
+ 
+   private void visitCompare(int ints, OperatorType opType) {
+-    if (!OperationRuntime.hasRuntimeContext(opType)) {
++    if (!OperationRuntime.hasRuntimeContext(this.compileEnv, opType)) {
+       this.mv.visitMethodInsn(INVOKEVIRTUAL, "com/googlecode/aviator/runtime/type/AviatorObject",
+           "compare", "(Lcom/googlecode/aviator/runtime/type/AviatorObject;Ljava/util/Map;)I");
+       Label l0 = this.makeLabel();
+@@ -666,10 +725,18 @@
+ 
+     byte[] bytes = this.classWriter.toByteArray();
+     try {
+-      Class<?> defineClass = ClassDefiner.defineClass(this.className, bytes, this.classLoader);
+-      Constructor<?> constructor = defineClass.getConstructor(List.class);
+-      return (Expression) constructor.newInstance(new ArrayList<String>(this.varTokens.keySet()));
++      Class<?> defineClass =
++          ClassDefiner.defineClass(this.className, Expression.class, bytes, this.classLoader);
++      Constructor<?> constructor =
++          defineClass.getConstructor(AviatorEvaluatorInstance.class, List.class);
++      ClassExpression exp = (ClassExpression) constructor.newInstance(this.instance,
++          new ArrayList<String>(this.varTokens.keySet()));
++      exp.setLambdaBootstraps(lambdaBootstraps);
++      return exp;
+     } catch (Exception e) {
++      if (e.getCause() instanceof ExpressionRuntimeException) {
++        throw (ExpressionRuntimeException) e.getCause();
++      }
+       throw new CompileExpressionErrorException("define class error", e);
+     }
+   }
+@@ -703,10 +770,13 @@
+           this.mv.visitMethodInsn(INVOKESTATIC, "com/googlecode/aviator/runtime/type/AviatorBigInt",
+               "valueOf", "(Ljava/lang/String;)Lcom/googlecode/aviator/runtime/type/AviatorBigInt;");
+         } else if (TypeUtils.isDecimal(number)) {
++          this.loadEnv();
++          // this.pushOperand();
+           this.mv.visitLdcInsn(numberToken.getLexeme());
+           this.mv.visitMethodInsn(INVOKESTATIC,
+               "com/googlecode/aviator/runtime/type/AviatorDecimal", "valueOf",
+-              "(Ljava/lang/String;)Lcom/googlecode/aviator/runtime/type/AviatorDecimal;");
++              "(Ljava/util/Map;Ljava/lang/String;)Lcom/googlecode/aviator/runtime/type/AviatorDecimal;");
++          this.popOperand();
+         } else if (TypeUtils.isDouble(number)) {
+           this.mv.visitLdcInsn(number);
+           this.mv.visitMethodInsn(INVOKESTATIC, "com/googlecode/aviator/runtime/type/AviatorDouble",
+@@ -760,7 +830,7 @@
+           this.pushOperand();
+         } else {
+           String outterVarName = variable.getLexeme();
+-          String innerVarName = this.innerVarMap.get(outterVarName);
++          String innerVarName = this.innerVars.get(outterVarName);
+           if (innerVarName != null) {
+             // Is it stored in local?
+             Map<String, Integer> name2Index = this.labelNameIndexMap.get(this.currentLabel);
+@@ -811,12 +881,18 @@
+   }
+ 
+ 
++  public void setLambdaBootstraps(Map<String, LambdaFunctionBootstrap> lambdaBootstraps) {
++    this.lambdaBootstraps = lambdaBootstraps;
++  }
++
++
+   public void initVariables(Map<String, Integer/* counter */> varTokens) {
+     this.varTokens = varTokens;
++    this.innerVars = new HashMap<String, String>(varTokens.size());
+     for (String outterVarName : varTokens.keySet()) {
+       // Use inner variable name instead of outter variable name
+       String innerVarName = this.getInnerName(outterVarName);
+-      this.innerVarMap.put(outterVarName, innerVarName);
++      this.innerVars.put(outterVarName, innerVarName);
+       this.classWriter.visitField(ACC_PRIVATE + ACC_FINAL, innerVarName,
+           "Lcom/googlecode/aviator/runtime/type/AviatorJavaType;", null, null).visitEnd();
+ 
+@@ -826,13 +902,13 @@
+ 
+   public void initMethods(Map<String, Integer/* counter */> methods) {
+     this.methodTokens = methods;
++    this.innerMethodMap = new HashMap<String, String>(methods.size());
+     for (String outterMethodName : methods.keySet()) {
+       // Use inner method name instead of outter method name
+       String innerMethodName = this.getInnerName(outterMethodName);
+       this.innerMethodMap.put(outterMethodName, innerMethodName);
+       this.classWriter.visitField(ACC_PRIVATE + ACC_FINAL, innerMethodName,
+           "Lcom/googlecode/aviator/runtime/type/AviatorFunction;", null, null).visitEnd();
+-
+     }
+   }
+ 
+@@ -842,7 +918,7 @@
+   }
+ 
+ 
+-  private String getInvokeMethodDesc(int paramCount) {
++  private static String getInvokeMethodDesc(int paramCount) {
+     StringBuilder sb = new StringBuilder("(Ljava/util/Map;");
+     if (paramCount <= 20) {
+       for (int i = 0; i < paramCount; i++) {
+@@ -890,7 +966,7 @@
+       }
+     }
+     this.mv.visitMethodInsn(INVOKEINTERFACE, "com/googlecode/aviator/runtime/type/AviatorFunction",
+-        "call", this.getInvokeMethodDesc(parameterCount));
++        "call", getInvokeMethodDesc(parameterCount));
+ 
+     this.popOperand(); // method object
+     this.popOperand(); // env map
+@@ -976,7 +1052,7 @@
+ 
+   @Override
+   public void onArrayIndexEnd(Token<?> lookhead) {
+-    if (!OperationRuntime.hasRuntimeContext(OperatorType.INDEX)) {
++    if (!OperationRuntime.hasRuntimeContext(this.compileEnv, OperatorType.INDEX)) {
+       this.mv.visitMethodInsn(INVOKEVIRTUAL, "com/googlecode/aviator/runtime/type/AviatorObject",
+           "getElement",
+           "(Ljava/util/Map;Lcom/googlecode/aviator/runtime/type/AviatorObject;)Lcom/googlecode/aviator/runtime/type/AviatorObject;");
+@@ -1000,14 +1076,78 @@
+   @Override
+   public void onMethodName(Token<?> lookhead) {
+-    String outtterMethodName = lookhead.getLexeme();
+-    String innerMethodName = this.innerMethodMap.get(outtterMethodName);
+-    if (innerMethodName != null) {
+-      this.loadAviatorFunction(outtterMethodName, innerMethodName);
++    String outtterMethodName = "lambda";
++    if (lookhead.getType() != TokenType.Delegate) {
++      outtterMethodName = lookhead.getLexeme();
++      String innerMethodName = this.innerMethodMap.get(outtterMethodName);
++      if (innerMethodName != null) {
++        this.loadAviatorFunction(outtterMethodName, innerMethodName);
++      } else {
++        this.createAviatorFunctionObject(outtterMethodName);
++      }
+     } else {
+-      this.createAviatorFunctionObject(outtterMethodName);
++      this.loadEnv();
++      this.mv.visitMethodInsn(INVOKESTATIC, "com/googlecode/aviator/runtime/RuntimeUtils",
++          "getFunction",
++          "(Ljava/lang/Object;Ljava/util/Map;)Lcom/googlecode/aviator/runtime/type/AviatorFunction;");
++      this.popOperand();
++    }
++    if (this.instance.getOption(Options.TRACE_EVAL)) {
++      this.mv.visitMethodInsn(INVOKESTATIC, "com/googlecode/aviator/runtime/function/TraceFunction",
++          "wrapTrace",
++          "(Lcom/googlecode/aviator/runtime/type/AviatorFunction;)Lcom/googlecode/aviator/runtime/type/AviatorFunction;");
+     }
+     this.loadEnv();
+     this.methodMetaDataStack.push(new MethodMetaData(outtterMethodName));
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/code/asm/ClassDefiner.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/code/asm/ClassDefiner.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/code/asm/ClassDefiner.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/code/asm/ClassDefiner.java
+@@ -41,17 +40,32 @@
+     }
+   }
+ 
++  private static boolean isPreferClassLoaderDefinerByDefault() {
++    String version = (System.getProperty("java.version"));
++    try {
++      return version != null && version.startsWith("1.7");
++    } catch (Throwable e) {
++      return false;
++    }
++  }
+
+   private static boolean preferClassLoader =
+-      Boolean.valueOf(System.getProperty("aviator.preferClassloaderDefiner", "false"));
++      Boolean.valueOf(System.getProperty("aviator.preferClassloaderDefiner",
++          String.valueOf(isPreferClassLoaderDefinerByDefault())));
+
++  static {
++    if (preferClassLoader) {
++      System.out.println("[Aviator WARN] aviator.preferClassloaderDefiner=" + preferClassLoader);
++    }
++  }
+ 
+   private static int errorTimes = 0;
+ 
+-  public static final Class<?> defineClass(String className, byte[] bytes,
++  public static final Class<?> defineClass(String className, Class<?> clazz, byte[] bytes,
+       AviatorClassLoader classLoader) throws NoSuchFieldException, IllegalAccessException {
+     if (!preferClassLoader && DEFINE_CLASS_HANDLE != null) {
+       try {
+-        Class<?> defineClass =
+-            (Class<?>) DEFINE_CLASS_HANDLE.invokeExact(Expression.class, bytes, EMPTY_OBJS);
++        Class<?> defineClass = (Class<?>) DEFINE_CLASS_HANDLE.invokeExact(clazz, bytes, EMPTY_OBJS);
+         return defineClass;
+       } catch (Throwable e) {
+         // fallback to class loader mode.
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/code/CodeGenerator.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/code/CodeGenerator.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/code/CodeGenerator.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/code/CodeGenerator.java
+@@ -17,16 +17,19 @@
+ 
+ import com.googlecode.aviator.Expression;
+ import com.googlecode.aviator.lexer.token.Token;
++import com.googlecode.aviator.parser.Parser;
+ 
+ 
+ /**
+  * Code generator interface
+- * 
++ *
+  * @author dennis
+- * 
++ *
+  */
+ public interface CodeGenerator {
+ 
++  public void setParser(Parser parser);
++
+   public void onShiftRight(Token<?> lookhead);
+ 
+ 
+@@ -74,6 +77,8 @@
+ 
+   public void onTernaryRight(Token<?> lookhead);
+ 
++  public void onTernaryEnd(Token<?> lookhead);
++
+ 
+   public void onJoinLeft(Token<?> lookhead);
+ 
+@@ -110,27 +115,27 @@
+ 
+   public void onNeg(Token<?> lookhead);
+ 
+   public Expression getResult();
+ 
+   public void onConstant(Token<?> lookhead);
+ 
+   public void onMethodName(Token<?> lookhead);
+ 
+   public void onMethodParameter(Token<?> lookhead);
+ 
+   public void onMethodInvoke(Token<?> lookhead);
+ 
++  public void onLambdaDefineStart(Token<?> lookhead);
+ 
+-  public void onArray(Token<?> lookhead);
++  public void onLambdaArgument(Token<?> lookhead);
+ 
++  public void onLambdaBodyStart(Token<?> lookhead);
+ 
+-  public void onArrayIndexStart(Token<?> token);
++  public void onLambdaBodyEnd(Token<?> lookhead);
+ 
++  public void onArray(Token<?> lookhead);
+
++  public void onArrayIndexStart(Token<?> token);
+ 
+   public void onArrayIndexEnd(Token<?> lookhead);
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/code/OptimizeCodeGenerator.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/code/OptimizeCodeGenerator.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/code/OptimizeCodeGenerator.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/code/OptimizeCodeGenerator.java
+@@ -52,19 +59,38 @@
+  *
+  */
+ public class OptimizeCodeGenerator implements CodeGenerator {
+-  private final ASMCodeGenerator asmCodeGenerator;
++  private ASMCodeGenerator codeGen;
+ 
+   private final List<Token<?>> tokenList = new ArrayList<Token<?>>();
+ 
++  private LambdaGenerator lambdaGenerator;
+
++  private CodeGenerator parentCodeGenerator;
+
+   private boolean trace = false;
++  private AviatorEvaluatorInstance instance;
+
++  private Parser parser;
+
++  private Map<String, LambdaFunctionBootstrap> lambdaBootstraps;
+ 
+ 
+-  public OptimizeCodeGenerator(ClassLoader classLoader, OutputStream traceOutStream,
+-      boolean trace) {
+-    this.asmCodeGenerator =
+-        new ASMCodeGenerator(AviatorEvaluator.getAviatorClassLoader(), traceOutStream, trace);
++  public OptimizeCodeGenerator(AviatorEvaluatorInstance instance, ClassLoader classLoader,
++      OutputStream traceOutStream, boolean trace) {
++    this.instance = instance;
++    this.codeGen =
++        new ASMCodeGenerator(instance, (AviatorClassLoader) classLoader, traceOutStream, trace);
+     this.trace = trace;
++  }
+ 
++  @Override
++  public void setParser(Parser parser) {
++    this.parser = parser;
++    this.codeGen.setParser(parser);
+   }
+
+@@ -314,6 +362,9 @@
+           DelegateToken delegateToken = (DelegateToken) token;
+           if (delegateToken.getDelegateTokenType() == DelegateTokenType.Method_Name) {
+             Token<?> realToken = delegateToken.getToken();
++            if (realToken == null) {
++              continue;
++            }
+             if (realToken.getType() == TokenType.Variable) {
+               String methodName = token.getLexeme();
+               if (!methods.containsKey(methodName)) {
+@@ -342,25 +393,27 @@
+ 
+     // get result from asm
+-    return this.asmCodeGenerator.getResult();
++    return this.codeGen.getResult();
+   }
+ 
+ 
+   private void callASM(Map<String, Integer/* counter */> variables,
+       Map<String, Integer/* counter */> methods) {
+-    this.asmCodeGenerator.initVariables(variables);
+-    this.asmCodeGenerator.initMethods(methods);
+-    this.asmCodeGenerator.start();
++    this.codeGen.initVariables(variables);
++    this.codeGen.initMethods(methods);
++    this.codeGen.setLambdaBootstraps(lambdaBootstraps);
++    this.codeGen.start();
+ 
+     for (int i = 0; i < this.tokenList.size(); i++) {
+       Token<?> token = this.tokenList.get(i);
+@@ -370,82 +423,82 @@
+ 
+           switch (op.getOperatorType()) {
+             case ADD:
+-              this.asmCodeGenerator.onAdd(token);
++              this.codeGen.onAdd(token);
+               break;
+             case SUB:
+-              this.asmCodeGenerator.onSub(token);
++              this.codeGen.onSub(token);
+               break;
+             case MULT:
+-              this.asmCodeGenerator.onMult(token);
++              this.codeGen.onMult(token);
+               break;
+             case DIV:
+-              this.asmCodeGenerator.onDiv(token);
++              this.codeGen.onDiv(token);
+               break;
+             case MOD:
+-              this.asmCodeGenerator.onMod(token);
++              this.codeGen.onMod(token);
+               break;
+             case EQ:
+-              this.asmCodeGenerator.onEq(token);
++              this.codeGen.onEq(token);
+               break;
+             case NEQ:
+-              this.asmCodeGenerator.onNeq(token);
++              this.codeGen.onNeq(token);
+               break;
+             case LT:
+-              this.asmCodeGenerator.onLt(token);
++              this.codeGen.onLt(token);
+               break;
+             case LE:
+-              this.asmCodeGenerator.onLe(token);
++              this.codeGen.onLe(token);
+               break;
+             case GT:
+-              this.asmCodeGenerator.onGt(token);
++              this.codeGen.onGt(token);
+               break;
+             case GE:
+-              this.asmCodeGenerator.onGe(token);
++              this.codeGen.onGe(token);
+               break;
+             case NOT:
+-              this.asmCodeGenerator.onNot(token);
++              this.codeGen.onNot(token);
+               break;
+             case NEG:
+-              this.asmCodeGenerator.onNeg(token);
++              this.codeGen.onNeg(token);
+               break;
+             case AND:
+-              this.asmCodeGenerator.onAndRight(token);
++              this.codeGen.onAndRight(token);
+               break;
+             case OR:
+-              this.asmCodeGenerator.onJoinRight(token);
++              this.codeGen.onJoinRight(token);
+               break;
+             case FUNC:
+-              this.asmCodeGenerator.onMethodInvoke(token);
++              this.codeGen.onMethodInvoke(token);
+               break;
+             case INDEX:
+-              this.asmCodeGenerator.onArrayIndexEnd(token);
++              this.codeGen.onArrayIndexEnd(token);
+               break;
+             case MATCH:
+-              this.asmCodeGenerator.onMatch(token);
++              this.codeGen.onMatch(token);
+               break;
+             case TERNARY:
+-              this.asmCodeGenerator.onTernaryRight(token);
++              this.codeGen.onTernaryRight(token);
+               break;
+             case BIT_AND:
+-              this.asmCodeGenerator.onBitAnd(token);
++              this.codeGen.onBitAnd(token);
+               break;
+             case BIT_OR:
+-              this.asmCodeGenerator.onBitOr(token);
++              this.codeGen.onBitOr(token);
+               break;
+             case BIT_XOR:
+-              this.asmCodeGenerator.onBitXor(token);
++              this.codeGen.onBitXor(token);
+               break;
+             case BIT_NOT:
+-              this.asmCodeGenerator.onBitNot(token);
++              this.codeGen.onBitNot(token);
+               break;
+             case SHIFT_LEFT:
+-              this.asmCodeGenerator.onShiftLeft(token);
++              this.codeGen.onShiftLeft(token);
+               break;
+             case SHIFT_RIGHT:
+-              this.asmCodeGenerator.onShiftRight(token);
++              this.codeGen.onShiftRight(token);
+               break;
+             case U_SHIFT_RIGHT:
+-              this.asmCodeGenerator.onUnsignedShiftRight(token);
++              this.codeGen.onUnsignedShiftRight(token);
+               break;
+           }
+           break;
+@@ -454,34 +507,40 @@
+           final Token<?> realToken = delegateToken.getToken();
+           switch (delegateToken.getDelegateTokenType()) {
+             case And_Left:
+-              this.asmCodeGenerator.onAndLeft(realToken);
++              this.codeGen.onAndLeft(realToken);
+               break;
+             case Join_Left:
+-              this.asmCodeGenerator.onJoinLeft(realToken);
++              this.codeGen.onJoinLeft(realToken);
+               break;
+             case Array:
+-              this.asmCodeGenerator.onArray(realToken);
++              this.codeGen.onArray(realToken);
+               break;
+             case Index_Start:
+-              this.asmCodeGenerator.onArrayIndexStart(realToken);
++              this.codeGen.onArrayIndexStart(realToken);
+               break;
+             case Ternary_Boolean:
+-              this.asmCodeGenerator.onTernaryBoolean(realToken);
++              this.codeGen.onTernaryBoolean(realToken);
+               break;
+             case Ternary_Left:
+-              this.asmCodeGenerator.onTernaryLeft(realToken);
++              this.codeGen.onTernaryLeft(realToken);
+               break;
+             case Method_Name:
+-              this.asmCodeGenerator.onMethodName(realToken);
++              this.codeGen.onMethodName(realToken);
+               break;
+             case Method_Param:
+-              this.asmCodeGenerator.onMethodParameter(realToken);
++              this.codeGen.onMethodParameter(realToken);
++              break;
++            case Lambda_New:
++              this.codeGen.genNewLambdaCode(delegateToken.getLambdaFunctionBootstrap());
++              break;
++            case Ternay_End:
++              this.codeGen.onTernaryEnd(realToken);
+               break;
+           }
+           break;
+ 
+         default:
+-          this.asmCodeGenerator.onConstant(token);
++          this.codeGen.onConstant(token);
+           break;
+       }
+
+Only in ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator: CustomFunctionLoader.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/Expression.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/Expression.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/Expression.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/Expression.java
+@@ -34,7 +34,7 @@
+    * @param env Binding variable environment
+    * @return
+    */
+-  public abstract Object execute(Map<String, Object> env);
++  Object execute(Map<String, Object> env);
+ 
+ 
+   /**
+@@ -42,7 +42,7 @@
+    * 
+    * @return
+    */
+-  public abstract Object execute();
++  Object execute();
+ 
+ 
+   /**
+@@ -52,7 +52,7 @@
+    * @see com.googlecode.aviator.AviatorEvaluator#EVAL
+    * @return
+    */
+-  public List<String> getVariableNames();
++  List<String> getVariableNames();
+ 
+ 
+   /**
+@@ -61,6 +61,6 @@
+    * 
+    * @return
+    */
+-  public List<String> getVariableFullNames();
++  List<String> getVariableFullNames();
+ 
+ }
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator: FunctionLoader.java
+Only in ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator: FunctionMissing.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/lexer/ExpressionLexer.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/lexer/ExpressionLexer.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/lexer/ExpressionLexer.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/lexer/ExpressionLexer.java
+@@ -47,15 +47,22 @@
+   private final SymbolTable symbolTable;
+   // Tokens buffer
+   private final Stack<Token<?>> tokenBuffer = new Stack<Token<?>>();
++  private AviatorEvaluatorInstance instance;
++  private String expression;
++  private MathContext mathContext;
++  private boolean parseFloatIntoDecimal;
+ 
+-  public ExpressionLexer(String expression) {
++  public ExpressionLexer(AviatorEvaluatorInstance instance, String expression) {
+     this.iterator = new StringCharacterIterator(expression);
++    this.expression = expression;
+     this.symbolTable = new SymbolTable();
+     this.peek = this.iterator.current();
++    this.instance = instance;
++    this.mathContext = this.instance.getOption(Options.MATH_CONTEXT);
++    this.parseFloatIntoDecimal =
++        this.instance.getOption(Options.ALWAYS_PARSE_FLOATING_POINT_NUMBER_INTO_DECIMAL);
+   }
+ 
+   /**
+    * Push back token
+    *
+@@ -231,16 +238,12 @@
+           || this.peek == 'e' || this.peek == 'M' || this.peek == 'N');
+       Number value;
+       if (isBigDecimal) {
+-        value = new BigDecimal(this.getBigNumberLexeme(sb),
+-            (MathContext) AviatorEvaluator.getOption(Options.MATH_CONTEXT));
++        value = new BigDecimal(this.getBigNumberLexeme(sb), this.mathContext);
+       } else if (isBigInt) {
+         value = new BigInteger(this.getBigNumberLexeme(sb));
+       } else if (hasDot) {
+-        boolean alwaysUseDecimalAsDouble =
+-            AviatorEvaluator.getOption(Options.ALWAYS_PARSE_FLOATING_POINT_NUMBER_INTO_DECIMAL);
+-        if (alwaysUseDecimalAsDouble) {
+-          value = new BigDecimal(sb.toString(),
+-              (MathContext) AviatorEvaluator.getOption(Options.MATH_CONTEXT));
++        if (this.parseFloatIntoDecimal) {
++          value = new BigDecimal(sb.toString(), this.mathContext);
+         } else {
+           value = dval;
+         }
+@@ -322,9 +325,12 @@
+     return token;
+   }
+ 
++  public String getScanString() {
++    return this.expression.substring(0, this.iterator.getIndex());
++  }
+ 
+   private Token<?> reserverVar(String lexeme, Variable variable) {
+     // If it is a reserved word(true/false/nil/lambda)
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/lexer/SymbolTable.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/lexer/SymbolTable.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/lexer/SymbolTable.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/lexer/SymbolTable.java
+@@ -35,12 +35,13 @@
+     reserve("true", Variable.TRUE);
+     reserve("false", Variable.FALSE);
+     reserve("nil", Variable.NIL);
++    reserve("lambda", Variable.LAMBDA);
+   }
+  
+   /**
+    * Reserve variable
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/lexer/token/DelegateToken.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/lexer/token/DelegateToken.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/lexer/token/DelegateToken.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/lexer/token/DelegateToken.java
+@@ -1,21 +1,37 @@
+ 
+   public static enum DelegateTokenType {
+-    And_Left, Join_Left, Ternary_Boolean, Ternary_Left, Array, Index_Start, Method_Name, Method_Param
++    And_Left, Join_Left, Ternary_Boolean, Ternary_Left, Array, Index_Start, //
++    Method_Name, Method_Param, Lambda_New, //
++    Ternay_End
+   }
+ 
+ 
+@@ -36,11 +52,13 @@
+   }
+ 
+ 
++  @Override
+   public com.googlecode.aviator.lexer.token.Token.TokenType getType() {
+     return TokenType.Delegate;
+   }
+ 
+ 
++  @Override
+   public Token<?> getValue(Map<String, Object> env) {
+     return this.token;
+   }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/lexer/token/Variable.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/lexer/token/Variable.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/lexer/token/Variable.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/lexer/token/Variable.java
+@@ -20,12 +20,15 @@
+
+ public class Variable extends AbstractToken<Object> {
+ 
++  public static final String INSTANCE_VAR = "__instance__";
++  public static final String ENV_VAR = "__env__";
++
+   public boolean isQuote() {
+     return quote;
+   }
+@@ -74,11 +77,26 @@
+   };
+ 
++  /**
++   * Lambda keyword
++   */
++  public static final Variable LAMBDA = new Variable("lambda", -1) {
+
++  @Override
+   public com.googlecode.aviator.lexer.token.Token.TokenType getType() {
+     return TokenType.Variable;
+   }
+ 
++  @Override
+   public Object getValue(Map<String, Object> env) {
+     if (env != null) {
+       return env.get(this.lexeme);
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/parser: DepthState.java
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/parser/ExpressionParser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/parser/ExpressionParser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/aviator/parser/ExpressionParser.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/aviator/parser/ExpressionParser.java
+@@ -16,26 +16,29 @@
+-public class ExpressionParser {
++public class ExpressionParser implements Parser {
+   private final ExpressionLexer lexer;
+ 
+   static final Set<String> RESERVED_WORDS = new HashSet<String>();
+@@ -51,37 +54,96 @@
+ 
+   private Token<?> prevToken;
+ 
+-  private final CodeGenerator codeGenerator;
++  private CodeGenerator codeGenerator;
+ 
+   private int parenDepth = 0;
+ 
+   private int bracketDepth = 0;
+ 
++  private int lambdaDepth = 0;
++
++  private LinkedList<DepthState> depthState = new LinkedList<DepthState>();
+
+   private boolean inPattern = false;
+ 
++  private AviatorEvaluatorInstance instance;
+
+   public void ternary() {
+     this.join();
+-    if (this.lookhead == null || this.expectLexeme(":") || this.expectLexeme(",")) {
++    if (this.lookhead == null || this.expectChar(':') || this.expectChar(',')) {
+       return;
+     }
+-    if (this.expectLexeme("?")) {
++    if (this.expectChar('?')) {
+       this.move(true);
+       this.codeGenerator.onTernaryBoolean(this.lookhead);
+       this.ternary();
+-      if (this.expectLexeme(":")) {
++      if (this.expectChar(':')) {
+         this.move(true);
+         this.codeGenerator.onTernaryLeft(this.lookhead);
+         this.ternary();
+
+@@ -128,9 +171,7 @@
+       } else {
+         if (this.lookhead == null) {
+           break;
+-        }
+
+-        else {
++        } else {
+           break;
+         }
+       }
+@@ -140,21 +181,20 @@
+ 
+ 
+   private boolean isJoinToken() {
+-    return this.expectLexeme("|");
++    return this.expectChar('|');
+   }
+ 
+ 
+-  private boolean expectLexeme(String s) {
++  private boolean expectChar(char ch) {
+     if (this.lookhead == null) {
+       return false;
+     }
+-    return this.lookhead.getType() == TokenType.Char
+-        && ((CharToken) this.lookhead).getLexeme().equals(s);
++    return this.lookhead.getType() == TokenType.Char && ((CharToken) this.lookhead).getCh() == ch;
+   }
+ 
+ 
+   private boolean isAndToken() {
+-    return this.expectLexeme("&");
++    return this.expectChar('&');
+   }
+ 
+ 
+@@ -179,7 +219,7 @@
+   public void xor() {
+     this.bitAnd();
+     while (true) {
+-      if (this.expectLexeme("^")) {
++      if (this.expectChar('^')) {
+         this.move(true);
+         this.bitAnd();
+         this.codeGenerator.onBitXor(this.lookhead);
+@@ -232,13 +272,13 @@
+   public void equality() {
+     this.rel();
+     while (true) {
+-      if (this.expectLexeme("=")) {
++      if (this.expectChar('=')) {
+         this.move(true);
+-        if (this.expectLexeme("=")) {
++        if (this.expectChar('=')) {
+           this.move(true);
+           this.rel();
+           this.codeGenerator.onEq(this.lookhead);
+-        } else if (this.expectLexeme("~")) {
++        } else if (this.expectChar('~')) {
+           // It is a regular expression
+           this.move(true);
+           this.rel();
+@@ -246,9 +286,9 @@
+         } else {
+           this.reportSyntaxError("Aviator doesn't support assignment");
+         }
+-      } else if (this.expectLexeme("!")) {
++      } else if (this.expectChar('!')) {
+         this.move(true);
+-        if (this.expectLexeme("=")) {
++        if (this.expectChar('=')) {
+           this.move(true);
+           this.rel();
+           this.codeGenerator.onNeq(this.lookhead);
+@@ -265,9 +305,9 @@
+   public void rel() {
+     this.shift();
+     while (true) {
+-      if (this.expectLexeme("<")) {
++      if (this.expectChar('<')) {
+         this.move(true);
+-        if (this.expectLexeme("=")) {
++        if (this.expectChar('=')) {
+           this.move(true);
+           this.expr();
+           this.codeGenerator.onLe(this.lookhead);
+@@ -275,9 +315,9 @@
+           this.expr();
+           this.codeGenerator.onLt(this.lookhead);
+         }
+-      } else if (this.expectLexeme(">")) {
++      } else if (this.expectChar('>')) {
+         this.move(true);
+-        if (this.expectLexeme("=")) {
++        if (this.expectChar('=')) {
+           this.move(true);
+           this.expr();
+           this.codeGenerator.onGe(this.lookhead);
+@@ -295,9 +335,9 @@
+   public void shift() {
+     this.expr();
+     while (true) {
+-      if (this.expectLexeme("<")) {
++      if (this.expectChar('<')) {
+         this.move(true);
+-        if (this.expectLexeme("<")) {
++        if (this.expectChar('<')) {
+           this.move(true);
+           this.expr();
+           this.codeGenerator.onShiftLeft(this.lookhead);
+@@ -305,11 +345,11 @@
+           this.back();
+           break;
+         }
+-      } else if (this.expectLexeme(">")) {
++      } else if (this.expectChar('>')) {
+         this.move(true);
+-        if (this.expectLexeme(">")) {
++        if (this.expectChar('>')) {
+           this.move(true);
+-          if (this.expectLexeme(">")) {
++          if (this.expectChar('>')) {
+             this.move(true);
+             this.expr();
+             this.codeGenerator.onUnsignedShiftRight(this.lookhead);
+@@ -332,11 +372,11 @@
+   public void expr() {
+     this.term();
+     while (true) {
+-      if (this.expectLexeme("+")) {
++      if (this.expectChar('+')) {
+         this.move(true);
+         this.term();
+         this.codeGenerator.onAdd(this.lookhead);
+-      } else if (this.expectLexeme("-")) {
++      } else if (this.expectChar('-')) {
+         this.move(true);
+         this.term();
+         this.codeGenerator.onSub(this.lookhead);
+@@ -350,15 +390,15 @@
+   public void term() {
+     this.unary();
+     while (true) {
+-      if (this.expectLexeme("*")) {
++      if (this.expectChar('*')) {
+         this.move(true);
+         this.unary();
+         this.codeGenerator.onMult(this.lookhead);
+-      } else if (this.expectLexeme("/")) {
++      } else if (this.expectChar('/')) {
+         this.move(true);
+         this.unary();
+         this.codeGenerator.onDiv(this.lookhead);
+-      } else if (this.expectLexeme("%")) {
++      } else if (this.expectChar('%')) {
+         this.move(true);
+         this.unary();
+         this.codeGenerator.onMod(this.lookhead);
+@@ -370,30 +410,30 @@
+ 
+ 
+   public void unary() {
+-    if (this.expectLexeme("!")) {
++    if (this.expectChar('!')) {
+       this.move(true);
+       // check if it is a seq function call,"!" as variable
+-      if (this.expectLexeme(",") || this.expectLexeme(")")) {
++      if (this.expectChar(',') || this.expectChar(')')) {
+         this.back();
+         this.factor();
+       } else {
+         this.unary();
+         this.codeGenerator.onNot(this.lookhead);
+       }
+-    } else if (this.expectLexeme("-")) {
++    } else if (this.expectChar('-')) {
+       this.move(true);
+       // check if it is a seq function call,"!" as variable
+-      if (this.expectLexeme(",") || this.expectLexeme(")")) {
++      if (this.expectChar(',') || this.expectChar(')')) {
+         this.back();
+         this.factor();
+       } else {
+         this.unary();
+         this.codeGenerator.onNeg(this.lookhead);
+       }
+-    } else if (this.expectLexeme("~")) {
++    } else if (this.expectChar('~')) {
+       this.move(true);
+       // check if it is a seq function call,"~" as variable
+-      if (this.expectLexeme(",") || this.expectLexeme(")")) {
++      if (this.expectChar(',') || this.expectChar(')')) {
+         this.back();
+         this.factor();
+       } else {
+@@ -403,6 +443,36 @@
+     } else {
+       this.factor();
+     }
++
++    while (expectChar('[') || expectChar('(')) {
++      if (expectChar('[')) {
++        // (...)[index]
++        arrayAccess();
++      } else if (expectChar('(')) {
++        // May be call chain, such as "s(1)(2)(3)"
++        this.parenDepth++;
++        this.depthState.add(DepthState.Parent);
++        this.codeGenerator.onMethodName(new DelegateToken(this.lookhead.getStartIndex(),
++            this.lookhead, DelegateTokenType.Method_Name));
++        this.move(true);
++        if (!this.expectChar(')')) {
++          this.ternary();
++          this.codeGenerator.onMethodParameter(this.lookhead);
++          while (this.expectChar(',')) {
++            this.move(true);
++            this.ternary();
++            this.codeGenerator.onMethodParameter(this.lookhead);
++          }
++        }
++        if (this.expectChar(')')) {
++          this.parenDepth--;
++          this.depthState.removeLast();
++          this.move(true);
++          this.codeGenerator.onMethodInvoke(this.lookhead);
++        }
++      }
++    }
++
+   }
+ 
+   public static final CharToken LEFT_PAREN = new CharToken('(', -1);

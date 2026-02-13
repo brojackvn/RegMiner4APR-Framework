@@ -1,0 +1,60 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/springframework/data/mapping/model/KotlinCopyMethod.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/springframework/data/mapping/model/KotlinCopyMethod.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/springframework/data/mapping/model/KotlinCopyMethod.java	2024-09-08 01:36:08.709770739 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/springframework/data/mapping/model/KotlinCopyMethod.java	2024-09-08 01:36:08.661770403 +1000
+@@ -220,15 +220,71 @@
+ 
+ 	private static Optional<Method> findSyntheticCopyMethod(Class<?> type) {
+ 
++		KClass<?> kotlinClass = JvmClassMappingKt.getKotlinClass(type);
++		KFunction<?> primaryConstructor = KClasses.getPrimaryConstructor(kotlinClass);
+
++		if (primaryConstructor == null) {
++			return Optional.empty();
++		}
+
+ 		return Arrays.stream(type.getDeclaredMethods()) //
+ 				.filter(it -> it.getName().equals("copy$default") //
+ 						&& Modifier.isStatic(it.getModifiers()) //
+ 						&& it.getReturnType().equals(type))
+ 				.filter(Method::isSynthetic) //
++				.filter(it -> matchesPrimaryConstructor(it.getParameterTypes(), primaryConstructor))
+ 				.findFirst();
+ 	}
+ 
++	private static boolean matchesPrimaryConstructor(Class<?>[] parameterTypes, KFunction<?> primaryConstructor) {
++		List<KParameter> constructorArguments = getComponentArguments(primaryConstructor);
++		int defaultingArgs = KotlinDefaultMask.from(primaryConstructor, kParameter -> false).getDefaulting().length;
++		if (parameterTypes.length != 1 /* $this */ + constructorArguments.size() + defaultingArgs + 1 /* object marker */) {
++			return false;
++		}
++		if (!isAssignableFrom(parameterTypes[0], primaryConstructor.getReturnType())) {
++			return false;
++		}
++		for (int i = 0; i < constructorArguments.size(); i++) {
++			KParameter kParameter = constructorArguments.get(i);
++			if (!isAssignableFrom(parameterTypes[i + 1], kParameter.getType())) {
++				return false;
++			}
++		}
++		return true;
++	}
+
++	private static List<KParameter> getComponentArguments(KFunction<?> primaryConstructor) {
++		return primaryConstructor.getParameters() //
++				.stream() //
++				.filter(it -> it.getKind() == Kind.VALUE) //
++				.collect(Collectors.toList());
++	}
+
++	private static boolean isAssignableFrom(Class<?> target, KType source) {
++		Type parameterType = ReflectJvmMapping.getJavaType(source);
++		if (parameterType instanceof Class) {
++			return target.isAssignableFrom((Class<?>) parameterType);
++		}
++		return false;
++	}
+
+	/**
+ 	 * Value object to represent Kotlin {@literal copy$default} invocation metadata.
+ 	 *
+ 	 * @author Mark Paluch

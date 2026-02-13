@@ -1,0 +1,98 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/AllYamlLines.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/AllYamlLines.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/AllYamlLines.java	2024-09-08 01:36:09.397775558 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/AllYamlLines.java	2024-09-08 01:36:09.369775361 +1000
+@@ -110,10 +110,10 @@
+             line -> line.trimmed().startsWith("%"),
+             line -> line.trimmed().startsWith("!!")
+         ).iterator().next();
+-        if(first.trimmed().startsWith("-")) {
+-            node = new ReadYamlSequence(prev, this);
+-        } else if (first.trimmed().contains(":")){
++        if(first.trimmed().contains(":")) {
+             node = new ReadYamlMapping(prev, this);
++        } else if (first.trimmed().startsWith("-")){
++            node = new ReadYamlSequence(prev, this);
+         } else if(this.original().size() == 1) {
+             node = new ReadPlainScalar(this, first);
+         } else {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/ReadPlainScalar.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/ReadPlainScalar.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/ReadPlainScalar.java	2024-09-08 01:36:09.401775585 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/ReadPlainScalar.java	2024-09-08 01:36:09.369775361 +1000
+@@ -70,10 +70,10 @@
+     public String value() {
+         final String value;
+         final String trimmed = this.scalar.trimmed();
+-        if(trimmed.startsWith("-") && trimmed.length() > 1) {
+-            value = trimmed.substring(trimmed.indexOf('-')+1).trim();
+-        } else if(trimmed.contains(":") && !trimmed.endsWith(":")) {
++        if(trimmed.contains(":") && !trimmed.endsWith(":")) {
+             value = trimmed.substring(trimmed.indexOf(":") + 1).trim();
++        } else if(trimmed.startsWith("-") && trimmed.length() > 1) {
++            value = trimmed.substring(trimmed.indexOf('-')+1).trim();
+         } else {
+             value = trimmed;
+         }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/ReadYamlMapping.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/ReadYamlMapping.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/ReadYamlMapping.java	2024-09-08 01:36:09.401775585 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/ReadYamlMapping.java	2024-09-08 01:36:09.373775390 +1000
+@@ -119,8 +119,15 @@
+                         + "[" + line.trimmed() + "]."
+                     );
+                 }
+-                final String key = trimmed.substring(
+-                        0, trimmed.indexOf(":")).trim();
++                final String key;
++                if(trimmed.startsWith("-")) {
++                    key = trimmed.substring(
++                        1, trimmed.indexOf(":")
++                    ).trim();
++                } else {
++                    key = trimmed.substring(
++                        0, trimmed.indexOf(":")
++                    ).trim();                }
+                 if(!key.isEmpty()) {
+                     keys.add(new PlainStringScalar(key));
+                 }
+@@ -196,7 +203,8 @@
+                     || trimmed.matches("^" + tryKey + "\\:[ ]*\\|$")
+                 ) {
+                     value = this.significant.toYamlNode(line);
+-                } else if(trimmed.startsWith(tryKey + ":")
++                } else if((trimmed.startsWith(tryKey + ":")
++                    || trimmed.startsWith("- " + tryKey + ":"))
+                     && trimmed.length() > 1
+                 ) {
+                     value = new ReadPlainScalar(this.all, line);
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/SameIndentationLevel.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/SameIndentationLevel.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/SameIndentationLevel.java	2024-09-08 01:36:09.401775585 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/SameIndentationLevel.java	2024-09-08 01:36:09.373775390 +1000
+@@ -76,11 +76,15 @@
+             final List<YamlLine> sameIndentation = new ArrayList<>();
+             final YamlLine first = iterator.next();
+             sameIndentation.add(first);
++            int firstIndentation = first.indentation();
++            if(first.trimmed().matches("^[ ]*\\-.*\\:.*$")) {
++                firstIndentation += 2;
++            }
+             while (iterator.hasNext()) {
+                 YamlLine current = iterator.next();
+-                if(current.indentation() == first.indentation()) {
++                if(current.indentation() == firstIndentation) {
+                     sameIndentation.add(current);
+-                } else if (current.indentation() < first.indentation()) {
++                } else if (current.indentation() < firstIndentation) {
+                     break;
+                 }
+             }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/WellIndented.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/WellIndented.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/WellIndented.java	2024-09-08 01:36:09.401775585 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/WellIndented.java	2024-09-08 01:36:09.373775390 +1000
+@@ -102,7 +102,7 @@
+                 YamlLine line = iterator.next();
+                 if(!(previous instanceof YamlLine.NullYamlLine)) {
+                     int prevIndent = previous.indentation();
+-                    if(previous.trimmed().matches("^[ ]*\\-.*\\:$")) {
++                    if(previous.trimmed().matches("^[ ]*\\-.*\\:.*$")) {
+                         prevIndent += 2;
+                     }
+                     int lineIndent = line.indentation();

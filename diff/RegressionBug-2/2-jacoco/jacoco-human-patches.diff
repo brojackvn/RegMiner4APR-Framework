@@ -1,0 +1,21 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/net/lingala/zip4j/io/inputstream/ZipInputStream.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/net/lingala/zip4j/io/inputstream/ZipInputStream.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/net/lingala/zip4j/io/inputstream/ZipInputStream.java	2024-09-08 01:36:07.233760403 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/net/lingala/zip4j/io/inputstream/ZipInputStream.java	2024-09-08 01:36:07.213760262 +1000
+@@ -16,7 +16,6 @@
+ 
+ package net.lingala.zip4j.io.inputstream;
+ 
+-import net.lingala.zip4j.crypto.AESDecrypter;
+ import net.lingala.zip4j.exception.ZipException;
+ import net.lingala.zip4j.headers.HeaderReader;
+ import net.lingala.zip4j.headers.HeaderSignature;
+@@ -303,7 +302,10 @@
+   }
+ 
+   private void readUntilEndOfEntry() throws IOException {
+-    if (localFileHeader.isDirectory() || localFileHeader.getCompressedSize() == 0) {
++    if (!localFileHeader.isDataDescriptorExists()
++        && (localFileHeader.isDirectory() || localFileHeader.getCompressedSize() == 0)) {
+       return;
+     }
+ 

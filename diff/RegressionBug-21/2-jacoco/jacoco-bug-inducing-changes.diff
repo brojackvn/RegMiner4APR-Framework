@@ -1,0 +1,129 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/ast/expr/SQLPropertyExpr.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/ast/expr/SQLPropertyExpr.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/ast/expr/SQLPropertyExpr.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/ast/expr/SQLPropertyExpr.java
+@@ -23,12 +23,15 @@
+ public class SQLPropertyExpr extends SQLExprImpl implements SQLName {
+ 
+     private SQLExpr owner;
+     private String  name;
+ 
++    protected long name_hash_lower;
+
+     private transient SQLColumnDefinition resolvedColumn;
+     private transient SQLTableSource resolvedTableSource;
+ 
+@@ -41,6 +44,12 @@
+         this.name = name;
+     }
+ 
++    public SQLPropertyExpr(SQLExpr owner, String name, long name_hash_lower){
++        setOwner(owner);
++        this.name = name;
++        this.name_hash_lower = name_hash_lower;
++    }
++
+     public SQLPropertyExpr(){
+ 
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/ast/statement/SQLTableSourceImpl.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/ast/statement/SQLTableSourceImpl.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/ast/statement/SQLTableSourceImpl.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/ast/statement/SQLTableSourceImpl.java
+@@ -31,12 +32,13 @@ 
+ 
+     protected SQLExpr       flashback;
+ 
++    protected long          alias_hash;
+
+     public SQLTableSourceImpl(){
+ 
+     }
+ 
+@@ -46,6 +48,7 @@
+ 
+     public void setAlias(String alias) {
+         this.alias = alias;
++        this.alias_hash = 0L;
+     }
+ 
+     public int getHintsSize() {
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/parser/SQLExprParser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/parser/SQLExprParser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/sql/parser/SQLExprParser.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/sql/parser/SQLExprParser.java
+@@ -1005,9 +1005,14 @@
+             expr = new SQLPropertyExpr(expr, "*");
+         } else {
+             String name;
++            long hash_lower = 0L;
+ 
+-            if (lexer.token == Token.IDENTIFIER || lexer.token == Token.LITERAL_CHARS || lexer.token == Token.LITERAL_ALIAS) {
++            if (lexer.token == Token.IDENTIFIER) {
++                name = lexer.stringVal();
++                hash_lower = lexer.hash_lower;
++                lexer.nextToken();
+             } else if (lexer.token == Token.LITERAL_CHARS || lexer.token == Token.LITERAL_ALIAS) {
+                 name = lexer.stringVal();
+                 lexer.nextToken();
+             } else if (lexer.getKeywods().containsValue(lexer.token)) {
+@@ -1055,7 +1060,7 @@
+                     expr = methodInvokeExpr;
+                 }
+             } else {
+-                expr = new SQLPropertyExpr(expr, name);
++                expr = new SQLPropertyExpr(expr, name, hash_lower);
+             }
+         }
+ 
+@@ -1642,7 +1647,7 @@
+                 if (lexer.token == Token.AND
+                         && lexer.isEnabled(SQLParserFeature.EnableSQLBinaryOpExprGroup)) {
+ 
+-                    SQLBinaryOpExprGroup group = new SQLBinaryOpExprGroup(SQLBinaryOperator.BooleanAnd);
++                    SQLBinaryOpExprGroup group = new SQLBinaryOpExprGroup(SQLBinaryOperator.BooleanAnd, dbType);
+                     group.add(expr);
+                     group.add(rightExp);
+ 
+@@ -1697,25 +1702,31 @@
+                 if (lexer.token == Token.OR
+                         && lexer.isEnabled(SQLParserFeature.EnableSQLBinaryOpExprGroup)) {
+ 
+-                    SQLBinaryOpExprGroup group = new SQLBinaryOpExprGroup(SQLBinaryOperator.BooleanOr);
++                    SQLBinaryOpExprGroup group = new SQLBinaryOpExprGroup(SQLBinaryOperator.BooleanOr, dbType);
+                     group.add(expr);
+                     group.add(rightExp);
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/util/FNVUtils.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/util/FNVUtils.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/util/FNVUtils.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/util/FNVUtils.java
+@@ -80,6 +80,7 @@
+     public final static long MATCH = fnv_64_lower("MATCH");
+     public final static long EXTRACT = fnv_64_lower("EXTRACT");
+     public final static long POSITION = fnv_64_lower("POSITION");
++    public final static long DUAL = fnv_64_lower("DUAL");
+ 
+     public static long fnv_64(String input) {
+         if (input == null) {
+@@ -102,6 +103,46 @@
+             char ch = key.charAt(i);
+ 
+             if (ch >= 'A' && ch <= 'Z') {
++                ch = (char) (ch + 32);
++            }
+
++            hashCode ^= ch;
++            hashCode *= 0x100000001b3L;
++        }
+
++        return hashCode;
++    }
+
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/wall/spi/MySqlWallProvider.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/wall/spi/MySqlWallProvider.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/druid/wall/spi/MySqlWallProvider.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/druid/wall/spi/MySqlWallProvider.java
+@@ -38,7 +39,7 @@
+ 
+     @Override
+     public SQLStatementParser createParser(String sql) {
+-        return new MySqlStatementParser(sql);
++        return new MySqlStatementParser(sql, SQLParserFeature.EnableSQLBinaryOpExprGroup);
+     }
+ 
+     @Override

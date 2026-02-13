@@ -1,0 +1,31 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/processor/core/BeanConversionProcessor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/processor/core/BeanConversionProcessor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/processor/core/BeanConversionProcessor.java	2024-09-08 01:36:15.153815870 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/processor/core/BeanConversionProcessor.java	2024-09-08 01:36:15.137815758 +1000
+@@ -362,6 +362,17 @@
+ 			}
+ 		}
+ 
++		if (row.length < readOrder.length) {
++			i = last;
++			for (; i < readOrder.length; i++) {
++				FieldMapping field = readOrder[i];
++				if (field != null) {
++					Object value = conversions.applyConversions(i, null, null);
++					field.write(instance, value);
++				}
++			}
++		}
+
+ 		if (missing != null) {
+ 			for (i = 0; i < missing.length; i++) {
+ 				Object value = valuesForMissing[i];
+@@ -619,7 +630,8 @@
+ 							continue;
+ 						}
+ 						String fieldName = null;
+-						while (it.hasNext() && (fieldName = it.next().getFieldName()) == null) ;
++						while (it.hasNext() && (fieldName = it.next().getFieldName()) == null)
++							;
+ 						syntheticHeaders[i] = fieldName;
+ 					}
+ 				}

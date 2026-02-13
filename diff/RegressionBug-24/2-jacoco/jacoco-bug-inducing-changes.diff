@@ -1,0 +1,15 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/cactoos/io/WriterAsOutputStream.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/cactoos/io/WriterAsOutputStream.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/cactoos/io/WriterAsOutputStream.java	2024-09-08 01:36:13.401803600 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/cactoos/io/WriterAsOutputStream.java	2024-09-08 01:36:13.337803151 +1000
+@@ -171,6 +171,11 @@
+         }
+     }
+ 
++    @Override
++    public void close() throws IOException {
++        this.writer.close();
++    }
++
+     /**
+      * Write a portion from the buffer.
+      * @param buffer The buffer

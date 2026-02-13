@@ -1,0 +1,140 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/input/AbstractCharInputReader.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/input/AbstractCharInputReader.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/input/AbstractCharInputReader.java	2024-09-08 01:36:14.901814105 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/input/AbstractCharInputReader.java	2024-09-08 01:36:14.881813965 +1000
+@@ -436,4 +436,72 @@
+ 
+ 		return out;
+ 	}
+
++	@Override
++	public final String getQuotedString(char quote, char escape, char escapeEscape, int maxLength, char stop1, char stop2, boolean keepQuotes, boolean keepEscape) {
++		if (i == 0) {
++			return null;
++		}
+
++		int i = this.i;
+
++		while (true) {
++			if (i >= length) {
++				return null;
++			}
++			ch = buffer[i];
++			if (ch == quote) {
++				if (buffer[i - 1] == escape) {
++					if(keepEscape){
++						i++;
++						continue;
++					}
++					return null;
++				}
++				if (i + 1 < length) {
++					char next = buffer[i + 1];
++					if (next == stop1 || next == stop2) {
++						break;
++					}
++				}
+
++				return null;
++			} else if (ch == escape && !keepEscape) {
++				if (i + 1 < length) {
++					char next = buffer[i + 1];
++					if (next == quote || next == escapeEscape) {
++						return null;
++					}
++				}
++			} else if (lineSeparator1 == ch && normalizeLineEndings && (lineSeparator2 == '\0' || i + 1 < length && lineSeparator2 == buffer[i + 1])) {
++				return null;
++			}
++			i++;
++		}
+
++		int pos = this.i;
++		int len = i - this.i;
++		if (len > maxLength) { //validating before trailing whitespace handling so this behaves as an appender.
++			return null;
++		}
+
++		if(keepQuotes){
++			pos--;
++			len+=2;
++		}
+
++		this.i = i + 1;
+
++		String out;
++		if (len <= 0) {
++			out = "";
++		} else {
++			out = new String(buffer, pos, len);
++		}
+
++		if (this.i >= length) {
++			updateBuffer();
++		}
++		return out;
++	}
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvParser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvParser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvParser.java	2024-09-08 01:36:14.905814133 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvParser.java	2024-09-08 01:36:14.885813993 +1000
+@@ -53,6 +54,7 @@
+ 	private UnescapedQuoteHandling quoteHandling;
+ 	private final String nullValue;
+ 	private final int maxColumnLength;
++	private final String emptyValue;
+ 
+ 	/**
+ 	 * The CsvParser supports all settings provided by {@link CsvParserSettings}, and requires this configuration to be properly initialized.
+@@ -70,6 +72,7 @@
+ 		keepQuotes = settings.getKeepQuotes();
+ 		normalizeLineEndingsInQuotes = settings.isNormalizeLineEndingsWithinQuotes();
+ 		nullValue = settings.getNullValue();
++		emptyValue = settings.getEmptyValue();
+ 		maxColumnLength = settings.getMaxCharsPerColumn();
+ 
+ 
+@@ -118,13 +121,29 @@
+ 				prev = '\0';
+ 				if (ch == quote) {
+ 					output.trim = false;
+-					if (normalizeLineEndingsInQuotes) {
+-						parseQuotedValue();
+-					} else {
+-						input.enableNormalizeLineEndings(false);
+-						parseQuotedValue();
+-						input.enableNormalizeLineEndings(true);
++					input.enableNormalizeLineEndings(normalizeLineEndingsInQuotes);
++					if (output.appender.length() == 0) {
++						String value = input.getQuotedString(quote, quoteEscape, escapeEscape, maxColumnLength, delimiter, newLine, keepQuotes, keepEscape);
++						if (value != null) {
++							output.valueParsed(value == "" ? emptyValue : value);
++							try {
++								ch = input.nextChar();
++								if (ch == delimiter) {
++									try {
++										ch = input.nextChar();
++									} catch (EOFException e) {
++										output.emptyParsed();
++										return;
++									}
++								}
++							} catch (EOFException e) {
++								return;
++							}
++							continue;
++						}
+ 					}
++					parseQuotedValue();
++					input.enableNormalizeLineEndings(true);
+ 					output.valueParsed();
+ 				} else if (doNotEscapeUnquotedValues) {
+ 					String value = null;
+@@ -299,7 +319,7 @@
+ 					ch = input.nextChar();
+ 					//found a new line, go to next record.
+ 					if (ch == newLine) {
+-						if(keepQuotes){
++						if (keepQuotes) {
+ 							output.appender.append(quote);
+ 						}
+ 						return;

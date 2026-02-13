@@ -1,0 +1,12 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/cactoos/io/TeeInputStream.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/cactoos/io/TeeInputStream.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/cactoos/io/TeeInputStream.java	2024-09-08 01:36:13.365803347 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/cactoos/io/TeeInputStream.java	2024-09-08 01:36:13.297802871 +1000
+@@ -96,7 +96,7 @@
+     @Override
+     public void close() throws IOException {
+         this.input.close();
+-        this.output.close();
++        this.output.flush();
+     }
+ 
+     @Override

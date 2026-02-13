@@ -1,0 +1,36 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/FirstCommentFound.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/FirstCommentFound.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/FirstCommentFound.java	2024-09-08 01:36:09.509776343 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/FirstCommentFound.java	2024-09-08 01:36:09.477776118 +1000
+@@ -37,11 +37,13 @@
+  */
+ final class FirstCommentFound implements YamlLines {
+ 
++    boolean enteredComments = false;
+
+     /**
+      * Lines where we look for the comment.
+      */
+@@ -115,12 +117,18 @@
+         final List<YamlLine> comment = new ArrayList<>();
+         while (iterator.hasNext()) {
+             final YamlLine line = iterator.next();
+-            if(!"---".equals(line.trimmed()) && !line.comment().isEmpty()) {
+-                if(line.trimmed().startsWith("#")) {
+-                    comment.add(line);
+-                }
+-            } else {
++            boolean hasComment = !line.comment().isEmpty();
++            if (enteredComments && !hasComment) {
+                 break;
++            } else {
++                if (hasComment) {
++                    enteredComments = true;
++                    if (!"---".equals(line.trimmed())) {
++                        if (line.trimmed().startsWith("#")) {
++                            comment.add(line);
++                        }
++                    }
++                }
+             }
+         }
+         iterator = comment.iterator();
