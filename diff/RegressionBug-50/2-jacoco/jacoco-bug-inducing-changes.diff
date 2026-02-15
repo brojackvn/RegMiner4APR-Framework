@@ -1,0 +1,65 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java
+@@ -981,23 +981,34 @@    
++    @Override
+     protected Object visit(ASTIdentifier node, Object data) {
+         cancelCheck(node);
+         String name = node.getName();
+         if (data == null) {
+             int symbol = node.getSymbol();
+             if (symbol >= 0) {
+-                return frame.get(symbol);
++                if (frame.has(symbol)) {
++                    return frame.get(symbol);
++                } else if (node instanceof ASTVar) {
++                    return null;
++                }
+             }
+             Object value = context.get(name);
+             if (value == null
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Scope.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Scope.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Scope.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Scope.java
+@@ -19,12 +19,22 @@
+     /**
+      * The value of a declared but undefined variable, for instance: var x;.
+      */
++    private static final Object UNDEFINED = new Object() {
++        @Override public String toString() {
++            return "?";
++        }
++    };
+     /**
+      * The parent scope.
+      */
+@@ -199,6 +209,7 @@
+     public Frame createFrame(Frame frame) {
+         if (namedVariables != null) {
+             Object[] arguments = new Object[namedVariables.size()];
++            Arrays.fill(arguments, UNDEFINED);
+             if (frame != null && hoistedVariables != null && parent != null) {
+                 for (Map.Entry<Integer, Integer> hoist : hoistedVariables.entrySet()) {
+                     Integer target = hoist.getKey();
+@@ -361,7 +372,16 @@
+         * @param s the offset in this frame
+         * @return true if this symbol has been assigned a value, false otherwise
+         */
++        public boolean has(int s) {
++            return s >= 0 && s < stack.length && stack[s] != UNDEFINED;
++        }
+
+         /**
+          * Sets a value.
+          * @param r the offset in this frame
+@@ -378,8 +398,9 @@
+          */
+         public Frame assign(Object... values) {
+             if (stack != null && values != null && values.length > 0) {
++                int nparm = scope.getArgCount();
+                 Object[] copy = stack.clone();
+-                int ncopy = Math.min(copy.length - curried, values.length);
++                int ncopy = Math.min(nparm - curried, Math.min(nparm, values.length));
+                 System.arraycopy(values, 0, copy, curried, ncopy);
+                 return new Frame(scope, copy, curried + ncopy);
+             }

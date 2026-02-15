@@ -1,0 +1,94 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/deserializer/JavaBeanDeserializer.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/deserializer/JavaBeanDeserializer.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/deserializer/JavaBeanDeserializer.java	2024-09-08 01:36:16.641826292 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/deserializer/JavaBeanDeserializer.java	2024-09-08 01:36:16.513825395 +1000
+@@ -655,6 +655,17 @@
+                                     parser.resolveStatus = DefaultJSONParser.NeedToResolve;
+                                 }
+                             } else {
++                                if (ref.indexOf('\\') > 0) {
++                                    StringBuilder buf = new StringBuilder();
++                                    for (int i = 0; i < ref.length(); ++i) {
++                                        char ch = ref.charAt(i);
++                                        if (ch == '\\') {
++                                            ch = ref.charAt(++i);
++                                        }
++                                        buf.append(ch);
++                                    }
++                                    ref = buf.toString();
++                                }
+                                 Object refObj = parser.resolveReference(ref);
+                                 if (refObj != null) {
+                                     object = refObj;
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/serializer/JSONSerializer.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/serializer/JSONSerializer.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/serializer/JSONSerializer.java	2024-09-08 01:36:16.641826292 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/serializer/JSONSerializer.java	2024-09-08 01:36:16.513825395 +1000
+@@ -183,7 +183,8 @@
+             out.write("{\"$ref\":\"$\"}");
+         } else {
+             out.write("{\"$ref\":\"");
+-            out.write(references.get(object).toString());
++            String path = references.get(object).toString();
++            out.write(path);
+             out.write("\"}");
+         }
+     }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/serializer/SerialContext.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/serializer/SerialContext.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/serializer/SerialContext.java	2024-09-08 01:36:16.641826292 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/serializer/SerialContext.java	2024-09-08 01:36:16.517825423 +1000
+@@ -18,12 +18,52 @@
+         if (parent == null) {
+             return "$";
+         } else {
+-            if (fieldName instanceof Integer) {
+-                return parent.toString() + "[" + fieldName + "]";
++            StringBuilder buf = new StringBuilder();
++            toString(buf);
++            return buf.toString();
++        }
++    }
++
++    protected void toString(StringBuilder buf) {
++        if (parent == null) {
++            buf.append('$');
++        } else {
++            parent.toString(buf);
++            if (fieldName == null) {
++                buf.append(".null");
++            } else if (fieldName instanceof Integer) {
++                buf.append('[');
++                buf.append(((Integer)fieldName).intValue());
++                buf.append(']');
+             } else {
+-                return parent.toString() + "." + fieldName;
+-            }
++                buf.append('.');
+ 
++                String fieldName = this.fieldName.toString();
++                boolean special = false;
++                for (int i = 0; i < fieldName.length(); ++i) {
++                    char ch = fieldName.charAt(i);
++                    if (ch == '.' || ch == '@' || ch == '(' || ch == '\\') {
++                        special = true;
++                    }
++                }
++
++                if (special) {
++                    for (int i = 0; i < fieldName.length(); ++i) {
++                        char ch = fieldName.charAt(i);
++                        if (ch == '.' || ch == '@' || ch == '(') {
++                            buf.append('\\');
++                            buf.append('\\');
++                        } else if (ch == '\\') {
++                            buf.append('\\');
++                            buf.append('\\');
++                            buf.append('\\');
++                        }
++                        buf.append(ch);
++                    }
++                } else {
++                    buf.append(fieldName);
++                }
++            }
+         }
+     }
+ 

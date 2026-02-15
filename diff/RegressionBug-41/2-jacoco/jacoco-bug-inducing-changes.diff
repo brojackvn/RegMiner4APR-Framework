@@ -1,0 +1,12 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/HtmlTreeBuilderState.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/HtmlTreeBuilderState.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/HtmlTreeBuilderState.java	2024-09-08 01:36:15.569818784 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/HtmlTreeBuilderState.java	2024-09-08 01:36:15.561818727 +1000
+@@ -761,7 +761,7 @@
+         }
+ 
+         boolean anyOtherEndTag(Token t, HtmlTreeBuilder tb) {
+-            String name = t.asEndTag().normalName();
++            String name = t.asEndTag().name(); // matches with case sensitivity if enabled
+             ArrayList<Element> stack = tb.getStack();
+             for (int pos = stack.size() -1; pos >= 0; pos--) {
+                 Element node = stack.get(pos);

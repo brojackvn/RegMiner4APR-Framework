@@ -1,0 +1,24 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/parser/JavaBeanDeserializer.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/parser/JavaBeanDeserializer.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/parser/JavaBeanDeserializer.java	2024-09-24 22:13:50.865629784 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/parser/JavaBeanDeserializer.java	2024-09-24 22:13:44.293568322 +1000
+@@ -929,7 +929,8 @@
+             // smartMatchHashArrayMapping
+ 
+             int pos = Arrays.binarySearch(smartMatchHashArray, smartKeyHash);
+-            if (pos < 0 && key.startsWith("is")) {
++            boolean is = false;
++            if (pos < 0 && (is = key.startsWith("is"))) {
+                 smartKeyHash = TypeUtils.fnv_64_lower(key.substring(2));
+                 pos = Arrays.binarySearch(smartMatchHashArray, smartKeyHash);
+             }
+@@ -951,6 +952,10 @@
+                 int deserIndex = smartMatchHashArrayMapping[pos];
+                 if (deserIndex != -1) {
+                     fieldDeserializer = sortedFieldDeserializers[deserIndex];
++                    Class fieldClass = fieldDeserializer.fieldInfo.fieldClass;
++                    if (is && (fieldClass != boolean.class && fieldClass != Boolean.class)) {
++                        fieldDeserializer = null;
++                    }
+                 }
+             }
+         }

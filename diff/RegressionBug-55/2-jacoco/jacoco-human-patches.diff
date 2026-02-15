@@ -1,0 +1,43 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/csv/CsvFormatDetector.java
+@@ -204,6 +204,43 @@
+ 			}
+ 		}
+ 
++		if (toRemove.size() == sums.size()) { //will discard all symbols. Stick with the symbols that showed up more consistently across all rows.
++			Map<Character, Integer> lineCount = new HashMap<Character, Integer>();
++			for (i = 0; i < symbolsPerRow.size(); i++) {
++				for (Character symbolInRow : symbolsPerRow.get(i).keySet()) {
++					Integer count = lineCount.get(symbolInRow);
++					if (count == null) {
++						count = 0;
++					}
++					lineCount.put(symbolInRow, count + 1);
++				}
++			}
++			Integer highestLineCount = null;
++			for (Map.Entry<Character, Integer> e : lineCount.entrySet()) {
++				if (highestLineCount == null || highestLineCount < e.getValue()) {
++					highestLineCount = e.getValue();
++				}
++			}
++			Character bestCandidate = null;
++			for (Map.Entry<Character, Integer> e : lineCount.entrySet()) {
++				if (e.getValue().equals(highestLineCount)) {
++					if (bestCandidate == null) {
++						bestCandidate = e.getKey();
++					} else {
++						bestCandidate = null;
++						break;
++					}
++				}
++			}
++			if (bestCandidate != null) {
++				toRemove.remove(bestCandidate);
++			}
++		}
+
+ 		sums.keySet().removeAll(toRemove);
+ 
+ 		if (allowedDelimiters.length > 0) {

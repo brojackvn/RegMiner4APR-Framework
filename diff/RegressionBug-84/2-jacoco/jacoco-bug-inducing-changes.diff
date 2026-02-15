@@ -1,0 +1,12 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/jssrc/dsl/CodeChunkUtils.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/jssrc/dsl/CodeChunkUtils.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/jssrc/dsl/CodeChunkUtils.java	2024-09-08 01:36:26.797897421 +1000
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/jssrc/dsl/CodeChunkUtils.java	2024-09-08 01:36:26.745897057 +1000
+@@ -79,7 +79,7 @@
+       return concatChunks(chunks);
+     } else {
+       return concatChunks(
+-          ImmutableList.<Expression>builder().add(LITERAL_EMPTY_STRING).addAll(chunks).build());
++          ImmutableList.of(LITERAL_EMPTY_STRING, Group.create(concatChunks(chunks))));
+     }
+   }
+ 

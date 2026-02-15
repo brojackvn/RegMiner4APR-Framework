@@ -1,0 +1,30 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/util/FieldInfo.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/util/FieldInfo.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/util/FieldInfo.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/util/FieldInfo.java
+@@ -301,25 +298,8 @@
+                 paramType = (ParameterizedType) clazz.getGenericSuperclass();
+                 typeVariables = clazz.getSuperclass().getTypeParameters();
+             }
+         
+-            for (int i = 0; i < arguments.length && paramType != null; ++i) {
+-                Type feildTypeArguement = arguments[i];
+-                if (feildTypeArguement instanceof TypeVariable) {
+-                    TypeVariable<?> typeVar = (TypeVariable<?>) feildTypeArguement;
+-                    for (int j = 0; j < typeVariables.length; ++j) {
+-                        if (typeVariables[j].getName().equals(typeVar.getName())) {
+-                            if (actualTypes == null) {
+-                                actualTypes = paramType.getActualTypeArguments();
+-                            }
+-                            if (arguments[i] != actualTypes[j]) {
+-                                arguments[i] = actualTypes[j];
+-                                changed = true;
+-                            }
+-                        }
+-                    }
+-                }
+-            }
+
++            boolean changed = getArgument(arguments, typeVariables, paramType.getActualTypeArguments());
+             if (changed) {
+                 fieldType = new ParameterizedTypeImpl(arguments, parameterizedFieldType.getOwnerType(),
+                                                       parameterizedFieldType.getRawType());

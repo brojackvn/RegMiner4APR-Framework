@@ -1,0 +1,32 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/JSONObject.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/JSONObject.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/JSONObject.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/JSONObject.java
+@@ -464,4 +470,8 @@ 
+         throw new UnsupportedOperationException(method.toGenericString());
+     }
+
++    public Map<String, Object> getInnerMap() {
++        return this.map;
++    }
+ }
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/DefaultJSONParser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/DefaultJSONParser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/alibaba/fastjson/parser/DefaultJSONParser.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/alibaba/fastjson/parser/DefaultJSONParser.java
+@@ -203,6 +194,8 @@
+ 
+        ParseContext context = this.context;
+         try {
++            Map map = object instanceof JSONObject ? ((JSONObject) object).getInnerMap() : object;
+
+             boolean setContextFlag = false;
+             for (;;) {
+                 lexer.skipWhitespace();
+@@ -446,7 +441,7 @@
+                         value = lexer.decimalValue(lexer.isEnabled(Feature.UseBigDecimal));
+                     }
+ 
+-                    object.put(key, value);
++                    map.put(key, value);
+                 } else if (ch == '[') { // 减少嵌套，兼容android
+                     lexer.nextToken();
+ 

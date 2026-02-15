@@ -1,0 +1,51 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/msgs/restricted/RenderOnlySoyMsgBundleImpl.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/msgs/restricted/RenderOnlySoyMsgBundleImpl.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/msgs/restricted/RenderOnlySoyMsgBundleImpl.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/msgs/restricted/RenderOnlySoyMsgBundleImpl.java
+@@ -72,6 +73,55 @@
+    *   <li>24 - 128ns (low memory footprint, binary search everything)
+    * </ul>
+    */
++  private static final int BUCKET_SHIFT = 6;
+
+   /** This is both the mask used to map IDs to buckets. It's also the number of buckets-1. */
++  private final int bucketMask;
+
+   /** The bucket is the range [bucketBoundaries[bucketKey], bucketBoundaries[bucketKey]) in ids. */
++  private final ImmutableIntArray bucketBoundaries;
+
+   /** Returns the bucket index of the given ID. */
++  private int bucketOf(long msgId) {
++    return ((int) msgId) & bucketMask;
++  }
+   /**
+    * Constructs a map of render-only soy messages. This implementation saves memory but doesn't
+    * store all fields necessary during extraction.
+@@ -88,8 +138,26 @@
+     this.locale = localeString == null ? null : new ULocale(localeString);
+     this.isRtl = BidiGlobalDir.forStaticLocale(localeString) == BidiGlobalDir.RTL;
+ 
+-    ImmutableList<SoyMsg> sortedMsgs =
+-        ImmutableList.sortedCopyOf(Comparator.comparingLong(SoyMsg::getId), msgs);
+     // This creates the mask. Basically, take the high-bit and fill in the bits below it.
++    int maskHigh = Integer.highestOneBit(Iterables.size(msgs));
++    this.bucketMask = (maskHigh | (maskHigh - 1)) >>> BUCKET_SHIFT;
++    int numBuckets = this.bucketMask + 1;
+
+     // Sorts by bucket (low bits within the mask) and breaks ties with the full ID.
++    Comparator<SoyMsg> bucketComparator =
++        Comparator.comparingInt((SoyMsg m) -> bucketOf(m.getId())).thenComparingLong(SoyMsg::getId);
++    ImmutableList<SoyMsg> sortedMsgs = ImmutableList.sortedCopyOf(bucketComparator, msgs);
+
+     // Scan the sorted list to discover bucket boundaries and place them into the boundaries array.
++    ImmutableIntArray.Builder bucketBoundariesBuilder = ImmutableIntArray.builder(numBuckets + 1);
++    for (int bucket = 0, idx = 0; bucket < numBuckets; bucket++) {
++      bucketBoundariesBuilder.add(idx);
++      for (;
++          (idx < sortedMsgs.size()) && (bucketOf(sortedMsgs.get(idx).getId()) == bucket);
++          idx++) {}
++    }
++    bucketBoundariesBuilder.add(sortedMsgs.size());
++    this.bucketBoundaries = bucketBoundariesBuilder.build();
+ 
+     ImmutableLongArray.Builder idsBuilder = ImmutableLongArray.builder(sortedMsgs.size());
+     ImmutableList.Builder<SoyMsgPart> partsBuilder = ImmutableList.builder();

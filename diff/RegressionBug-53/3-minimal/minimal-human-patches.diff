@@ -1,0 +1,74 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/yahoo/sketches/theta/UnionImpl.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/yahoo/sketches/theta/UnionImpl.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/yahoo/sketches/theta/UnionImpl.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/yahoo/sketches/theta/UnionImpl.java
+@@ -8,6 +8,7 @@
+ import static com.yahoo.sketches.QuickSelect.selectExcludingZeros;
+ import static com.yahoo.sketches.theta.CompactSketch.compactCache;
+ import static com.yahoo.sketches.theta.PreambleUtil.COMPACT_FLAG_MASK;
++import static com.yahoo.sketches.theta.PreambleUtil.EMPTY_FLAG_MASK;
+ import static com.yahoo.sketches.theta.PreambleUtil.FAMILY_BYTE;
+ import static com.yahoo.sketches.theta.PreambleUtil.FLAGS_BYTE;
+ import static com.yahoo.sketches.theta.PreambleUtil.LG_ARR_LONGS_BYTE;
+@@ -341,6 +343,7 @@
+             "Family must be Alpha, QuickSelect, or Compact: " + Family.idToFamily(fam));
+       }
+       if (cap <= 8) { return; } //empty and Theta = 1.0
++      Util.checkSeedHashes(seedHash_, skMem.getShort(SEED_HASH_SHORT));
+       processVer3(skMem);
+     }
+     else {
+@@ -451,39 +466,48 @@
+ 
+   //has seedHash, p, could have 0 entries & theta,
+   // could be unordered, ordered, compact, or not, size >= 8
+   private void processVer3(final Memory skMem) {
+-    Util.checkSeedHashes(seedHash_, skMem.getShort(SEED_HASH_SHORT));
+     final int preLongs = skMem.getByte(PREAMBLE_LONGS_BYTE) & 0X3F;
+     final int curCountIn;
+     final long thetaLongIn;
++    final int flags = skMem.getByte(FLAGS_BYTE) & 0X3F;
+     if (preLongs == 1) { //SingleItemSketch if not empty, Read-Only, Compact and Ordered
+-      final int flags = skMem.getByte(FLAGS_BYTE);
+       if (flags == (READ_ONLY_FLAG_MASK | COMPACT_FLAG_MASK | ORDERED_FLAG_MASK)) { //nonEmpty Singleton
+         curCountIn = 1;
+         thetaLongIn = Long.MAX_VALUE;
+       } else {
+         return; //otherwise an empty sketch {1.0, 0, T}. Nothing changed
+       }
+     }
+     else if (preLongs == 2) { //curCount has to be > 0 and exact mode. Cannot be from intersection.
+       curCountIn = skMem.getInt(RETAINED_ENTRIES_INT);
+       assert curCountIn > 0;
+       thetaLongIn = Long.MAX_VALUE;
+     }
+     else { //prelongs == 3, curCount may be 0 (e.g., from intersection).
+       curCountIn = skMem.getInt(RETAINED_ENTRIES_INT);
+       assert curCountIn > 0;
+       thetaLongIn = skMem.getLong(THETA_LONG);
+     }
+-    unionThetaLong_ = min(unionThetaLong_, thetaLongIn); //theta rule
++    unionThetaLong_ = min(min(unionThetaLong_, thetaLongIn), gadget_.getThetaLong()); //theta rule
++    unionEmpty_ = unionEmpty_ && ((flags & EMPTY_FLAG_MASK) > 0)  && gadget_.isEmpty();
+     final boolean ordered = (skMem.getByte(FLAGS_BYTE) & ORDERED_FLAG_MASK) != 0;
+     if (ordered) { //must be compact
+       for (int i = 0; i < curCountIn; i++ ) {
+         final int offsetBytes = (preLongs + i) << 3;
+         final long hashIn = skMem.getLong(offsetBytes);
+         if (hashIn >= unionThetaLong_) { break; } // "early stop"
+@@ -501,7 +525,15 @@
+       }
+     }
+     unionThetaLong_ = min(unionThetaLong_, gadget_.getThetaLong()); //sync thetaLongs
+-    unionEmpty_ = unionEmpty_ && gadget_.isEmpty();
++    if (gadget_.hasMemory()) {
++      final WritableMemory wmem = (WritableMemory)gadget_.getMemory();
++      PreambleUtil.insertUnionThetaLong(wmem, unionThetaLong_);
++      if (unionEmpty_) {
++        PreambleUtil.setEmpty(wmem);
++      } else {
++        PreambleUtil.clearEmpty(wmem);
++      }
++    }
+   }
+ 
+ }
