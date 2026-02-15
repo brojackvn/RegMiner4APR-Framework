@@ -1,14 +1,6 @@
 diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/passes/ResolveExpressionTypesVisitor.java ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/passes/ResolveExpressionTypesVisitor.java
 --- ./RegMiner4APR-Regression-Bugs/WORKING/java/src/com/google/template/soy/passes/ResolveExpressionTypesVisitor.java	2024-09-08 01:36:27.605903080 +1000
 +++ ./RegMiner4APR-Regression-Bugs/BIC/java/src/com/google/template/soy/passes/ResolveExpressionTypesVisitor.java	2024-09-08 01:36:27.561902772 +1000
-@@ -17,7 +17,6 @@
- package com.google.template.soy.passes;
- 
- import com.google.common.base.Equivalence.Wrapper;
--import com.google.common.base.Optional;
- import com.google.common.base.Preconditions;
- import com.google.common.collect.Maps;
- import com.google.template.soy.base.SourceLocation;
 @@ -566,18 +565,7 @@
  
      @Override

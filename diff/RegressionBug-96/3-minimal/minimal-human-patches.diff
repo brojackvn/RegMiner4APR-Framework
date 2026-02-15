@@ -1,0 +1,11 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorOutputStream.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorOutputStream.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorOutputStream.java
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/compress/compressors/bzip2/BZip2CompressorOutputStream.java
+@@ -560,7 +558,6 @@
+                 endBlock();
+                 endCompression();
+             } finally {
+-                this.out = null;
+                 this.blockSorter = null;
+                 this.data = null;
+             }

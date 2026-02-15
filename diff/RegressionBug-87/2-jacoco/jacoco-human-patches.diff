@@ -26,20 +26,6 @@ diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy
 diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/jssrc/internal/ExtractMsgVariablesVisitor.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/jssrc/internal/ExtractMsgVariablesVisitor.java
 --- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/jssrc/internal/ExtractMsgVariablesVisitor.java	2024-09-08 01:36:27.893905097 +1000
 +++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/jssrc/internal/ExtractMsgVariablesVisitor.java	2024-09-08 01:36:27.829904649 +1000
-@@ -18,13 +18,11 @@
- 
- import com.google.template.soy.base.internal.IdGenerator;
- import com.google.template.soy.data.SanitizedContent.ContentKind;
--import com.google.template.soy.msgs.internal.MsgUtils;
- import com.google.template.soy.passes.BuildAllDependeesMapVisitor;
- import com.google.template.soy.soytree.AbstractSoyNodeVisitor;
- import com.google.template.soy.soytree.HtmlAttributeNode;
- import com.google.template.soy.soytree.LetContentNode;
- import com.google.template.soy.soytree.MsgFallbackGroupNode;
--import com.google.template.soy.soytree.MsgNode;
- import com.google.template.soy.soytree.SoyFileSetNode;
- import com.google.template.soy.soytree.SoyNode;
- import com.google.template.soy.soytree.SoyNode.BlockNode;
 @@ -55,8 +55,6 @@
  
    private Map<SoyNode, List<SoyNode>> allDependeesMap;

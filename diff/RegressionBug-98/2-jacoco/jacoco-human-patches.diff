@@ -1,0 +1,13 @@
+diff -r -U 3 /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-98/BUGGY/src/main/java/org/apache/commons/io/input/BufferedFileChannelInputStream.java /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-98/BFC/src/main/java/org/apache/commons/io/input/BufferedFileChannelInputStream.java
+--- /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-98/BUGGY/src/main/java/org/apache/commons/io/input/BufferedFileChannelInputStream.java	2025-03-24 17:00:18.167628930 +1100
++++ /home/student.unimelb.edu.au/anhh1/working-space/APR/MSR-25/RegMiner4APR-Benchmark-Repo/RegressionBug-98/BFC/src/main/java/org/apache/commons/io/input/BufferedFileChannelInputStream.java	2025-03-24 17:00:18.139628755 +1100
+@@ -169,6 +169,9 @@
+ 
+     @Override
+     public synchronized int available() throws IOException {
++        if (!fileChannel.isOpen()) {
++            return 0;
++        }
+         if (!refill()) {
+             return EOF;
+         }

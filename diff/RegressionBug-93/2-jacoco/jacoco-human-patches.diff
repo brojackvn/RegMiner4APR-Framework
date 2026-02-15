@@ -1,0 +1,542 @@
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/base/internal/SanitizedContentKind.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/base/internal/SanitizedContentKind.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/base/internal/SanitizedContentKind.java	2024-09-08 01:36:30.125920731 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/base/internal/SanitizedContentKind.java	2024-09-08 01:36:30.013919946 +1000
+@@ -39,8 +39,6 @@
+    * domain.
+    */
+   HTML,
+-  HTML_ELEMENT,
+ 
+   /**
+    * Executable Javascript code or expression, safe for insertion in a script-tag or event handler
+@@ -93,11 +91,6 @@
+     return attributeValue;
+   }
+ 
+-  public boolean isAssignableFrom(SanitizedContentKind sanitizedType) {
+-    return this == sanitizedType || (this == HTML && sanitizedType == HTML_ELEMENT);
+-  }
+
+   /** Returns the kind for the given attribute value. Or {@code null} if it is invalid. */
+   public static Optional<SanitizedContentKind> fromAttributeValue(String attributeValue) {
+     checkNotNull(attributeValue);
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/base/internal/TemplateContentKind.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/base/internal/TemplateContentKind.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/base/internal/TemplateContentKind.java	2024-09-08 01:36:30.125920731 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/base/internal/TemplateContentKind.java	2024-09-08 01:36:30.013919946 +1000
+@@ -42,11 +42,11 @@
+    */
+   public static Optional<TemplateContentKind> fromAttributeValue(String attrValue) {
+     checkNotNull(attrValue);
+-    if (attrValue.equals("html<?>")) {
+-      return Optional.of(ElementContentKind.ELEMENT);
+-    }
+
+     if (BasicTemplateContentKind.KINDS_BY_ATTR_VALUE.containsKey(attrValue)) {
+       return Optional.of(BasicTemplateContentKind.KINDS_BY_ATTR_VALUE.get(attrValue));
++    } else if (attrValue.equals("html<?>")) {
++      return Optional.of(ElementContentKind.ELEMENT);
+     }
+     return Optional.empty();
+   }
+@@ -113,7 +113,7 @@
+ 
+     @Override
+     public SanitizedContentKind getSanitizedContentKind() {
+-      return SanitizedContentKind.HTML_ELEMENT;
++      return SanitizedContentKind.HTML;
+     }
+   }
+ 
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/data/internalutils/NodeContentKinds.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/data/internalutils/NodeContentKinds.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/data/internalutils/NodeContentKinds.java	2024-09-08 01:36:30.129920758 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/data/internalutils/NodeContentKinds.java	2024-09-08 01:36:30.017919974 +1000
+@@ -45,7 +45,6 @@
+   private static final ImmutableMap<SanitizedContentKind, String> KIND_TO_JS_CTOR_NAME =
+       ImmutableMap.<SanitizedContentKind, String>builder()
+           .put(SanitizedContentKind.HTML, "goog.soy.data.SanitizedHtml")
+-          .put(SanitizedContentKind.HTML_ELEMENT, "goog.soy.data.SanitizedHtml")
+           .put(SanitizedContentKind.ATTRIBUTES, "goog.soy.data.SanitizedHtmlAttribute")
+           .put(SanitizedContentKind.JS, "goog.soy.data.SanitizedJs")
+           .put(SanitizedContentKind.URI, "goog.soy.data.SanitizedUri")
+@@ -60,7 +59,6 @@
+   private static final ImmutableMap<SanitizedContentKind, String> KIND_TO_JS_ORDAINER_NAME =
+       ImmutableMap.<SanitizedContentKind, String>builder()
+           .put(SanitizedContentKind.HTML, "soydata.VERY_UNSAFE.ordainSanitizedHtml")
+-          .put(SanitizedContentKind.HTML_ELEMENT, "soydata.VERY_UNSAFE.ordainSanitizedHtml")
+           .put(SanitizedContentKind.ATTRIBUTES, "soydata.VERY_UNSAFE.ordainSanitizedHtmlAttribute")
+           .put(SanitizedContentKind.JS, "soydata.VERY_UNSAFE.ordainSanitizedJs")
+           .put(SanitizedContentKind.URI, "soydata.VERY_UNSAFE.ordainSanitizedUri")
+@@ -83,9 +81,6 @@
+                   SanitizedContentKind.HTML,
+                   "soydata.VERY_UNSAFE.$$ordainSanitizedHtmlForInternalBlocks")
+               .put(
+-                  SanitizedContentKind.HTML_ELEMENT,
+-                  "soydata.VERY_UNSAFE.$$ordainSanitizedHtmlForInternalBlocks")
+-              .put(
+                   SanitizedContentKind.ATTRIBUTES,
+                   "soydata.VERY_UNSAFE.$$ordainSanitizedAttributesForInternalBlocks")
+               .put(
+@@ -121,7 +116,6 @@
+   /** The Python sanitized classes. */
+   private static final ImmutableMap<SanitizedContentKind, String> KIND_TO_PY_SANITIZED_NAME =
+       ImmutableMap.<SanitizedContentKind, String>builder()
+-          .put(SanitizedContentKind.HTML_ELEMENT, "sanitize.SanitizedHtml")
+           .put(SanitizedContentKind.HTML, "sanitize.SanitizedHtml")
+           .put(SanitizedContentKind.ATTRIBUTES, "sanitize.SanitizedHtmlAttribute")
+           .put(SanitizedContentKind.JS, "sanitize.SanitizedJs")
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/data/SanitizedContent.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/data/SanitizedContent.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/data/SanitizedContent.java	2024-09-08 01:36:30.125920731 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/data/SanitizedContent.java	2024-09-08 01:36:30.017919974 +1000
+@@ -93,9 +93,6 @@
+      */
+     HTML,
+ 
+-    HTML_ELEMENT,
+
+     /**
+      * Executable Javascript code or expression, safe for insertion in a script-tag or event handler
+      * context, known to be free of any attacker-controlled scripts. This can either be
+@@ -155,7 +152,6 @@
+         case TRUSTED_RESOURCE_URI:
+           return Dir.LTR;
+         case HTML:
+-        case HTML_ELEMENT:
+         case TEXT:
+           return null;
+       }
+@@ -254,7 +250,7 @@
+    */
+   public SafeHtml toSafeHtml() {
+     Preconditions.checkState(
+-        getContentKind() == ContentKind.HTML || getContentKind() == ContentKind.HTML_ELEMENT,
++        getContentKind() == ContentKind.HTML,
+         "toSafeHtml() only valid for SanitizedContent of kind HTML, is: %s",
+         getContentKind());
+     return UncheckedConversions.safeHtmlFromStringKnownToSatisfyTypeContract(getContent());
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/invocationbuilders/passes/InvocationBuilderTypeUtils.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/invocationbuilders/passes/InvocationBuilderTypeUtils.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/invocationbuilders/passes/InvocationBuilderTypeUtils.java	2024-09-08 01:36:30.129920758 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/invocationbuilders/passes/InvocationBuilderTypeUtils.java	2024-09-08 01:36:30.025920030 +1000
+@@ -79,7 +79,6 @@
+       case STRING:
+         types = ImmutableList.of(SimpleJavaType.STRING);
+         break;
+-      case ELEMENT:
+       case HTML:
+         types = ImmutableList.of(SimpleJavaType.HTML);
+         break;
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/jbcsrc/api/StubbingCompiledTemplates.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/jbcsrc/api/StubbingCompiledTemplates.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/jbcsrc/api/StubbingCompiledTemplates.java	2024-09-08 01:36:30.133920786 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/jbcsrc/api/StubbingCompiledTemplates.java	2024-09-08 01:36:30.025920030 +1000
+@@ -99,7 +99,6 @@
+       return super.getTemplateFactory(name);
+     }
+     switch (contentKind) {
+-      case HTML_ELEMENT:
+       case HTML:
+         return new Factory<>(
+             contentKind, stubFactory.createHtmlTemplate(name), SafeHtml::getSafeHtmlString);
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/jbcsrc/restricted/SoyRuntimeType.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/jbcsrc/restricted/SoyRuntimeType.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/jbcsrc/restricted/SoyRuntimeType.java	2024-09-08 01:36:30.133920786 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/jbcsrc/restricted/SoyRuntimeType.java	2024-09-08 01:36:30.029920058 +1000
+@@ -72,7 +72,6 @@
+       case ATTRIBUTES:
+       case CSS:
+       case URI:
+-      case ELEMENT:
+       case HTML:
+       case JS:
+       case TRUSTED_RESOURCE_URI:
+@@ -148,7 +147,6 @@
+       case ATTRIBUTES:
+       case CSS:
+       case URI:
+-      case ELEMENT:
+       case HTML:
+       case JS:
+       case TRUSTED_RESOURCE_URI:
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/jssrc/internal/JsType.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/jssrc/internal/JsType.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/jssrc/internal/JsType.java	2024-09-08 01:36:30.137920814 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/jssrc/internal/JsType.java	2024-09-08 01:36:30.029920058 +1000
+@@ -283,7 +283,6 @@
+         }
+         // fall through
+       case HTML:
+-      case ELEMENT:
+         if (isIncrementalDom) {
+           // idom has a different strategy for handling these
+           return IDOM_HTML;
+@@ -487,7 +486,6 @@
+         return STRING_TYPE;
+       case ATTRIBUTES:
+       case CSS:
+-      case HTML_ELEMENT:
+       case HTML:
+       case JS:
+       case URI:
+@@ -643,7 +641,6 @@
+       case CSS:
+         builder.addType("!goog.html.SafeStyle");
+         break;
+-      case HTML_ELEMENT:
+       case HTML:
+         builder.addType("!goog.html.SafeHtml");
+         break;
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/parsepasses/contextautoesc/Context.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/parsepasses/contextautoesc/Context.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/parsepasses/contextautoesc/Context.java	2024-09-08 01:36:30.137920814 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/parsepasses/contextautoesc/Context.java	2024-09-08 01:36:30.033920086 +1000
+@@ -930,7 +930,6 @@
+     switch (contentKind) {
+       case CSS:
+         return state() == HtmlContext.CSS && elType() == ElementType.NONE;
+-      case HTML_ELEMENT:
+       case HTML:
+         return state() == HtmlContext.HTML_PCDATA && elType() == ElementType.NONE;
+       case ATTRIBUTES:
+@@ -1745,7 +1744,6 @@
+         case CSS:
+           withState(HtmlContext.CSS);
+           break;
+-        case HTML_ELEMENT:
+         case HTML:
+           withState(HtmlContext.HTML_PCDATA);
+           break;
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/passes/CheckDeclaredTypesPass.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/passes/CheckDeclaredTypesPass.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/passes/CheckDeclaredTypesPass.java	2024-09-08 01:36:30.141920843 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/passes/CheckDeclaredTypesPass.java	2024-09-08 01:36:30.033920086 +1000
+@@ -111,8 +111,6 @@
+           }
+           node.arguments().get(0).accept(this);
+           break;
+-        case ELEMENT:
+-          break;
+         default:
+           throw new AssertionError("unexpected generic type: " + node.getResolvedType().getKind());
+       }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/passes/CheckTemplateCallsPass.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/passes/CheckTemplateCallsPass.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/passes/CheckTemplateCallsPass.java	2024-09-08 01:36:30.141920843 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/passes/CheckTemplateCallsPass.java	2024-09-08 01:36:30.033920086 +1000
+@@ -422,8 +422,7 @@
+       if (callerTemplate.isStrictHtml()
+           && caller.getIsPcData()
+           && callee != null
+-          && (callee.getContentKind() == SanitizedContentKind.HTML
+-              || callee.getContentKind() == SanitizedContentKind.HTML_ELEMENT)
++          && callee.getContentKind() == SanitizedContentKind.HTML
+           && !callee.isStrictHtml()) {
+         errorReporter.report(caller.getSourceLocation(), STRICT_HTML);
+       }
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/passes/KeyCommandPass.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/passes/KeyCommandPass.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/passes/KeyCommandPass.java	2024-09-08 01:36:30.141920843 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/passes/KeyCommandPass.java	2024-09-08 01:36:30.037920114 +1000
+@@ -145,7 +145,6 @@
+           break;
+         case BOOL:
+         case HTML:
+-        case ELEMENT:
+         case ATTRIBUTES:
+         case JS:
+         case CSS:
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/passes/ResolveExpressionTypesCrossTemplatePass.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/passes/ResolveExpressionTypesCrossTemplatePass.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/passes/ResolveExpressionTypesCrossTemplatePass.java	2024-09-08 01:36:30.141920843 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/passes/ResolveExpressionTypesCrossTemplatePass.java	2024-09-08 01:36:30.037920114 +1000
+@@ -56,7 +56,6 @@
+ import com.google.template.soy.types.SoyTypeRegistry;
+ import com.google.template.soy.types.SoyTypeVisitor;
+ import com.google.template.soy.types.SoyTypes;
+-import com.google.template.soy.types.StringType;
+ import com.google.template.soy.types.TemplateBindingUtil;
+ import com.google.template.soy.types.TemplateType;
+ import com.google.template.soy.types.UnionType;
+@@ -204,15 +203,7 @@
+     Set<FunctionNode> correctlyPlaced = new HashSet<>();
+     for (HtmlTagNode tagNode :
+         SoyTreeUtils.getAllMatchingNodesOfType(
+-            file,
+-            HtmlTagNode.class,
+-            (tag) ->
+-                !tag.getTagName().isStatic()
+-                    && tag.getTagName()
+-                        .getDynamicTagName()
+-                        .getExpr()
+-                        .getType()
+-                        .isAssignableFrom(StringType.getInstance()))) {
++            file, HtmlTagNode.class, (tag) -> !tag.getTagName().isStatic())) {
+       handleDynamicTag(tagNode, correctlyPlaced);
+     }
+     // No other uses of legacyDynamicTag are allowed.
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/passes/ResolveExpressionTypesPass.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/passes/ResolveExpressionTypesPass.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/passes/ResolveExpressionTypesPass.java	2024-09-08 01:36:30.141920843 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/passes/ResolveExpressionTypesPass.java	2024-09-08 01:36:30.037920114 +1000
+@@ -1796,7 +1796,6 @@
+         case CSS:
+         case JS:
+         case ATTRIBUTES:
+-        case ELEMENT:
+         case HTML:
+         case URI:
+           if (fieldName.equals("length")) {
+@@ -1916,7 +1915,6 @@
+         case INT:
+         case FLOAT:
+         case STRING:
+-        case ELEMENT:
+         case HTML:
+         case ATTRIBUTES:
+         case JS:
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/passes/SoyElementPass.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/passes/SoyElementPass.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/passes/SoyElementPass.java	2024-09-08 01:36:30.141920843 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/passes/SoyElementPass.java	2024-09-08 01:36:30.037920114 +1000
+@@ -109,8 +109,7 @@
+       // we can use it like a TemplateRegistry, but for templates in the immediate compilation unit.
+       for (TemplateNode template : file.getTemplates()) {
+         if (!(template instanceof TemplateDelegateNode)
+-            && (template.getContentKind() == SanitizedContentKind.HTML
+-                || template.getContentKind() == SanitizedContentKind.HTML_ELEMENT)) {
++            && template.getContentKind() == SanitizedContentKind.HTML) {
+           templatesInLibrary.put(template.getTemplateName(), template);
+         } else {
+           template.setHtmlElementMetadata(DEFAULT_HTML_METADATA);
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/plugin/java/internal/ValidatorFactory.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/plugin/java/internal/ValidatorFactory.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/plugin/java/internal/ValidatorFactory.java	2024-09-08 01:36:30.141920843 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/plugin/java/internal/ValidatorFactory.java	2024-09-08 01:36:30.037920114 +1000
+@@ -352,7 +352,6 @@
+         break;
+       case ATTRIBUTES:
+       case CSS:
+-      case ELEMENT:
+       case HTML:
+       case URI:
+       case TRUSTED_RESOURCE_URI:
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/sharedpasses/render/TofuTypeChecks.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/sharedpasses/render/TofuTypeChecks.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/sharedpasses/render/TofuTypeChecks.java	2024-09-08 01:36:30.145920870 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/sharedpasses/render/TofuTypeChecks.java	2024-09-08 01:36:30.041920142 +1000
+@@ -131,7 +131,6 @@
+       case FLOAT:
+         return CheckResult.fromBool(value instanceof FloatData);
+       case HTML:
+-      case ELEMENT:
+         return isSanitizedofKind(value, ContentKind.HTML);
+       case INT:
+         return CheckResult.fromBool(value instanceof IntegerData);
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/soyparse/HtmlRewriter.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/soyparse/HtmlRewriter.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/soyparse/HtmlRewriter.java	2024-09-08 01:36:30.149920898 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/soyparse/HtmlRewriter.java	2024-09-08 01:36:30.045920170 +1000
+@@ -326,7 +326,6 @@
+         case ATTRIBUTES:
+           return BEFORE_ATTRIBUTE_NAME;
+         case HTML:
+-        case HTML_ELEMENT:
+           return PCDATA;
+           // You might be thinking that some of these should be RCDATA_STYLE or RCDATA_SCRIPT, but
+           // that wouldn't be accurate since rcdata is specific to the context of js on an html page
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/soytree/TagName.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/soytree/TagName.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/soytree/TagName.java	2024-09-08 01:36:30.149920898 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/soytree/TagName.java	2024-09-08 01:36:30.049920198 +1000
+@@ -209,9 +209,6 @@
+           .putAll("th", "td", "th")
+           .build();
+ 
+-  private static final TemplateType ELEMENT_TEMPLATE =
+-      TemplateType.declaredTypeOf(ImmutableList.of(), SanitizedType.ElementType.getInstance());
+-
+   private final StandaloneNode node;
+   @Nullable private final String nameAsLowerCase;
+   @Nullable private final RcDataTagName rcDataTagName;
+@@ -253,7 +250,12 @@
+ 
+   public boolean isTemplateCall() {
+     return !isStatic()
+-        && ELEMENT_TEMPLATE.isAssignableFrom(getDynamicTagName().getExpr().getType());
++        && getDynamicTagName()
++            .getExpr()
++            .getType()
++            .isAssignableFrom(
++                TemplateType.declaredTypeOf(
++                    ImmutableList.of(), SanitizedType.HtmlType.getInstance()));
+   }
+ 
+   public boolean isWildCard() {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/types/ast/TypeNodeConverter.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/types/ast/TypeNodeConverter.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/types/ast/TypeNodeConverter.java	2024-09-08 01:36:30.153920926 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/types/ast/TypeNodeConverter.java	2024-09-08 01:36:30.049920198 +1000
+@@ -35,7 +35,6 @@
+ import com.google.template.soy.types.ProtoTypeRegistry;
+ import com.google.template.soy.types.RecordType;
+ import com.google.template.soy.types.SanitizedType;
+-import com.google.template.soy.types.SanitizedType.ElementType;
+ import com.google.template.soy.types.SoyType;
+ import com.google.template.soy.types.SoyType.Kind;
+ import com.google.template.soy.types.SoyTypeRegistry;
+@@ -84,7 +83,6 @@
+ 
+   private static final ImmutableSet<Kind> ALLOWED_TEMPLATE_RETURN_TYPES =
+       Sets.immutableEnumSet(
+-          Kind.ELEMENT,
+           Kind.HTML,
+           Kind.ATTRIBUTES,
+           Kind.STRING,
+@@ -124,19 +122,6 @@
+             }
+           });
+ 
+-  private static final ImmutableMap<String, GenericTypeInfo> GENERIC_TYPES_WITH_ELEMENT =
+-      new ImmutableMap.Builder<String, GenericTypeInfo>()
+-          .putAll(GENERIC_TYPES)
+-          .put(
+-              "html",
+-              new GenericTypeInfo(1) {
+-                @Override
+-                SoyType create(List<SoyType> types, TypeInterner interner) {
+-                  return ElementType.getInstance();
+-                }
+-              })
+-          .build();
+
+   /** Simple representation of a generic type specification. */
+   private abstract static class GenericTypeInfo {
+     final int numParams;
+@@ -282,13 +267,9 @@
+ 
+   @Override
+   public SoyType visit(GenericTypeNode node) {
+-    return visit(node, GENERIC_TYPES);
+-  }
+
+-  private SoyType visit(GenericTypeNode node, ImmutableMap<String, GenericTypeInfo> genericTypes) {
+     ImmutableList<TypeNode> args = node.arguments();
+     String name = node.name();
+-    GenericTypeInfo genericType = genericTypes.get(name);
++    GenericTypeInfo genericType = GENERIC_TYPES.get(name);
+     if (genericType == null) {
+       errorReporter.report(node.sourceLocation(), NOT_A_GENERIC_TYPE, name);
+       return UnknownType.getInstance();
+@@ -364,7 +345,7 @@
+         map.put(parameter.name(), oldParameter);
+       }
+     }
+-    SoyType returnType = handleReturnTypeOfTemplateType(node.returnType());
++    SoyType returnType = node.returnType().accept(this);
+     // Validate return type.
+     if (!ALLOWED_TEMPLATE_RETURN_TYPES.contains(returnType.getKind())) {
+       errorReporter.report(node.returnType().sourceLocation(), INVALID_TEMPLATE_RETURN_TYPE);
+@@ -375,13 +356,6 @@
+     return type;
+   }
+ 
+-  private SoyType handleReturnTypeOfTemplateType(TypeNode node) {
+-    if (node instanceof GenericTypeNode) {
+-      return visit((GenericTypeNode) node, GENERIC_TYPES_WITH_ELEMENT);
+-    }
+-    return node.accept(this);
+-  }
+
+   @DoNotCall
+   @Override
+   public SoyType apply(TypeNode node) {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/types/SanitizedType.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/types/SanitizedType.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/types/SanitizedType.java	2024-09-08 01:36:30.153920926 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/types/SanitizedType.java	2024-09-08 01:36:30.049920198 +1000
+@@ -49,9 +49,6 @@
+       case CSS:
+         return StyleType.getInstance();
+ 
+-      case HTML_ELEMENT:
+-        return ElementType.getInstance();
+
+       case HTML:
+         return HtmlType.getInstance();
+ 
+@@ -101,36 +98,6 @@
+       return INSTANCE;
+     }
+   }
+
+-  public static final class ElementType extends SanitizedType {
+
+-    private static final ElementType INSTANCE = new ElementType();
+
+-    private ElementType() {}
+
+-    @Override
+-    public Kind getKind() {
+-      return Kind.ELEMENT;
+-    }
+
+-    @Override
+-    public SanitizedContentKind getContentKind() {
+-      return SanitizedContentKind.HTML_ELEMENT;
+-    }
+
+-    @Override
+-    void doToProto(SoyTypeP.Builder builder) {
+-      builder.setPrimitive(SoyTypeP.PrimitiveTypeP.HTML);
+-    }
+
+-    public static ElementType getInstance() {
+-      return INSTANCE;
+-    }
+-  }
+ 
+   /** Type produced by templates whose kind is "attributes". */
+   public static final class AttributesType extends SanitizedType {
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/types/SoyType.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/types/SoyType.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/types/SoyType.java	2024-09-08 01:36:30.153920926 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/types/SoyType.java	2024-09-08 01:36:30.049920198 +1000
+@@ -93,7 +93,6 @@
+     STRING,
+     // Sanitized types (subtypes of string)
+     HTML,
+-    ELEMENT,
+     ATTRIBUTES,
+     JS,
+     CSS,
+@@ -118,7 +117,6 @@
+         Sets.immutableEnumSet(
+             Kind.STRING,
+             Kind.HTML,
+-            Kind.ELEMENT,
+             Kind.ATTRIBUTES,
+             Kind.JS,
+             Kind.CSS,
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/types/TemplateType.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/types/TemplateType.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/types/TemplateType.java	2024-09-08 01:36:30.153920926 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/types/TemplateType.java	2024-09-08 01:36:30.049920198 +1000
+@@ -122,9 +122,7 @@
+         .setContentKind(contentKind)
+         // Declared HTML templates are implicitly strict. A separate check enforces that
+         // non-strict templates may not be bound in template literals.
+-        .setStrictHtml(
+-            contentKind == SanitizedContentKind.HTML
+-                || contentKind == SanitizedContentKind.HTML_ELEMENT)
++        .setStrictHtml(contentKind == SanitizedContentKind.HTML)
+         .setParameters(ImmutableList.copyOf(parameters))
+         // data=all is banned on declared templates.
+         .setDataAllCallSituations(ImmutableList.of())
+@@ -163,7 +161,7 @@
+           }
+         }
+       }
+-      if (!this.getContentKind().isAssignableFrom(srcTemplate.getContentKind())) {
++      if (!srcTemplate.getContentKind().equals(this.getContentKind())) {
+         return false;
+       }
+       return true;
+diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/types/TypeRegistries.java ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/types/TypeRegistries.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/java/src/com/google/template/soy/types/TypeRegistries.java	2024-09-08 01:36:30.153920926 +1000
++++ ./RegMiner4APR-Regression-Bugs/BFC/java/src/com/google/template/soy/types/TypeRegistries.java	2024-09-08 01:36:30.049920198 +1000
+@@ -31,7 +31,6 @@
+ import com.google.template.soy.error.SoyErrorKind;
+ import com.google.template.soy.types.RecordType.Member;
+ import com.google.template.soy.types.SanitizedType.AttributesType;
+-import com.google.template.soy.types.SanitizedType.ElementType;
+ import com.google.template.soy.types.SanitizedType.HtmlType;
+ import com.google.template.soy.types.SanitizedType.JsType;
+ import com.google.template.soy.types.SanitizedType.StyleType;
+@@ -245,7 +244,6 @@
+             .put("number", NUMBER_TYPE)
+             .put("html", HtmlType.getInstance())
+             .put("attributes", AttributesType.getInstance())
+-            .put("element", ElementType.getInstance())
+             .put("css", StyleType.getInstance())
+             .put("uri", UriType.getInstance())
+             .put("trusted_resource_uri", TrustedResourceUriType.getInstance())
