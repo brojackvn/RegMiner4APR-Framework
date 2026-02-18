@@ -1,0 +1,34 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/spring-rabbit/src/main/java/org/springframework/amqp/rabbit/listener/adapter/MessagingMessageListenerAdapter.java ./RegMiner4APR-Regression-Bugs/BFC/spring-rabbit/src/main/java/org/springframework/amqp/rabbit/listener/adapter/MessagingMessageListenerAdapter.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/spring-rabbit/src/main/java/org/springframework/amqp/rabbit/listener/adapter/MessagingMessageListenerAdapter.java	2025-12-24 02:56:25.154900513 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/spring-rabbit/src/main/java/org/springframework/amqp/rabbit/listener/adapter/MessagingMessageListenerAdapter.java	2025-12-24 02:48:44.223122601 +1100
+@@ -35,6 +35,7 @@
+ import org.springframework.messaging.Message;
+ import org.springframework.messaging.MessagingException;
+ import org.springframework.messaging.handler.annotation.Header;
++import org.springframework.messaging.handler.annotation.Headers;
+ import org.springframework.messaging.handler.annotation.Payload;
+ import org.springframework.messaging.support.MessageBuilder;
+ import org.springframework.remoting.support.RemoteInvocationResult;
+@@ -337,17 +338,16 @@
+ 				 * We're looking for a single parameter, or one annotated with @Payload.
+ 				 * We ignore parameters with type Message because they are not involved with conversion.
+ 				 */
+-				boolean isHeader = methodParameter.hasParameterAnnotation(Header.class);
++				boolean isHeaderOrHeaders = methodParameter.hasParameterAnnotation(Header.class) || methodParameter.hasParameterAnnotation(Headers.class);
+ 				boolean isPayload = methodParameter.hasParameterAnnotation(Payload.class);
+
+-				if (isHeader && isPayload) {
+-					if (MessagingMessageListenerAdapter.this.logger.isWarnEnabled()) {
++				if (isHeaderOrHeaders && isPayload && MessagingMessageListenerAdapter.this.logger.isWarnEnabled()) {
+						MessagingMessageListenerAdapter.this.logger.warn(this.method.getName()
+							+ ": Cannot annotate a parameter with both @Header and @Payload; "
+							+ "ignored for payload conversion");
+-					}
+ 				}
+				
+ 				if (isEligibleParameter(methodParameter)
+-						&& (!isHeader || isPayload) && !(isHeader && isPayload)) {
++						&& (!isHeaderOrHeaders || isPayload) && !(isHeaderOrHeaders && isPayload)) {
+ 
+ 					if (genericParameterType == null) {
+ 						genericParameterType = extractGenericParameterTypFromMethodParameter(methodParameter);

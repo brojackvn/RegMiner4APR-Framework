@@ -1,0 +1,92 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/spring-data-rest-tests/pom.xml ./RegMiner4APR-Regression-Bugs/BFC/spring-data-rest-tests/pom.xml
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/spring-data-rest-tests/pom.xml	2025-12-23 03:28:27.608322656 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/spring-data-rest-tests/pom.xml	2025-12-23 02:57:28.337892698 +1100
+@@ -5,7 +5,7 @@
+ 	<parent>
+ 		<groupId>org.springframework.data</groupId>
+ 		<artifactId>spring-data-rest-parent</artifactId>
+-		<version>3.5.0-</version>
++		<version>3.5.0</version>
+ 		<relativePath>../pom.xml</relativePath>
+ 	</parent>
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/spring-data-rest-webmvc/src/main/java/org/springframework/data/rest/webmvc/config/RepositoryRestMvcConfiguration.java ./RegMiner4APR-Regression-Bugs/BFC/spring-data-rest-webmvc/src/main/java/org/springframework/data/rest/webmvc/config/RepositoryRestMvcConfiguration.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/spring-data-rest-webmvc/src/main/java/org/springframework/data/rest/webmvc/config/RepositoryRestMvcConfiguration.java	2025-12-23 03:28:27.640322623 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/spring-data-rest-webmvc/src/main/java/org/springframework/data/rest/webmvc/config/RepositoryRestMvcConfiguration.java	2025-12-23 02:57:28.365892687 +1100
+@@ -23,6 +23,7 @@
+ import java.util.Map;
+ import java.util.Optional;
+ import java.util.Set;
++import java.util.stream.Collectors;
+ 
+ import org.springframework.beans.factory.BeanClassLoaderAware;
+ import org.springframework.beans.factory.BeanFactoryUtils;
+@@ -259,7 +260,10 @@
+ 		this.defaultConversionService = new DefaultFormattingConversionService();
+ 
+ 		this.configurerDelegate = Lazy.of(() -> {
+-			return new RepositoryRestConfigurerDelegate(context.getBeansOfType(RepositoryRestConfigurer.class).values());
++
++			return new RepositoryRestConfigurerDelegate(context.getBeanProvider(RepositoryRestConfigurer.class)
++					.orderedStream()
++					.collect(Collectors.toList()));
+ 		});
+ 
+ 		this.repositoryRestConfiguration = Lazy.of(() -> context.getBean(RepositoryRestConfiguration.class));
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/spring-data-rest-webmvc/src/test/java/org/springframework/data/rest/webmvc/config/RepositoryRestMvConfigurationIntegrationTests.java ./RegMiner4APR-Regression-Bugs/BFC/spring-data-rest-webmvc/src/test/java/org/springframework/data/rest/webmvc/config/RepositoryRestMvConfigurationIntegrationTests.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/spring-data-rest-webmvc/src/test/java/org/springframework/data/rest/webmvc/config/RepositoryRestMvConfigurationIntegrationTests.java	2025-12-23 03:29:36.764253183 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/spring-data-rest-webmvc/src/test/java/org/springframework/data/rest/webmvc/config/RepositoryRestMvConfigurationIntegrationTests.java	2025-12-23 02:57:28.373892684 +1100
+@@ -28,7 +28,6 @@
+ import org.junit.AfterClass;
+ import org.junit.BeforeClass;
+ import org.junit.Test;
+-
+ import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+ import org.springframework.beans.factory.annotation.Autowired;
+ import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+@@ -36,6 +35,7 @@
+ import org.springframework.context.annotation.Configuration;
+ import org.springframework.context.annotation.Import;
+ import org.springframework.context.support.AbstractApplicationContext;
++import org.springframework.core.annotation.Order;
+ import org.springframework.core.convert.ConversionService;
+ import org.springframework.data.domain.PageRequest;
+ import org.springframework.data.domain.Sort.Direction;
+@@ -45,6 +45,8 @@
+ import org.springframework.data.rest.webmvc.RestMediaTypes;
+ import org.springframework.data.rest.webmvc.alps.AlpsJsonHttpMessageConverter;
+ import org.springframework.data.rest.webmvc.json.PersistentEntityJackson2Module;
++import org.springframework.data.util.Lazy;
++import org.springframework.data.util.Streamable;
+ import org.springframework.data.web.HateoasPageableHandlerMethodArgumentResolver;
+ import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
+ import org.springframework.hateoas.MediaTypes;
+@@ -54,17 +56,13 @@
+ import org.springframework.http.converter.HttpMessageConverter;
+ import org.springframework.http.converter.json.AbstractJackson2HttpMessageConverter;
+ import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
++import org.springframework.test.util.ReflectionTestUtils;
+ import org.springframework.util.MultiValueMap;
+ import org.springframework.web.util.UriComponentsBuilder;
+ 
+ import com.fasterxml.jackson.databind.ObjectMapper;
+ import com.jayway.jsonpath.JsonPath;
+ 
+-import org.springframework.core.annotation.Order;
+-import org.springframework.data.util.Lazy;
+-import org.springframework.data.util.Streamable;
+-import org.springframework.test.util.ReflectionTestUtils;
+-
+ /**
+  * Integration tests for basic application bootstrapping (general configuration related checks).
+  *
+@@ -247,7 +245,7 @@
+ 				config.setSortParamName("mySort");
+ 			});
+ 		}
+-		
++
+ 		@Bean
+ 		@Order(100)
+ 		RepositoryRestConfigurer otherConfigurer() {

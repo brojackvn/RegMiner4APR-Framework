@@ -1,0 +1,112 @@
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/helper: ChangeNotifyingArrayList.java
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Element.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Element.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Element.java	2026-01-19 21:54:24.690831359 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Element.java	2026-01-19 21:55:09.274875283 +1100
+@@ -35,6 +36,7 @@
+  */
+ public class Element extends Node {
+     private Tag tag;
++    private SoftReference<List<Element>> shadowChildrenRef; // points to child elements shadowed from node children
+ 
+     private static final Pattern classSplit = Pattern.compile("\\s+");
+ 
+@@ -207,7 +209,7 @@
+      * @see #childNode(int)
+      */
+     public Element child(int index) {
+-        return children().get(index);
++        return childElementsList().get(index);
+     }
+ 
+     /**
+@@ -215,18 +217,38 @@
+      * TODO - think about pulling this out as a helper as there are other shadow lists (like in Attributes) kept around.
+      * @return a list of child elements
+      */
++    private List<Element> childElementsList() {
++        List<Element> children;
++        if (shadowChildrenRef == null || (children = shadowChildrenRef.get()) == null) {
++            children = new ArrayList<Element>(childNodes.size());
++            for (Node node : childNodes) {
++                if (node instanceof Element)
++                    children.add((Element) node);
++            }
++            shadowChildrenRef = new SoftReference<List<Element>>(children);
+         }
+-        return new Elements(elements);
++        return children;
++    }
+
+     /**
+      * Clears the cached shadow child elements.
+      */
++    @Override
++    void nodelistChanged() {
++        super.nodelistChanged();
++        shadowChildrenRef = null;
+     }
+ 
+     /**
+@@ -572,7 +613,7 @@
+      */
+     public Element nextElementSibling() {
+         if (parentNode == null) return null;
+-        List<Element> siblings = parent().children();
++        List<Element> siblings = parent().childElementsList();
+         Integer index = indexInList(this, siblings);
+         Validate.notNull(index);
+         if (siblings.size() > index+1)
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Node.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Node.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Node.java	2026-01-19 21:54:24.690831359 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Node.java	2026-01-19 21:55:09.274875283 +1100
+@@ -395,6 +396,10 @@
+         else
+             return el;
+     }
+
++    void nodelistChanged() {
++    }
+     
+     /**
+      * Replace this node in the DOM with the supplied node.
+@@ -407,6 +412,7 @@
+     }
+ 
+     protected void setParentNode(Node parentNode) {
++        Validate.notNull(parentNode);
+         if (this.parentNode != null)
+             this.parentNode.removeChild(this);
+         this.parentNode = parentNode;
+@@ -456,7 +462,7 @@
+ 
+     protected void ensureChildNodes() {
+         if (childNodes == EMPTY_NODES) {
+-            childNodes = new ArrayList<Node>(4);
++            childNodes = new NodeList(4);
+         }
+     }
+ 
+@@ -665,7 +671,7 @@
+         clone.siblingIndex = parent == null ? 0 : siblingIndex;
+         clone.attributes = attributes != null ? attributes.clone() : null;
+         clone.baseUri = baseUri;
+-        clone.childNodes = new ArrayList<Node>(childNodes.size());
++        clone.childNodes = new NodeList(childNodes.size());
+ 
+         for (Node child: childNodes)
+             clone.childNodes.add(child);
+@@ -700,4 +706,14 @@
+             }
+         }
+     }
++
++    private final class NodeList extends ChangeNotifyingArrayList<Node> {
++        NodeList(int initialCapacity) {
++            super(initialCapacity);
++        }
++
++        public void onContentsChanged() {
++            nodelistChanged();
++        }
++    }
+ }

@@ -1,0 +1,50 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/beanutils/locale/BaseLocaleConverter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/beanutils/locale/BaseLocaleConverter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/beanutils/locale/BaseLocaleConverter.java	2025-12-15 04:34:53.114515344 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/beanutils/locale/BaseLocaleConverter.java	2025-12-15 04:34:33.210497056 +1100
+@@ -213,10 +216,11 @@
+      * @exception ConversionException if conversion cannot be performed
+      *  successfully
+      */
+-    public Object convert(Class type, Object value, String pattern) {
++    public <T> T convert(Class<T> type, Object value, String pattern) {
++        Class<T> targetType = ConvertUtils.primitiveToWrapper(type);
+         if (value == null) {
+             if (useDefault) {
+-                return (defaultValue);
++                return getDefaultAs(targetType);
+             } else {
+                 // symmetric beanutils function allows null
+                 // so do not: throw new ConversionException("No value specified");
+@@ -227,13 +231,13 @@
+ 
+         try {
+             if (pattern != null) {
+-                return parse(value, pattern);
++                return checkConversionResult(targetType, parse(value, pattern));
+             } else {
+-                return parse(value, this.pattern);
++                return checkConversionResult(targetType, parse(value, this.pattern));
+             }
+         } catch (Exception e) {
+             if (useDefault) {
+-                return (defaultValue);
++                return getDefaultAs(targetType);
+             } else {
+                 if (e instanceof ConversionException) {
+                     throw (ConversionException)e;
+@@ -242,4 +246,44 @@
+      * @throws ConversionException if the result object is not compatible with
+      *         the target type
+      */
++    private static <T> T checkConversionResult(Class<T> type, Object result) {
++        if (type == null) {
++            @SuppressWarnings("unchecked")
++            T temp = (T) result;
++            return temp;
++        }
++        if (type.isInstance(result)) {
++            return type.cast(result);
++        }
++        throw new ConversionException("Unsupported target type: " + type);
++    }
+ }

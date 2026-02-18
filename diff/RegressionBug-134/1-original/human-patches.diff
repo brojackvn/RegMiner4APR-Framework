@@ -1,0 +1,85 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/build.gradle ./RegMiner4APR-Regression-Bugs/BFC/build.gradle
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/build.gradle	2026-01-17 20:08:51.121319156 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/build.gradle	2026-01-17 14:31:06.506377618 +1100
+@@ -658,35 +658,3 @@
+ 		}
+ 	}
+ }
+-
+-task copyDependencies {
+-    group = 'build'
+-    description = 'Copy compile + runtime dependencies for each module separately'
+-
+-    doLast {
+-        subprojects.each { subproject ->
+-            if (subproject.plugins.hasPlugin('java')) {
+-
+-                def outputDir = file("$buildDir/generated-dependencies/${subproject.name}")
+-                outputDir.mkdirs()
+-
+-                // Collect compile dependencies
+-                subproject.configurations.compile.resolvedConfiguration.resolvedArtifacts.each { artifact ->
+-                    copy {
+-                        from artifact.file
+-                        into outputDir
+-                    }
+-                }
+-
+-                // Collect runtime dependencies
+-                subproject.configurations.runtime.resolvedConfiguration.resolvedArtifacts.each { artifact ->
+-                    copy {
+-                        from artifact.file
+-                        into outputDir
+-                    }
+-                }
+-            }
+-        }
+-    }
+-}
+-
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/6.6.1/executionHistory/executionHistory.bin and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/6.6.1/executionHistory/executionHistory.bin differ
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/6.6.1/executionHistory/executionHistory.lock and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/6.6.1/executionHistory/executionHistory.lock differ
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/6.6.1/fileHashes/fileHashes.bin and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/6.6.1/fileHashes/fileHashes.bin differ
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/6.6.1/fileHashes/fileHashes.lock and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/6.6.1/fileHashes/fileHashes.lock differ
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/6.6.1/fileHashes/resourceHashesCache.bin and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/6.6.1/fileHashes/resourceHashesCache.bin differ
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/6.6.1/javaCompile/javaCompile.lock and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/6.6.1/javaCompile/javaCompile.lock differ
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/6.6.1/javaCompile/taskHistory.bin and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/6.6.1/javaCompile/taskHistory.bin differ
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/buildOutputCleanup/buildOutputCleanup.lock and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/buildOutputCleanup/buildOutputCleanup.lock differ
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/buildOutputCleanup/outputFiles.bin and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/buildOutputCleanup/outputFiles.bin differ
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/checksums/checksums.lock and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/checksums/checksums.lock differ
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/checksums/sha1-checksums.bin and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/checksums/sha1-checksums.bin differ
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/spring-amqp/src/main/java/org/springframework/amqp/support/converter/DefaultJackson2JavaTypeMapper.java ./RegMiner4APR-Regression-Bugs/BFC/spring-amqp/src/main/java/org/springframework/amqp/support/converter/DefaultJackson2JavaTypeMapper.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/spring-amqp/src/main/java/org/springframework/amqp/support/converter/DefaultJackson2JavaTypeMapper.java	2025-12-24 15:37:14.609036254 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/spring-amqp/src/main/java/org/springframework/amqp/support/converter/DefaultJackson2JavaTypeMapper.java	2025-12-24 15:40:27.124971949 +1100
+@@ -130,7 +130,7 @@
+ 	}
+ 
+ 	private boolean canConvert(JavaType inferredType) {
+-		if (inferredType.isAbstract()) {
++		if (inferredType.isAbstract() && !inferredType.isContainerType()) {
+ 			return false;
+ 		}
+ 		if (inferredType.isContainerType() && inferredType.getContentType().isAbstract()) {
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/spring-amqp/src/test/java/org/springframework/amqp/support/converter/Jackson2JsonMessageConverterTests.java ./RegMiner4APR-Regression-Bugs/BFC/spring-amqp/src/test/java/org/springframework/amqp/support/converter/Jackson2JsonMessageConverterTests.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/spring-amqp/src/test/java/org/springframework/amqp/support/converter/Jackson2JsonMessageConverterTests.java	2025-12-24 15:37:14.617036252 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/spring-amqp/src/test/java/org/springframework/amqp/support/converter/Jackson2JsonMessageConverterTests.java	2025-12-24 15:40:27.132971947 +1100
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2002-2025 the original author or authors.
++ * Copyright 2002-2020 the original author or authors.
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+@@ -547,10 +547,10 @@
+ 	public static class Qux implements Baz {
+ 
+ 		private String field;
+-		
++
+ 		public Qux() {
+ 		}
+-		
++
+ 		public Qux(String field) {
+ 			this.field = field;
+ 		}

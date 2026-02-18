@@ -1,0 +1,457 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/gson/src/main/java/com/google/gson/internal/bind/JsonTreeReader.java ./RegMiner4APR-Regression-Bugs/BIC/gson/src/main/java/com/google/gson/internal/bind/JsonTreeReader.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/gson/src/main/java/com/google/gson/internal/bind/JsonTreeReader.java	2025-12-19 14:32:48.148562201 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/gson/src/main/java/com/google/gson/internal/bind/JsonTreeReader.java	2025-12-19 14:35:36.444352054 +1100
+@@ -25,9 +25,7 @@
+ import com.google.gson.stream.JsonToken;
+ import java.io.IOException;
+ import java.io.Reader;
+-import java.util.ArrayList;
+ import java.util.Iterator;
+-import java.util.List;
+ import java.util.Map;
+ 
+ /**
+@@ -47,35 +45,57 @@
+   };
+   private static final Object SENTINEL_CLOSED = new Object();
+ 
+-  private final List<Object> stack = new ArrayList<Object>();
++  /*
++   * The nesting stack. Using a manual array rather than an ArrayList saves 20%.
++   */
++  private Object[] stack = new Object[32];
++  private int stackSize = 0;
++
++  /*
++   * The path members. It corresponds directly to stack: At indices where the
++   * stack contains an object (EMPTY_OBJECT, DANGLING_NAME or NONEMPTY_OBJECT),
++   * pathNames contains the name at this scope. Where it contains an array
++   * (EMPTY_ARRAY, NONEMPTY_ARRAY) pathIndices contains the current index in
++   * that array. Otherwise the value is undefined, and we take advantage of that
++   * by incrementing pathIndices when doing so isn't useful.
++   */
++  private String[] pathNames = new String[32];
++  private int[] pathIndices = new int[32];
+ 
+   public JsonTreeReader(JsonElement element) {
+     super(UNREADABLE_READER);
+-    stack.add(element);
++    push(element);
+   }
+ 
+   @Override public void beginArray() throws IOException {
+     expect(JsonToken.BEGIN_ARRAY);
+     JsonArray array = (JsonArray) peekStack();
+-    stack.add(array.iterator());
++    push(array.iterator());
++    pathIndices[stackSize - 1] = 0;
+   }
+ 
+   @Override public void endArray() throws IOException {
+     expect(JsonToken.END_ARRAY);
+     popStack(); // empty iterator
+     popStack(); // array
++    if (stackSize > 0) {
++      pathIndices[stackSize - 1]++;
++    }
+   }
+ 
+   @Override public void beginObject() throws IOException {
+     expect(JsonToken.BEGIN_OBJECT);
+     JsonObject object = (JsonObject) peekStack();
+-    stack.add(object.entrySet().iterator());
++    push(object.entrySet().iterator());
+   }
+ 
+   @Override public void endObject() throws IOException {
+     expect(JsonToken.END_OBJECT);
+     popStack(); // empty iterator
+     popStack(); // object
++    if (stackSize > 0) {
++      pathIndices[stackSize - 1]++;
++    }
+   }
+ 
+   @Override public boolean hasNext() throws IOException {
+@@ -84,19 +104,19 @@
+   }
+ 
+   @Override public JsonToken peek() throws IOException {
+-    if (stack.isEmpty()) {
++    if (stackSize == 0) {
+       return JsonToken.END_DOCUMENT;
+     }
+ 
+     Object o = peekStack();
+     if (o instanceof Iterator) {
+-      boolean isObject = stack.get(stack.size() - 2) instanceof JsonObject;
++      boolean isObject = stack[stackSize - 2] instanceof JsonObject;
+       Iterator<?> iterator = (Iterator<?>) o;
+       if (iterator.hasNext()) {
+         if (isObject) {
+           return JsonToken.NAME;
+         } else {
+-          stack.add(iterator.next());
++          push(iterator.next());
+           return peek();
+         }
+       } else {
+@@ -127,16 +147,19 @@
+   }
+ 
+   private Object peekStack() {
+-    return stack.get(stack.size() - 1);
++    return stack[stackSize - 1];
+   }
+ 
+   private Object popStack() {
+-    return stack.remove(stack.size() - 1);
++    Object result = stack[--stackSize];
++    stack[stackSize] = null;
++    return result;
+   }
+ 
+   private void expect(JsonToken expected) throws IOException {
+     if (peek() != expected) {
+-      throw new IllegalStateException("Expected " + expected + " but was " + peek());
++      throw new IllegalStateException(
++          "Expected " + expected + " but was " + peek() + locationString());
+     }
+   }
+ 
+@@ -144,72 +167,101 @@
+     expect(JsonToken.NAME);
+     Iterator<?> i = (Iterator<?>) peekStack();
+     Map.Entry<?, ?> entry = (Map.Entry<?, ?>) i.next();
+-    stack.add(entry.getValue());
+-    return (String) entry.getKey();
++    String result = (String) entry.getKey();
++    pathNames[stackSize - 1] = result;
++    push(entry.getValue());
++    return result;
+   }
+ 
+   @Override public String nextString() throws IOException {
+     JsonToken token = peek();
+     if (token != JsonToken.STRING && token != JsonToken.NUMBER) {
+-      throw new IllegalStateException("Expected " + JsonToken.STRING + " but was " + token);
++      throw new IllegalStateException(
++          "Expected " + JsonToken.STRING + " but was " + token + locationString());
++    }
++    String result = ((JsonPrimitive) popStack()).getAsString();
++    if (stackSize > 0) {
++      pathIndices[stackSize - 1]++;
+     }
+-    return ((JsonPrimitive) popStack()).getAsString();
++    return result;
+   }
+ 
+   @Override public boolean nextBoolean() throws IOException {
+     expect(JsonToken.BOOLEAN);
+-    return ((JsonPrimitive) popStack()).getAsBoolean();
++    boolean result = ((JsonPrimitive) popStack()).getAsBoolean();
++    if (stackSize > 0) {
++      pathIndices[stackSize - 1]++;
++    }
++    return result;
+   }
+ 
+   @Override public void nextNull() throws IOException {
+     expect(JsonToken.NULL);
+     popStack();
++    if (stackSize > 0) {
++      pathIndices[stackSize - 1]++;
++    }
+   }
+ 
+   @Override public double nextDouble() throws IOException {
+     JsonToken token = peek();
+     if (token != JsonToken.NUMBER && token != JsonToken.STRING) {
+-      throw new IllegalStateException("Expected " + JsonToken.NUMBER + " but was " + token);
++      throw new IllegalStateException(
++          "Expected " + JsonToken.NUMBER + " but was " + token + locationString());
+     }
+     double result = ((JsonPrimitive) peekStack()).getAsDouble();
+     if (!isLenient() && (Double.isNaN(result) || Double.isInfinite(result))) {
+       throw new NumberFormatException("JSON forbids NaN and infinities: " + result);
+     }
+     popStack();
++    if (stackSize > 0) {
++      pathIndices[stackSize - 1]++;
++    }
+     return result;
+   }
+ 
+   @Override public long nextLong() throws IOException {
+     JsonToken token = peek();
+     if (token != JsonToken.NUMBER && token != JsonToken.STRING) {
+-      throw new IllegalStateException("Expected " + JsonToken.NUMBER + " but was " + token);
++      throw new IllegalStateException(
++          "Expected " + JsonToken.NUMBER + " but was " + token + locationString());
+     }
+     long result = ((JsonPrimitive) peekStack()).getAsLong();
+     popStack();
++    if (stackSize > 0) {
++      pathIndices[stackSize - 1]++;
++    }
+     return result;
+   }
+ 
+   @Override public int nextInt() throws IOException {
+     JsonToken token = peek();
+     if (token != JsonToken.NUMBER && token != JsonToken.STRING) {
+-      throw new IllegalStateException("Expected " + JsonToken.NUMBER + " but was " + token);
++      throw new IllegalStateException(
++          "Expected " + JsonToken.NUMBER + " but was " + token + locationString());
+     }
+     int result = ((JsonPrimitive) peekStack()).getAsInt();
+     popStack();
++    if (stackSize > 0) {
++      pathIndices[stackSize - 1]++;
++    }
+     return result;
+   }
+ 
+   @Override public void close() throws IOException {
+-    stack.clear();
+-    stack.add(SENTINEL_CLOSED);
++    stack = new Object[] { SENTINEL_CLOSED };
++    stackSize = 1;
+   }
+ 
+   @Override public void skipValue() throws IOException {
+     if (peek() == JsonToken.NAME) {
+       nextName();
++      pathNames[stackSize - 2] = "null";
+     } else {
+       popStack();
++      pathNames[stackSize - 1] = "null";
+     }
++    pathIndices[stackSize - 1]++;
+   }
+ 
+   @Override public String toString() {
+@@ -220,7 +272,45 @@
+     expect(JsonToken.NAME);
+     Iterator<?> i = (Iterator<?>) peekStack();
+     Map.Entry<?, ?> entry = (Map.Entry<?, ?>) i.next();
+-    stack.add(entry.getValue());
+-    stack.add(new JsonPrimitive((String)entry.getKey()));
++    push(entry.getValue());
++    push(new JsonPrimitive((String) entry.getKey()));
++  }
++
++  private void push(Object newTop) {
++    if (stackSize == stack.length) {
++      Object[] newStack = new Object[stackSize * 2];
++      int[] newPathIndices = new int[stackSize * 2];
++      String[] newPathNames = new String[stackSize * 2];
++      System.arraycopy(stack, 0, newStack, 0, stackSize);
++      System.arraycopy(pathIndices, 0, newPathIndices, 0, stackSize);
++      System.arraycopy(pathNames, 0, newPathNames, 0, stackSize);
++      stack = newStack;
++      pathIndices = newPathIndices;
++      pathNames = newPathNames;
++    }
++    stack[stackSize++] = newTop;
++  }
++
++  @Override public String getPath() {
++    StringBuilder result = new StringBuilder().append('$');
++    for (int i = 0; i < stackSize; i++) {
++      if (stack[i] instanceof JsonArray) {
++        if (stack[++i] instanceof Iterator) {
++          result.append('[').append(pathIndices[i]).append(']');
++        }
++      } else if (stack[i] instanceof JsonObject) {
++        if (stack[++i] instanceof Iterator) {
++          result.append('.');
++          if (pathNames[i] != null) {
++            result.append(pathNames[i]);
++          }
++        }
++      }
++    }
++    return result.toString();
++  }
++
++  private String locationString() {
++    return " at path " + getPath();
+   }
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/gson/src/test/java/com/google/gson/stream/JsonReaderPathTest.java ./RegMiner4APR-Regression-Bugs/BIC/gson/src/test/java/com/google/gson/stream/JsonReaderPathTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/gson/src/test/java/com/google/gson/stream/JsonReaderPathTest.java	2025-12-19 14:32:48.160562186 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/gson/src/test/java/com/google/gson/stream/JsonReaderPathTest.java	2025-12-19 14:35:36.456352040 +1100
+@@ -16,15 +16,35 @@
+ 
+ package com.google.gson.stream;
+ 
++import com.google.gson.JsonElement;
++import com.google.gson.internal.Streams;
++import com.google.gson.internal.bind.JsonTreeReader;
+ import java.io.IOException;
+ import java.io.StringReader;
+-import junit.framework.TestCase;
++import java.util.Arrays;
++import java.util.List;
++import org.junit.Test;
++import org.junit.runner.RunWith;
++import org.junit.runners.Parameterized;
++
++import static junit.framework.Assert.assertEquals;
++import static org.junit.Assume.assumeTrue;
++
++@RunWith(Parameterized.class)
++public class JsonReaderPathTest {
++  @Parameterized.Parameters(name = "{0}")
++  public static List<Object[]> parameters() {
++    return Arrays.asList(
++        new Object[] { Factory.STRING_READER },
++        new Object[] { Factory.OBJECT_READER }
++    );
++  }
++
++  @Parameterized.Parameter
++  public Factory factory;
+ 
+-@SuppressWarnings("resource")
+-public class JsonReaderPathTest extends TestCase {
+-  public void testPath() throws IOException {
+-    JsonReader reader = new JsonReader(
+-        new StringReader("{\"a\":[2,true,false,null,\"b\",{\"c\":\"d\"},[3]]}"));
++  @Test public void path() throws IOException {
++    JsonReader reader = factory.create("{\"a\":[2,true,false,null,\"b\",{\"c\":\"d\"},[3]]}");
+     assertEquals("$", reader.getPath());
+     reader.beginObject();
+     assertEquals("$.", reader.getPath());
+@@ -62,8 +82,8 @@
+     assertEquals("$", reader.getPath());
+   }
+ 
+-  public void testObjectPath() throws IOException {
+-    JsonReader reader = new JsonReader(new StringReader("{\"a\":1,\"b\":2}"));
++  @Test public void objectPath() throws IOException {
++    JsonReader reader = factory.create("{\"a\":1,\"b\":2}");
+     assertEquals("$", reader.getPath());
+ 
+     reader.peek();
+@@ -102,8 +122,8 @@
+     assertEquals("$", reader.getPath());
+   }
+ 
+-  public void testArrayPath() throws IOException {
+-    JsonReader reader = new JsonReader(new StringReader("[1,2]"));
++  @Test public void arrayPath() throws IOException {
++    JsonReader reader = factory.create("[1,2]");
+     assertEquals("$", reader.getPath());
+ 
+     reader.peek();
+@@ -132,8 +152,10 @@
+     assertEquals("$", reader.getPath());
+   }
+ 
+-  public void testMultipleTopLevelValuesInOneDocument() throws IOException {
+-    JsonReader reader = new JsonReader(new StringReader("[][]"));
++  @Test public void multipleTopLevelValuesInOneDocument() throws IOException {
++    assumeTrue(factory == Factory.STRING_READER);
++
++    JsonReader reader = factory.create("[][]");
+     reader.setLenient(true);
+     reader.beginArray();
+     reader.endArray();
+@@ -143,24 +165,25 @@
+     assertEquals("$", reader.getPath());
+   }
+ 
+-  public void testSkipArrayElements() throws IOException {
+-    JsonReader reader = new JsonReader(new StringReader("[1,2,3]"));
++  @Test public void skipArrayElements() throws IOException {
++    JsonReader reader = factory.create("[1,2,3]");
+     reader.beginArray();
+     reader.skipValue();
+     reader.skipValue();
+     assertEquals("$[2]", reader.getPath());
+   }
+ 
+-  public void testSkipObjectNames() throws IOException {
+-    JsonReader reader = new JsonReader(new StringReader("{\"a\":1}"));
++  @Test public void skipObjectNames() throws IOException {
++    JsonReader reader = factory.create("{\"a\":1}");
+     reader.beginObject();
+     reader.skipValue();
+     assertEquals("$.null", reader.getPath());
+   }
+ 
+-  public void testSkipObjectValues() throws IOException {
+-    JsonReader reader = new JsonReader(new StringReader("{\"a\":1,\"b\":2}"));
++  @Test public void skipObjectValues() throws IOException {
++    JsonReader reader = factory.create("{\"a\":1,\"b\":2}");
+     reader.beginObject();
++    assertEquals("$.", reader.getPath());
+     reader.nextName();
+     reader.skipValue();
+     assertEquals("$.null", reader.getPath());
+@@ -168,15 +191,15 @@
+     assertEquals("$.b", reader.getPath());
+   }
+ 
+-  public void testSkipNestedStructures() throws IOException {
+-    JsonReader reader = new JsonReader(new StringReader("[[1,2,3],4]"));
++  @Test public void skipNestedStructures() throws IOException {
++    JsonReader reader = factory.create("[[1,2,3],4]");
+     reader.beginArray();
+     reader.skipValue();
+     assertEquals("$[1]", reader.getPath());
+   }
+ 
+-  public void testArrayOfObjects() throws IOException {
+-    JsonReader reader = new JsonReader(new StringReader("[{},{},{}]"));
++  @Test public void arrayOfObjects() throws IOException {
++    JsonReader reader = factory.create("[{},{},{}]");
+     reader.beginArray();
+     assertEquals("$[0]", reader.getPath());
+     reader.beginObject();
+@@ -195,8 +218,8 @@
+     assertEquals("$", reader.getPath());
+   }
+ 
+-  public void testArrayOfArrays() throws IOException {
+-    JsonReader reader = new JsonReader(new StringReader("[[],[],[]]"));
++  @Test public void arrayOfArrays() throws IOException {
++    JsonReader reader = factory.create("[[],[],[]]");
+     reader.beginArray();
+     assertEquals("$[0]", reader.getPath());
+     reader.beginArray();
+@@ -214,4 +237,20 @@
+     reader.endArray();
+     assertEquals("$", reader.getPath());
+   }
++
++  enum Factory {
++    STRING_READER {
++      @Override public JsonReader create(String data) {
++        return new JsonReader(new StringReader(data));
++      }
++    },
++    OBJECT_READER {
++      @Override public JsonReader create(String data) {
++        JsonElement element = Streams.parse(new JsonReader(new StringReader(data)));
++        return new JsonTreeReader(element);
++      }
++    };
++
++    abstract JsonReader create(String data);
++  }
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/pom.xml ./RegMiner4APR-Regression-Bugs/BIC/pom.xml
+--- ./RegMiner4APR-Regression-Bugs/WORKING/pom.xml	2025-12-19 14:32:48.172562170 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/pom.xml	2025-12-19 14:35:36.468352026 +1100
+@@ -51,7 +51,7 @@
+       <dependency>
+         <groupId>junit</groupId>
+         <artifactId>junit</artifactId>
+-        <version>3.8.2</version>
++        <version>4.12</version>
+         <scope>test</scope>
+       </dependency>
+     </dependencies>

@@ -1,0 +1,154 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Element.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Element.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Element.java	2025-12-14 13:54:35.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Element.java	2025-12-14 13:53:55.000000000 +1100
+@@ -364,6 +364,17 @@
+      * @param cssQuery cssQuery a {@link Selector} CSS-like query
+      * @return the first matching element, or <b>{@code null}</b> if there is no match.
+      */
++    public Element selectFirst(String cssQuery) {
++        return Selector.selectFirst(cssQuery, this);
++    }
+ 
+     /**
+      * Check if this element matches the given {@link Selector} CSS query.
+
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/select/Collector.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/select/Collector.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/select/Collector.java	2025-12-14 13:54:35.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/select/Collector.java	2025-12-14 13:53:55.000000000 +1100
+@@ -3,6 +3,9 @@
+ import org.jsoup.nodes.Element;
+ import org.jsoup.nodes.Node;
+ 
++import static org.jsoup.select.NodeFilter.FilterResult.CONTINUE;
++import static org.jsoup.select.NodeFilter.FilterResult.STOP;
++
+ /**
+  * Collects a list of elements that match the supplied criteria.
+  *
+@@ -48,4 +51,39 @@
+             // void
+         }
+     }
+
++    public static Element findFirst(Evaluator eval, Element root) {
++        FirstFinder finder = new FirstFinder(root, eval);
++        NodeTraversor.filter(finder, root);
++        return finder.match;
++    }
+
++    private static class FirstFinder implements NodeFilter {
++        private final Element root;
++        private Element match = null;
++        private final Evaluator eval;
++
++        FirstFinder(Element root, Evaluator eval) {
++            this.root = root;
++            this.eval = eval;
++        }
+
++        @Override
++        public FilterResult head(Node node, int depth) {
++            if (node instanceof Element) {
++                Element el = (Element) node;
++                if (eval.matches(root, el)) {
++                    match = el;
++                    return STOP;
++                }
++            }
++            return CONTINUE;
++        }
+
++        @Override
++        public FilterResult tail(Node node, int depth) {
++            return CONTINUE;
++        }
++    }
+
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/select/CombiningEvaluator.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/select/CombiningEvaluator.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/select/CombiningEvaluator.java	2025-12-14 13:54:35.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/select/CombiningEvaluator.java	2025-12-14 13:53:55.000000000 +1100
+@@ -100,7 +100,7 @@
+ 
+         @Override
+         public String toString() {
+-            return String.format(":or%s", evaluators);
++            return StringUtil.join(evaluators, ", ");
+         }
+     }
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/select/Selector.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/select/Selector.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/select/Selector.java	2025-12-14 13:54:35.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/select/Selector.java	2025-12-14 13:53:55.000000000 +1100
+@@ -69,32 +69,13 @@
+  * @author Jonathan Hedley, jonathan@hedley.net
+  * @see Element#select(String)
+  */
+ public class Selector {
+-    private final Evaluator evaluator;
+-    private final Element root;
+
+-    private Selector(String query, Element root) {
+-        Validate.notNull(query);
+-        query = query.trim();
+-        Validate.notEmpty(query);
+-        Validate.notNull(root);
+-        this.evaluator = QueryParser.parse(query);
+-        this.root = root;
+-    }
+
+-    private Selector(Evaluator evaluator, Element root) {
+-        Validate.notNull(evaluator);
+-        Validate.notNull(root);
+-        this.evaluator = evaluator;
+-        this.root = root;
+-    }
+
++    private Selector() {}
+ 
+     /**
+      * Find elements matching selector.
+@@ -105,7 +86,8 @@
+      * @throws Selector.SelectorParseException (unchecked) on an invalid CSS query.
+      */
+     public static Elements select(String query, Element root) {
+-        return new Selector(query, root).select();
++        Validate.notEmpty(query);
++        return select(QueryParser.parse(query), root);
+     }
+ 
+     /**
+@@ -116,7 +98,9 @@
+      * @return matching elements, empty if none
+      */
+     public static Elements select(Evaluator evaluator, Element root) {
+-        return new Selector(evaluator, root).select();
++        Validate.notNull(evaluator);
++        Validate.notNull(root);
++        return Collector.collect(evaluator, root);
+     }
+ 
+     /**
+@@ -146,10 +130,6 @@
+         return new Elements(elements);
+     }
+ 
+-    private Elements select() {
+-        return Collector.collect(evaluator, root);
+-    }
+
+     // exclude set. package open so that Elements can implement .not() selector.
+     static Elements filterOut(Collection<Element> elements, Collection<Element> outs) {
+         Elements output = new Elements();
+@@ -167,6 +147,17 @@
+         return output;
+     }
+ 
++    public static Element selectFirst(String cssQuery, Element root) {
++        Validate.notEmpty(cssQuery);
++        return Collector.findFirst(QueryParser.parse(cssQuery), root);
++    }
++
+     public static class SelectorParseException extends IllegalStateException {
+         public SelectorParseException(String msg, Object... params) {
+             super(String.format(msg, params));

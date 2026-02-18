@@ -1,0 +1,96 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/dbus-java-utils/src/main/java/org/freedesktop/dbus/utils/generator/ClassBuilderInfo.java ./RegMiner4APR-Regression-Bugs/BIC/dbus-java-utils/src/main/java/org/freedesktop/dbus/utils/generator/ClassBuilderInfo.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/dbus-java-utils/src/main/java/org/freedesktop/dbus/utils/generator/ClassBuilderInfo.java	2025-12-19 20:47:34.105845747 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/dbus-java-utils/src/main/java/org/freedesktop/dbus/utils/generator/ClassBuilderInfo.java	2025-12-19 20:39:08.698133619 +1100
+@@ -454,47 +460,45 @@
+ 
+         String introspectionData = null;
+ 
+-        if (!StringUtil.isBlank(busName)) {
+-            if (!StringUtil.isBlank(inputFile)) {
+-                File file = new File(inputFile);
+-                if (!file.exists()) {
+-                    logger.error("Given input file {} does not exist", file);
+-                    System.exit(1);
+-                }
+-                introspectionData = FileIoUtil.readFileToString(file);
+-            } else {
+-                try {
+-                    logger.info("Introspecting: { Interface: {}, Busname: {} }", objectPath, busName);
+-    
+-                    DBusConnection conn = DBusConnection.getConnection(busType);
+-    
+-                    Introspectable in = conn.getRemoteObject(busName, objectPath, Introspectable.class);
+-                    introspectionData = in.Introspect();
+-                    if (StringUtil.isBlank(introspectionData)) {
+-                        logger.error("Failed to get introspection data");
+-                        System.exit(1);
+-                    }
+-                    conn.disconnect();
+-                } catch (DBusExecutionException | DBusException _ex) {
+-                    logger.error("Failure in DBus Communications. ", _ex);
+-                    System.exit(1);
+-    
+-                }
++        if (!StringUtil.isBlank(inputFile)) {
++            File file = new File(inputFile);
++            if (!file.exists()) {
++                logger.error("Given input file {} does not exist", file);
++                System.exit(1);
+             }
+-            
+-            InterfaceCodeGenerator ci2 = new InterfaceCodeGenerator(introspectionData, objectPath, busName);
++            introspectionData = FileIoUtil.readFileToString(file);
++        } else if (!StringUtil.isBlank(busName)) {
+             try {
++                logger.info("Introspecting: { Interface: {}, Busname: {} }", objectPath, busName);
++
++                DBusConnection conn = DBusConnection.getConnection(busType);
++
++                Introspectable in = conn.getRemoteObject(busName, objectPath, Introspectable.class);
++                introspectionData = in.Introspect();
++                if (StringUtil.isBlank(introspectionData)) {
++                    logger.error("Failed to get introspection data");
++                    System.exit(1);
++                }
++                conn.disconnect();
++            } catch (DBusExecutionException | DBusException _ex) {
++                logger.error("Failure in DBus Communications. ", _ex);
++                System.exit(1);
+ 
+-                Map<File, String> analyze = ci2.analyze(ignoreDtd);
+-                writeToFile(outputDir, analyze);
+-                logger.info("Interface creation finished");
+-            } catch (Exception _ex) {
+-                logger.error("Error while analyzing introspection data", _ex);
+             }
+         } else {
+             logger.error("Busname missing!");
+             System.exit(1);
+         }
++
++        InterfaceCodeGenerator ci2 = new InterfaceCodeGenerator(introspectionData, objectPath, busName);
++        try {
++
++            Map<File, String> analyze = ci2.analyze(ignoreDtd);
++            writeToFile(outputDir, analyze);
++            logger.info("Interface creation finished");
++        } catch (Exception _ex) {
++            logger.error("Error while analyzing introspection data", _ex);
++        }
+     }
+ 
+     private static void version() {
+@@ -532,10 +539,10 @@
+ 
+             map.put(DbusInterfaceToFqcn.CLASSNAME, StringUtil.upperCaseFirstChar(className));
+             map.put(DbusInterfaceToFqcn.PACKAGENAME, packageName.toLowerCase());
+-            
++
+             if (!packageName.equals(packageName.toLowerCase())) {
+-                map.put(DbusInterfaceToFqcn.ORIG_PKGNAME, packageName);    
+-                map.put(DbusInterfaceToFqcn.DBUS_INTERFACE_NAME, packageName + "." + className); 
++                map.put(DbusInterfaceToFqcn.ORIG_PKGNAME, packageName);
++                map.put(DbusInterfaceToFqcn.DBUS_INTERFACE_NAME, packageName + "." + className);
+             }
+             return map;
+         }

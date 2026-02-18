@@ -1,0 +1,21 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/dbus-java-utils/src/main/java/org/freedesktop/dbus/utils/generator/InterfaceCodeGenerator.java ./RegMiner4APR-Regression-Bugs/BFC/dbus-java-utils/src/main/java/org/freedesktop/dbus/utils/generator/InterfaceCodeGenerator.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/dbus-java-utils/src/main/java/org/freedesktop/dbus/utils/generator/InterfaceCodeGenerator.java	2025-12-19 20:32:24.298359311 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/dbus-java-utils/src/main/java/org/freedesktop/dbus/utils/generator/InterfaceCodeGenerator.java	2025-12-19 20:12:52.618898948 +1100
+@@ -58,7 +58,7 @@
+     public InterfaceCodeGenerator(String _introspectionData, String _objectPath, String _busName) {
+         introspectionData = _introspectionData;
+         nodeName = _objectPath;
+-        busName = _busName;
++        busName = StringUtil.isBlank(_busName) ? "*" : _busName;
+     }
+ 
+ 
+@@ -96,7 +96,7 @@
+ 
+         Map<File, String> filesAndContents = new LinkedHashMap<>();
+ 
+-        boolean noBusnameGiven = StringUtil.isBlank(busName);
++        boolean noBusnameGiven = "*".equals(busName);
+ 
+         for (Element ife : interfaceElements) {
+             String nameAttrib = ife.getAttribute("name");

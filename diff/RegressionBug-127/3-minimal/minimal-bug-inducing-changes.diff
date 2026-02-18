@@ -1,0 +1,28 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/tynamo/security/services/SecurityModule.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/tynamo/security/services/SecurityModule.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/tynamo/security/services/SecurityModule.java	2025-12-22 05:12:25.537783318 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/tynamo/security/services/SecurityModule.java	2025-12-22 05:00:18.874099291 +1100
+@@ -92,6 +92,24 @@
+ 		CookieRememberMeManager rememberMeManager = new CookieRememberMeManager();
+ 		// the default Shiro serializer produces obnoxiously long cookies
+ 		rememberMeManager.setSerializer(serializer);
++		String cipherKey = rememberMeCipherKey;
++		if (cipherKey.isEmpty()) {
++			if (hmacPassphrase.isEmpty()) {
++				logger
++					.error("Neither symbol '"
++						+ SecuritySymbols.REMEMBERME_CIPHERKERY
++						+ "' nor  '"
++						+ SymbolConstants.HMAC_PASSPHRASE
++						+ "' is set. Using a random value as the cipher key for encrypting rememberMe information. Cookies will be invalidated when the JVM is restarted");
++				return rememberMeManager;
++			}
++
++			logger.warn("Symbol '" + SecuritySymbols.REMEMBERME_CIPHERKERY + "' is not set, using '"
++				+ SymbolConstants.HMAC_PASSPHRASE
++				+ "' as the cipher. Beware that changing the value will invalidate rememberMe cookies");
++			cipherKey = hmacPassphrase;
++		}
++		rememberMeManager.setCipherKey(cipherKey.getBytes("UTF-8"));
+ 		return rememberMeManager;
+ 	}
+ 

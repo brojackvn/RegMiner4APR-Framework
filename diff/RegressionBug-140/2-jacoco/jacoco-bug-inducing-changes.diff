@@ -1,0 +1,56 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/scijava/command/CommandInfo.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/scijava/command/CommandInfo.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/scijava/command/CommandInfo.java	2025-12-31 03:14:08.102198797 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/scijava/command/CommandInfo.java	2025-12-31 03:20:10.370076906 +1100
+@@ -41,7 +41,6 @@
+ import java.util.Map;
+ 
+ import org.scijava.Cancelable;
+-import org.scijava.Context;
+ import org.scijava.InstantiableException;
+ import org.scijava.ItemIO;
+ import org.scijava.ItemVisibility;
+@@ -55,7 +54,6 @@
+ import org.scijava.plugin.Parameter;
+ import org.scijava.plugin.Plugin;
+ import org.scijava.plugin.PluginInfo;
+-import org.scijava.service.Service;
+ import org.scijava.util.ClassUtils;
+ import org.scijava.util.StringMaker;
+ 
+@@ -451,11 +449,6 @@
+ 		for (final Field f : fields) {
+ 			f.setAccessible(true); // expose private fields
+ 
+-			// NB: Skip types handled by the application framework itself.
+-			// I.e., these parameters get injected by Context#inject(Object).
+-			if (Service.class.isAssignableFrom(f.getType())) continue;
+-			if (Context.class.isAssignableFrom(f.getType())) continue;
+-
+ 			final Parameter param = f.getAnnotation(Parameter.class);
+ 
+ 			boolean valid = true;
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/scijava/command/CommandModule.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/scijava/command/CommandModule.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/scijava/command/CommandModule.java	2025-12-31 03:14:08.102198797 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/scijava/command/CommandModule.java	2025-12-31 03:20:10.370076906 +1100
+@@ -39,7 +39,6 @@
+ import org.scijava.InstantiableException;
+ import org.scijava.NullContextException;
+ import org.scijava.module.AbstractModule;
+-import org.scijava.module.MethodCallException;
+ import org.scijava.module.Module;
+ import org.scijava.module.ModuleException;
+ import org.scijava.module.ModuleInfo;
+@@ -145,13 +144,6 @@
+ 	}
+ 
+ 	@Override
+-	public void initialize() throws MethodCallException {
+-		// NB: Inject the context into the command before initializing.
+-		getContext().inject(command);
+-		super.initialize();
+-	}
+-
+-	@Override
+ 	public CommandInfo getInfo() {
+ 		return info;
+ 	}

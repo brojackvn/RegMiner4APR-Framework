@@ -1,0 +1,22 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/lang3/reflect/MemberUtils.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/lang3/reflect/MemberUtils.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/lang3/reflect/MemberUtils.java	2025-12-18 15:38:01.189550519 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/lang3/reflect/MemberUtils.java	2025-12-18 15:32:06.937255702 +1100
+@@ -255,6 +255,10 @@
+ 
+     private static boolean isMatchingExecutable(final Executable method, final Class<?>[] parameterTypes) {
+         final Class<?>[] methodParameterTypes = method.getParameterTypes();
++        if (ClassUtils.isAssignable(parameterTypes, methodParameterTypes, true)) {
++            return true;
++        }
+         if (method.isVarArgs()) {
+             int i;
+             for (i = 0; i < methodParameterTypes.length - 1 && i < parameterTypes.length; i++) {
+@@ -270,7 +274,8 @@
+             }
+             return true;
+         }
+-        return ClassUtils.isAssignable(parameterTypes, methodParameterTypes, true);
++        return false;
+     }
+ 
+     /**

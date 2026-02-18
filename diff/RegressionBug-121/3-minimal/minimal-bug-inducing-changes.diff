@@ -1,0 +1,367 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/helper/StringUtil.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/helper/StringUtil.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/helper/StringUtil.java	2025-12-20 14:32:49.478820019 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/helper/StringUtil.java	2025-12-20 14:10:25.855665628 +1100
+@@ -10,8 +10,10 @@
+  * A minimal String utility class. Designed for internal jsoup use only.
+  */
+ public final class StringUtil {
+-    private static final String[] padding = {"", " ", "  ", "   ", "    ", "     ", "      ", "       ", "        ", "         ", "          "};
++    static final String[] padding = {"", " ", "  ", "   ", "    ", "     ", "      ", "       ", "        ",
++        "         ", "          ", "           ", "            ", "             ", "              ", "               ",
++        "                ", "                 ", "                  ", "                   ", "                    "};
+ 
+     /**
+      * Join a collection of strings by a separator
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Attribute.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Attribute.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Attribute.java	2025-12-20 14:32:49.478820019 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Attribute.java	2025-12-20 14:10:25.855665628 +1100
+@@ -20,7 +19,8 @@
+     };
+
+     private String key;
+     private String val;
++    Attributes parent; // used to update the holding Attributes when the key / value is changed via this interface
+ 
+     /**
+      * Create a new attribute from unencoded (raw) key and value.
+@@ -127,37 +155,50 @@
+
+     /**
+      * @deprecated
+      */
+     protected boolean isBooleanAttribute() {
++        return Arrays.binarySearch(booleanAttributes, key) >= 0 || val == null;
++    }
+ 
+     /**
+      * Checks if this attribute name is defined as a boolean attribute in HTML5
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Attributes.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Attributes.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Attributes.java	2025-12-20 14:32:49.478820019 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Attributes.java	2025-12-20 14:10:25.855665628 +1100
+@@ -29,83 +31,120 @@
+  */
+ public class Attributes implements Iterable<Attribute>, Cloneable {
+     protected static final String dataPrefix = "data-";
++    private static final int InitialCapacity = 4; // todo - analyze Alexa 1MM sites, determine best setting
+
++    private static final int GrowthFactor = 2;
++    private static final String[] Empty = {};
++    static final int NotFound = -1;
++    private static final String EmptyString = "";
+
++    private int size = 0; // number of slots used (not capacity, which is keys.length
++    String[] keys = Empty;
++    String[] vals = Empty;
+
++    private void checkCapacity(int minNewSize) {
++        Validate.isTrue(minNewSize >= size);
++        int curSize = keys.length;
++        if (curSize >= minNewSize)
++            return;
++
++        int newSize = curSize >= InitialCapacity ? size * GrowthFactor : InitialCapacity;
++        if (minNewSize > newSize)
++            newSize = minNewSize;
+ 
+-    private LinkedHashMap<String, Attribute> attributes = null;
++        keys = Arrays.copyOf(keys, newSize);
++        vals = Arrays.copyOf(vals, newSize);
++    }
+
++    int indexOfKey(String key) {
++        Validate.notNull(key);
++        for (int i = 0; i < size; i++) {
++            if (key.equals(keys[i]))
++                return i;
++        }
++        return NotFound;
++    }
+ 
+     private int indexOfKeyIgnoreCase(String key) {
+         Validate.notNull(key);
+         for (int i = 0; i < size; i ) {
+             if (key.equalsIgnoreCase(keys[i]))
+                 return i;
+         }
+         return NotFound;
+     }
+ 
+     static final String checkNotNull(String val) {
+         return val == null ? EmptyString : val;
+     }
+ 
+     /**
+      Get an attribute value by key.
+      @param key the (case-sensitive) attribute key
+      @return the attribute value if set; or empty string if not set (or a boolean attribute).
+      @see #hasKey(String)
+      */
+     public String get(String key) {
+         int i = indexOfKey(key);
+         return i == NotFound ? EmptyString : checkNotNull(vals[i]);
+     }
+ 
+     /**
+      * Get an attribute's value by case-insensitive key
+      * @param key the attribute name
+      * @return the first matching attribute value if set; or empty string if not set (ora boolean attribute).
+      */
+     public String getIgnoreCase(String key) {
+         int i = indexOfKeyIgnoreCase(key);
+         return i == NotFound ? EmptyString : checkNotNull(vals[i]);
+     }
+ 
+-    private Attribute getAttributeIgnoreCase(String key) {
+-        Validate.notEmpty(key);
+-        if (attributes == null)
+-            return null;
+-        Attribute attr = attributes.get(key);
+-        if (attr != null)
+-            return attr;
+-        for (String attrKey : attributes.keySet()) {
+-            if (attrKey.equalsIgnoreCase(key))
+-                return attributes.get(attrKey);
+-        }
+-        return null;
+
++    private void add(String key, String value) {
++        checkCapacity(size + 1);
++        keys[size] = key;
++        vals[size] = value;
++        size++;
+     }
+ 
+     /**
+      * Set a new attribute, or replace an existing one by key.
+      * @param key case sensitive attribute key
+      * @param value attribute value
+      * @return these attributes, for chaining
+      */
+     public Attributes put(String key, String value) {
+-        Attribute attr = new Attribute(key, value);
+-        put(attr);
++        int i = indexOfKey(key);
++        if (i != NotFound)
++            vals[i] = value;
++        else
++            add(key, value);
+         return this;
+     }
+ 
+     void putIgnoreCase(String key, String value) {
++        int i = indexOfKeyIgnoreCase(key);
++        if (i != NotFound) {
++            vals[i] = value;
++            if (!keys[i].equals(key)) // case changed, update
++                keys[i] = key;
+         }
++        else
++            add(key, value);
+     }
+ 
+     /**
+      * Set a new boolean attribute, remove attribute if value is false.
+      * @param key case <b>insensitive</b> attribute key
+      * @param value attribute value
+      * @return these attributes, for chaining
+      */
+     public Attributes put(String key, boolean value) {
+         if (value)
+             putIgnoreCase(key, null);
+         else
+             remove(key);
+         return this;
+@@ -244,14 +299,22 @@
+         return accum.toString();
+     }
+ 
+-    void html(Appendable accum, Document.OutputSettings out) throws IOException {
+-        if (attributes == null)
+-            return;
+-        for (Map.Entry<String, Attribute> entry : attributes.entrySet()) {
+-            Attribute attribute = entry.getValue();
+-            accum.append(" ");
+-            attribute.html(accum, out);
++    final void html(final Appendable accum, final Document.OutputSettings out) throws IOException {
++        final int sz = size;
++        for (int i = 0; i < sz; i++) {
++            final String key = keys[i];
++            final String val = vals[i];
++            accum.append(' ').append(key);
+
++            if (!(out.syntax() == Document.OutputSettings.Syntax.html
++                && (val == null || val.equals(key) && Attribute.isBooleanAttribute(key)))) {
++
++                accum.append("=\"");
++                Entities.escape(accum, val == null ? EmptyString : val, out, true, false, false);
++                accum.append('"');
++            }
+         }
+     }
+ 
+@@ -281,31 +346,40 @@
+         return clone;
+     }
+ 
+-    private class Dataset extends AbstractMap<String, String> {
++    public void normalize() {
++        for (int i = 0; i < size; i++) {
++            keys[i] = lowerCase(keys[i]);
++        }
++    }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Document.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Document.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Document.java	2025-12-20 14:32:49.478820019 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Document.java	2025-12-20 14:10:25.855665628 +1100
+@@ -372,13 +372,9 @@
+ 
+         private Entities.EscapeMode escapeMode = Entities.EscapeMode.base;
+         private Charset charset;
+-        private final ThreadLocal<CharsetEncoder> encoder = new ThreadLocal<CharsetEncoder>() {
+-            @Override
+-            protected CharsetEncoder initialValue() {
+-                return charset.newEncoder();
+-            }
+-        };
++        CharsetEncoder encoder; // initialized by start of OuterHtmlVisitor and cleared at end
++        Entities.CoreCharset coreCharset; // fast encoders for ascii and utf8
+
+         private boolean prettyPrint = true;
+         private boolean outline = false;
+         private int indentAmount = 1;
+@@ -430,7 +426,6 @@
+          */
+         public OutputSettings charset(Charset charset) {
+             this.charset = charset;
+-            encoder.remove();
+             return this;
+         }
+ 
+@@ -444,15 +439,10 @@
+             return this;
+         }
+ 
+-        CharsetEncoder encoder() {
+-            CharsetEncoder ce = encoder.get();
+-            if (!ce.charset().equals(charset)) {
+-                encoder.remove();
+-                ce = encoder.get(); // retrips initialValue()
+-            }
+-            return ce;
++        CharsetEncoder prepareEncoder() {
++            encoder = charset.newEncoder(); // created at start of OuterHtmlVisitor so each pass has own encoder, so OutputSettings can be shared among threads
++            coreCharset = Entities.CoreCharset.byName(encoder.charset().name());
++            return encoder;
+         }
+ 
+         /**
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Element.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Element.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Element.java	2025-12-20 14:40:41.554513162 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Element.java	2025-12-20 14:10:25.859665626 +1100
+@@ -1300,7 +1300,7 @@
+         return this;
+     }
+ 
+-    void outerHtmlHead(Appendable accum, int depth, Document.OutputSettings out) throws IOException {
++    void outerHtmlHead(final Appendable accum, int depth, final Document.OutputSettings out) throws IOException {
+         if (out.prettyPrint() && (tag.formatAsBlock() || (parent() != null && parent().tag().formatAsBlock()) || out.outline())) {
+             if (accum instanceof StringBuilder) {
+                 if (((StringBuilder) accum).length() > 0)
+@@ -1309,11 +1309,8 @@
+                 indent(accum, depth, out);
+             }
+         }
+
+-        if (hasAttributes())
+-            attributes.html(accum, out);
++        if (attributes != null) attributes.html(accum, out);
+ 
+         // selfclosing includes unknown tags, isEmpty defines tags that are always empty
+         if (childNodes.isEmpty() && tag.isSelfClosing()) {
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Entities.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Entities.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Entities.java	2025-12-20 14:32:49.478820019 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Entities.java	2025-12-20 14:10:25.859665626 +1100
+@@ -161,8 +161,8 @@
+         boolean lastWasWhite = false;
+         boolean reachedNonWhite = false;
+         final EscapeMode escapeMode = out.escapeMode();
+-        final CharsetEncoder encoder = out.encoder();
+-        final CoreCharset coreCharset = CoreCharset.byName(encoder.charset().name());
++        final CharsetEncoder encoder = out.encoder != null ? out.encoder : out.prepareEncoder();
++        final CoreCharset coreCharset = out.coreCharset; // init in out.prepareEncoder()
+         final int length = string.length();
+ 
+         int codePoint;
+@@ -278,10 +278,10 @@
+         }
+     }
+ 
+-    private enum CoreCharset {
++    enum CoreCharset {
+         ascii, utf, fallback;
+ 
+-        private static CoreCharset byName(String name) {
++        static CoreCharset byName(final String name) {
+             if (name.equals("US-ASCII"))
+                 return ascii;
+             if (name.startsWith("UTF-")) // covers UTF-8, UTF-16, et al
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Node.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Node.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Node.java	2025-12-20 14:32:49.478820019 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Node.java	2025-12-20 14:10:25.859665626 +1100
+@@ -582,9 +580,9 @@
+      @param accum accumulator to place HTML into
+      @throws IOException if appending to the given accumulator fails.
+      */
+-    abstract void outerHtmlHead(Appendable accum, int depth, Document.OutputSettings out) throws IOException;
++    abstract void outerHtmlHead(final Appendable accum, int depth, final Document.OutputSettings out) throws IOException;
+ 
+-    abstract void outerHtmlTail(Appendable accum, int depth, Document.OutputSettings out) throws IOException;
++    abstract void outerHtmlTail(final Appendable accum, int depth, final Document.OutputSettings out) throws IOException;
+ 
+     /**
+      * Write this node and its children to the given {@link Appendable}.
+@@ -688,6 +686,7 @@
+         OuterHtmlVisitor(Appendable accum, Document.OutputSettings out) {
+             this.accum = accum;
+             this.out = out;
++            out.prepareEncoder();
+         }
+ 
+         public void head(Node node, int depth) {
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/ParseSettings.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/ParseSettings.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/ParseSettings.java	2025-12-20 14:32:49.478820019 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/ParseSettings.java	2025-12-20 14:10:25.859665626 +1100
+@@ -52,9 +51,7 @@
+ 
+     Attributes normalizeAttributes(Attributes attributes) {
+         if (!preserveAttributeCase) {
+-            for (Attribute attr : attributes) {
+-                attr.setKey(lowerCase(attr.getKey()));
+-            }
++            attributes.normalize();
+         }
+         return attributes;
+     }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/Token.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/Token.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/Token.java	2025-12-20 14:32:49.478820019 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/Token.java	2025-12-20 14:10:25.859665626 +1100
+@@ -107,15 +105,14 @@
+                 // the tokeniser has skipped whitespace control chars, but trimming could collapse to empty for other control codes, so verify here
+                 pendingAttributeName = pendingAttributeName.trim();
+                 if (pendingAttributeName.length() > 0) {
+-                    Attribute attribute;
++                    String value;
+                     if (hasPendingAttributeValue)
+-                        attribute = new Attribute(pendingAttributeName,
+-                            pendingAttributeValue.length() > 0 ? pendingAttributeValue.toString() : pendingAttributeValueS);
++                        value = pendingAttributeValue.length() > 0 ? pendingAttributeValue.toString() : pendingAttributeValueS;
+                     else if (hasEmptyAttributeValue)
+-                        attribute = new Attribute(pendingAttributeName, "");
++                        value = "";
+                     else
+-                        attribute = new BooleanAttribute(pendingAttributeName);
+-                    attributes.put(attribute);
++                        value = null;
++                    attributes.put(pendingAttributeName, value);
+                 }
+             }
+             pendingAttributeName = null;

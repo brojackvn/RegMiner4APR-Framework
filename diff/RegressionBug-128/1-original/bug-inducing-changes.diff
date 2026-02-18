@@ -1,0 +1,152 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/springframework/hateoas/mvc/ControllerLinkBuilder.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/springframework/hateoas/mvc/ControllerLinkBuilder.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/springframework/hateoas/mvc/ControllerLinkBuilder.java	2025-12-22 19:18:08.553519330 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/springframework/hateoas/mvc/ControllerLinkBuilder.java	2025-12-22 19:16:08.545631245 +1100
+@@ -15,11 +15,11 @@
+  */
+ package org.springframework.hateoas.mvc;
+ 
+-import static org.springframework.util.StringUtils.*;
+-
+ import lombok.RequiredArgsConstructor;
+ import lombok.experimental.Delegate;
+ 
++import static org.springframework.util.StringUtils.hasText;
++
+ import java.lang.reflect.Method;
+ import java.net.URI;
+ import java.util.Map;
+@@ -32,6 +32,7 @@
+ import org.springframework.hateoas.core.DummyInvocationUtils;
+ import org.springframework.hateoas.core.LinkBuilderSupport;
+ import org.springframework.hateoas.core.MappingDiscoverer;
++import org.springframework.http.server.ServletServerHttpRequest;
+ import org.springframework.util.Assert;
+ import org.springframework.util.ConcurrentReferenceHashMap;
+ import org.springframework.web.bind.annotation.RequestMapping;
+@@ -52,6 +53,7 @@
+  * @author Greg Turnquist
+  * @author Kevin Conaway
+  * @author Andrew Naydyonock
++ * @author Oliver Trosien
+  */
+ public class ControllerLinkBuilder extends LinkBuilderSupport<ControllerLinkBuilder> {
+ 
+@@ -253,56 +255,29 @@
+ 	}
+ 
+ 	/**
+-	 * Returns a {@link UriComponentsBuilder} obtained from the current servlet mapping with the host tweaked in case the
+-	 * request contains an {@code X-Forwarded-Host} header and the scheme tweaked in case the request contains an
+-	 * {@code X-Forwarded-Ssl} header
++	 * Returns a {@link UriComponentsBuilder} obtained from the current servlet mapping with
++	 * scheme tweaked in case the request contains an {@code X-Forwarded-Ssl} header, which is not (yet)
++	 * supported by the underlying {@link UriComponentsBuilder}.
+ 	 * 
+ 	 * @return
+ 	 */
+ 	static UriComponentsBuilder getBuilder() {
+-
+-		HttpServletRequest request = getCurrentRequest();
+-		ServletUriComponentsBuilder builder = ServletUriComponentsBuilder.fromServletMapping(request);
+-
+-		ForwardedHeader forwarded = ForwardedHeader.of(request.getHeader(ForwardedHeader.NAME));
+-		String proto = hasText(forwarded.getProto()) ? forwarded.getProto() : request.getHeader("X-Forwarded-Proto");
+-		String forwardedSsl = request.getHeader("X-Forwarded-Ssl");
+-
+-		if (hasText(proto)) {
+-			builder.scheme(proto);
+-		} else if (hasText(forwardedSsl) && forwardedSsl.equalsIgnoreCase("on")) {
+-			builder.scheme("https");
+-		}
+-
+-		String host = forwarded.getHost();
+-		host = hasText(host) ? host : request.getHeader("X-Forwarded-Host");
+-
+-		if (!hasText(host)) {
+-			return builder;
+-		}
+-
+-		String[] hosts = commaDelimitedListToStringArray(host);
+-		String hostToUse = hosts[0];
+-
+-		if (hostToUse.contains(":")) {
+-
+-			String[] hostAndPort = split(hostToUse, ":");
+-
+-			builder.host(hostAndPort[0]);
+-			builder.port(Integer.parseInt(hostAndPort[1]));
+-
+-		} else {
+-			builder.host(hostToUse);
+-			builder.port(-1); // reset port if it was forwarded from default port
+-		}
+-
+-		String port = request.getHeader("X-Forwarded-Port");
+-
+-		if (hasText(port)) {
+-			builder.port(Integer.parseInt(port));
+-		}
+-
+-		return builder;
++		
++		HttpServletRequest request = getCurrentRequest();
++		UriComponentsBuilder builder = UriComponentsBuilder.fromHttpRequest(new ServletServerHttpRequest(request));
++
++		// special case handling for X-Forwarded-Ssl:
++		// apply it, but only if X-Forwarded-Proto is unset.
++
++		String forwardedSsl = request.getHeader("X-Forwarded-Ssl");
++		ForwardedHeader forwarded = ForwardedHeader.of(request.getHeader(ForwardedHeader.NAME));
++		String proto = hasText(forwarded.getProto()) ? forwarded.getProto() : request.getHeader("X-Forwarded-Proto");
++
++		if (!hasText(proto) && hasText(forwardedSsl) && forwardedSsl.equalsIgnoreCase("on")) {
++			builder.scheme("https");
++		}
++
++		return builder;
+ 	}
+ 
+ 	/**
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/springframework/hateoas/mvc/ControllerLinkBuilderUnitTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/springframework/hateoas/mvc/ControllerLinkBuilderUnitTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/springframework/hateoas/mvc/ControllerLinkBuilderUnitTest.java	2025-12-22 19:18:08.561519322 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/springframework/hateoas/mvc/ControllerLinkBuilderUnitTest.java	2025-12-22 19:16:08.553631238 +1100
+@@ -533,6 +533,30 @@
+ 	}
+ 
+ 	/**
++	 * @see #509
++	 */
++	@Test
++	public void supportsTwoProxiesAddingXForwardedPort() {
++		request.addHeader("X-Forwarded-Port", "1443,8443");
++		request.addHeader("X-Forwarded-Host", "proxy1,proxy2");
++
++		Link link = linkTo(PersonControllerImpl.class).withSelfRel();
++		assertThat(link.getHref(), startsWith("http://proxy1:1443"));
++	}
++
++	/**
++	 * @see #509
++	 */
++	@Test
++	public void resolvesAmbiguousXForwardedHeaders() {
++		request.addHeader("X-Forwarded-Proto", "http");
++		request.addHeader("X-Forwarded-Ssl", "on");
++
++		Link link = linkTo(PersonControllerImpl.class).withSelfRel();
++		assertThat(link.getHref(), startsWith("http://"));
++	}
++
++	/**
+ 	 * @see #527
+ 	 */
+ 	@Test
+@@ -544,7 +568,7 @@
+ 
+ 		assertThat(linkTo(PersonControllerImpl.class).withSelfRel().getHref(), endsWith("/ctx/people"));
+ 	}
+-	
++
+ 	private static UriComponents toComponents(Link link) {
+ 		return UriComponentsBuilder.fromUriString(link.expand().getHref()).build();
+ 	}

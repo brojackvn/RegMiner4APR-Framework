@@ -1,0 +1,469 @@
+Binary files ./RegMiner4APR-Regression-Bugs/WORKING/.gradle/6.5/executionHistory/executionHistory.bin and ./RegMiner4APR-Regression-Bugs/BIC/.gradle/6.5/executionHistory/executionHistory.bin differ
+Binary files ./RegMiner4APR-Regression-Bugs/WORKING/.gradle/6.5/executionHistory/executionHistory.lock and ./RegMiner4APR-Regression-Bugs/BIC/.gradle/6.5/executionHistory/executionHistory.lock differ
+Binary files ./RegMiner4APR-Regression-Bugs/WORKING/.gradle/6.5/fileHashes/fileHashes.bin and ./RegMiner4APR-Regression-Bugs/BIC/.gradle/6.5/fileHashes/fileHashes.bin differ
+Binary files ./RegMiner4APR-Regression-Bugs/WORKING/.gradle/6.5/fileHashes/fileHashes.lock and ./RegMiner4APR-Regression-Bugs/BIC/.gradle/6.5/fileHashes/fileHashes.lock differ
+Binary files ./RegMiner4APR-Regression-Bugs/WORKING/.gradle/6.5/fileHashes/resourceHashesCache.bin and ./RegMiner4APR-Regression-Bugs/BIC/.gradle/6.5/fileHashes/resourceHashesCache.bin differ
+Binary files ./RegMiner4APR-Regression-Bugs/WORKING/.gradle/6.5/javaCompile/javaCompile.lock and ./RegMiner4APR-Regression-Bugs/BIC/.gradle/6.5/javaCompile/javaCompile.lock differ
+Binary files ./RegMiner4APR-Regression-Bugs/WORKING/.gradle/6.5/javaCompile/taskHistory.bin and ./RegMiner4APR-Regression-Bugs/BIC/.gradle/6.5/javaCompile/taskHistory.bin differ
+Binary files ./RegMiner4APR-Regression-Bugs/WORKING/.gradle/buildOutputCleanup/buildOutputCleanup.lock and ./RegMiner4APR-Regression-Bugs/BIC/.gradle/buildOutputCleanup/buildOutputCleanup.lock differ
+Binary files ./RegMiner4APR-Regression-Bugs/WORKING/.gradle/checksums/checksums.lock and ./RegMiner4APR-Regression-Bugs/BIC/.gradle/checksums/checksums.lock differ
+Binary files ./RegMiner4APR-Regression-Bugs/WORKING/.gradle/checksums/sha1-checksums.bin and ./RegMiner4APR-Regression-Bugs/BIC/.gradle/checksums/sha1-checksums.bin differ
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/spring-amqp/src/main/java/org/springframework/amqp/support/converter/AbstractJackson2MessageConverter.java ./RegMiner4APR-Regression-Bugs/BIC/spring-amqp/src/main/java/org/springframework/amqp/support/converter/AbstractJackson2MessageConverter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/spring-amqp/src/main/java/org/springframework/amqp/support/converter/AbstractJackson2MessageConverter.java	2025-12-24 14:43:11.709898429 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/spring-amqp/src/main/java/org/springframework/amqp/support/converter/AbstractJackson2MessageConverter.java	2025-12-24 15:33:07.629118664 +1100
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2018-2019 the original author or authors.
++ * Copyright 2018-2020 the original author or authors.
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+@@ -88,6 +88,8 @@
+ 
+ 	private boolean assumeSupportedContentType = true;
+ 
++	private boolean alwaysConvertToInferredType;
++
+ 	/**
+ 	 * Construct with the provided {@link ObjectMapper} instance.
+ 	 * @param objectMapper the {@link ObjectMapper} to use.
+@@ -201,6 +203,18 @@
+ 		}
+ 	}
+ 
++	/**
++	 * When false (default), fall back to type id headers if the type (or contents of a container
++	 * type) is abstract. Set to true if conversion should always be attempted - perhaps because
++	 * a custom deserializer has been configured on the {@link ObjectMapper}. If the attempt fails,
++	 * fall back to headers.
++	 * @param alwaysAttemptConversion true to attempt.
++	 * @since 2.2.8
++	 */
++	public void setAlwaysConvertToInferredType(boolean alwaysAttemptConversion) {
++		this.alwaysConvertToInferredType = alwaysAttemptConversion;
++	}
++
+ 	protected boolean isUseProjectionForInterfaces() {
+ 		return this.useProjectionForInterfaces;
+ 	}
+@@ -274,29 +288,34 @@
+ 	private Object doFromMessage(Message message, Object conversionHint, MessageProperties properties,
+ 			String encoding) {
+ 
+-		Object content;
++		Object content = null;
+ 		try {
+ 			JavaType inferredType = this.javaTypeMapper.getInferredType(properties);
+ 			if (inferredType != null && this.useProjectionForInterfaces && inferredType.isInterface()
+ 					&& !inferredType.getRawClass().getPackage().getName().startsWith("java.util")) { // List etc
+ 				content = this.projectingConverter.convert(message, inferredType.getRawClass());
+ 			}
+-			else if (conversionHint instanceof ParameterizedTypeReference) {
+-				content = convertBytesToObject(message.getBody(), encoding,
+-						this.objectMapper.getTypeFactory().constructType(
+-								((ParameterizedTypeReference<?>) conversionHint).getType()));
+-			}
+-			else if (getClassMapper() == null) {
+-				JavaType targetJavaType = getJavaTypeMapper()
+-						.toJavaType(message.getMessageProperties());
+-				content = convertBytesToObject(message.getBody(),
+-						encoding, targetJavaType);
++			else if (inferredType != null && this.alwaysConvertToInferredType) {
++				content = tryConverType(message, encoding, inferredType);
+ 			}
+-			else {
+-				Class<?> targetClass = getClassMapper().toClass(// NOSONAR never null
+-						message.getMessageProperties());
+-				content = convertBytesToObject(message.getBody(),
+-						encoding, targetClass);
++			if (content == null) {
++				if (conversionHint instanceof ParameterizedTypeReference) {
++					content = convertBytesToObject(message.getBody(), encoding,
++							this.objectMapper.getTypeFactory().constructType(
++									((ParameterizedTypeReference<?>) conversionHint).getType()));
++				}
++				else if (getClassMapper() == null) {
++					JavaType targetJavaType = getJavaTypeMapper()
++							.toJavaType(message.getMessageProperties());
++					content = convertBytesToObject(message.getBody(),
++							encoding, targetJavaType);
++				}
++				else {
++					Class<?> targetClass = getClassMapper().toClass(// NOSONAR never null
++							message.getMessageProperties());
++					content = convertBytesToObject(message.getBody(),
++							encoding, targetClass);
++				}
+ 			}
+ 		}
+ 		catch (IOException e) {
+@@ -306,6 +325,21 @@
+ 		return content;
+ 	}
+ 
++	/*
++	 * Unfortunately, mapper.canDeserialize() always returns true (adds an AbstractDeserializer
++	 * to the cache); so all we can do is try a conversion.
++	 */
++	@Nullable
++	private Object tryConverType(Message message, String encoding, JavaType inferredType) {
++		try {
++			return convertBytesToObject(message.getBody(), encoding, inferredType);
++		}
++		catch (Exception e) {
++			this.log.trace("Cannot create possibly abstract container contents; falling back to headers", e);
++			return null;
++		}
++	}
++
+ 	private Object convertBytesToObject(byte[] body, String encoding, JavaType targetJavaType) throws IOException {
+ 		String contentAsString = new String(body, encoding);
+ 		return this.objectMapper.readValue(contentAsString, targetJavaType);
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/spring-amqp/src/main/java/org/springframework/amqp/support/converter/DefaultJackson2JavaTypeMapper.java ./RegMiner4APR-Regression-Bugs/BIC/spring-amqp/src/main/java/org/springframework/amqp/support/converter/DefaultJackson2JavaTypeMapper.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/spring-amqp/src/main/java/org/springframework/amqp/support/converter/DefaultJackson2JavaTypeMapper.java	2025-12-24 14:43:11.709898429 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/spring-amqp/src/main/java/org/springframework/amqp/support/converter/DefaultJackson2JavaTypeMapper.java	2025-12-24 15:33:07.629118664 +1100
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2002-2019 the original author or authors.
++ * Copyright 2002-2020 the original author or authors.
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+@@ -112,9 +112,7 @@
+ 	@Override
+ 	public JavaType toJavaType(MessageProperties properties) {
+ 		JavaType inferredType = getInferredType(properties);
+-		if (inferredType != null
+-			 && ((!inferredType.isAbstract() && !inferredType.isInterface()
+-					|| inferredType.getRawClass().getPackage().getName().startsWith("java.util")))) {
++		if (inferredType != null && canConvert(inferredType)) {
+ 			return inferredType;
+ 		}
+ 
+@@ -131,6 +129,19 @@
+ 		return TypeFactory.defaultInstance().constructType(Object.class);
+ 	}
+ 
++	private boolean canConvert(JavaType inferredType) {
++		if (inferredType.isAbstract()) {
++			return false;
++		}
++		if (inferredType.isContainerType() && inferredType.getContentType().isAbstract()) {
++			return false;
++		}
++		if (inferredType.getKeyType() != null && inferredType.getKeyType().isAbstract()) {
++			return false;
++		}
++		return true;
++	}
++
+ 	private JavaType fromTypeHeader(MessageProperties properties, String typeIdHeader) {
+ 		JavaType classType = getClassIdType(typeIdHeader);
+ 		if (!classType.isContainerType() || classType.isArrayType()) {
+@@ -151,7 +162,7 @@
+ 	@Override
+ 	@Nullable
+ 	public JavaType getInferredType(MessageProperties properties) {
+-		if (hasInferredTypeHeader(properties) && this.typePrecedence.equals(TypePrecedence.INFERRED)) {
++		if (this.typePrecedence.equals(TypePrecedence.INFERRED) && hasInferredTypeHeader(properties)) {
+ 			return fromInferredTypeHeader(properties);
+ 		}
+ 		return null;
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/spring-amqp/src/test/java/org/springframework/amqp/support/converter/Jackson2JsonMessageConverterTests.java ./RegMiner4APR-Regression-Bugs/BIC/spring-amqp/src/test/java/org/springframework/amqp/support/converter/Jackson2JsonMessageConverterTests.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/spring-amqp/src/test/java/org/springframework/amqp/support/converter/Jackson2JsonMessageConverterTests.java	2025-12-24 14:43:11.717898430 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/spring-amqp/src/test/java/org/springframework/amqp/support/converter/Jackson2JsonMessageConverterTests.java	2025-12-24 15:36:19.773054567 +1100
+@@ -18,6 +18,7 @@
+ 
+ import static org.assertj.core.api.Assertions.assertThat;
+ 
++import java.io.IOException;
+ import java.math.BigDecimal;
+ import java.util.Hashtable;
+ import java.util.LinkedHashMap;
+@@ -34,7 +35,12 @@
+ import org.springframework.data.web.JsonPath;
+ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+ 
++import com.fasterxml.jackson.core.JsonParser;
++import com.fasterxml.jackson.core.JsonProcessingException;
++import com.fasterxml.jackson.databind.DeserializationContext;
+ import com.fasterxml.jackson.databind.ObjectMapper;
++import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
++import com.fasterxml.jackson.databind.module.SimpleModule;
+ import com.fasterxml.jackson.databind.ser.BeanSerializerFactory;
+ 
+ /**
+@@ -299,6 +305,116 @@
+ 		assertThat(foo).isSameAs(bytes);
+ 	}
+ 
++	@Test
++	void customAbstractClass() {
++		byte[] bytes = "{\"field\" : \"foo\" }".getBytes();
++		MessageProperties messageProperties = new MessageProperties();
++		messageProperties.setHeader("__TypeId__", String.class.getName());
++		messageProperties.setInferredArgumentType(Baz.class);
++		Message message = new Message(bytes, messageProperties);
++		ObjectMapper mapper = new ObjectMapper();
++		mapper.registerModule(new BazModule());
++		Jackson2JsonMessageConverter j2Converter = new Jackson2JsonMessageConverter(mapper);
++		j2Converter.setAlwaysConvertToInferredType(true);
++		Baz baz = (Baz) j2Converter.fromMessage(message);
++		assertThat(((Qux) baz).getField()).isEqualTo("foo");
++	}
++
++	@Test
++	void fallbackToHeaders() {
++		byte[] bytes = "{\"field\" : \"foo\" }".getBytes();
++		MessageProperties messageProperties = new MessageProperties();
++		messageProperties.setHeader("__TypeId__", Buz.class.getName());
++		messageProperties.setInferredArgumentType(Baz.class);
++		Message message = new Message(bytes, messageProperties);
++		Jackson2JsonMessageConverter j2Converter = new Jackson2JsonMessageConverter();
++		Fiz buz = (Fiz) j2Converter.fromMessage(message);
++		assertThat(((Buz) buz).getField()).isEqualTo("foo");
++	}
++
++	@Test
++	void customAbstractClassList() throws Exception {
++		byte[] bytes = "[{\"field\" : \"foo\" }]".getBytes();
++		MessageProperties messageProperties = new MessageProperties();
++		messageProperties.setHeader("__TypeId__", String.class.getName());
++		messageProperties.setInferredArgumentType(getClass().getDeclaredMethod("bazLister").getGenericReturnType());
++		Message message = new Message(bytes, messageProperties);
++		ObjectMapper mapper = new ObjectMapper();
++		mapper.registerModule(new BazModule());
++		Jackson2JsonMessageConverter j2Converter = new Jackson2JsonMessageConverter(mapper);
++		j2Converter.setAlwaysConvertToInferredType(true);
++		@SuppressWarnings("unchecked")
++		List<Baz> bazs = (List<Baz>) j2Converter.fromMessage(message);
++		assertThat(bazs).hasSize(1);
++		assertThat(((Qux) bazs.get(0)).getField()).isEqualTo("foo");
++	}
++
++	@Test
++	void cantDeserializeFizListUseHeaders() throws Exception {
++		byte[] bytes = "[{\"field\" : \"foo\" }]".getBytes();
++		MessageProperties messageProperties = new MessageProperties();
++		messageProperties.setInferredArgumentType(getClass().getDeclaredMethod("fizLister").getGenericReturnType());
++		messageProperties.setHeader("__TypeId__", List.class.getName());
++		messageProperties.setHeader("__ContentTypeId__", Buz.class.getName());
++		Message message = new Message(bytes, messageProperties);
++		ObjectMapper mapper = new ObjectMapper();
++		mapper.registerModule(new BazModule());
++		Jackson2JsonMessageConverter j2Converter = new Jackson2JsonMessageConverter(mapper);
++		@SuppressWarnings("unchecked")
++		List<Fiz> buzs = (List<Fiz>) j2Converter.fromMessage(message);
++		assertThat(buzs).hasSize(1);
++		assertThat(((Buz) buzs.get(0)).getField()).isEqualTo("foo");
++	}
++
++	@Test
++	void concreteInListRegression() throws Exception {
++		byte[] bytes = "[{\"name\":\"bar\"}]".getBytes();
++		MessageProperties messageProperties = new MessageProperties();
++		messageProperties.setInferredArgumentType(getClass().getDeclaredMethod("fooLister").getGenericReturnType());
++		messageProperties.setHeader("__TypeId__", List.class.getName());
++		messageProperties.setHeader("__ContentTypeId__", Object.class.getName());
++		Message message = new Message(bytes, messageProperties);
++		Jackson2JsonMessageConverter j2Converter = new Jackson2JsonMessageConverter();
++		@SuppressWarnings("unchecked")
++		List<Foo> foos = (List<Foo>) j2Converter.fromMessage(message);
++		assertThat(foos).hasSize(1);
++		assertThat(foos.get(0).getName()).isEqualTo("bar");
++	}
++
++	@Test
++	void concreteInMapRegression() throws Exception {
++		byte[] bytes = "{\"test\":{\"field\":\"baz\"}}".getBytes();
++		MessageProperties messageProperties = new MessageProperties();
++		messageProperties.setInferredArgumentType(getClass().getDeclaredMethod("stringQuxLister").getGenericReturnType());
++		messageProperties.setHeader("__TypeId__", Map.class.getName());
++		messageProperties.setHeader("__KeyTypeId__", String.class.getName());
++		messageProperties.setHeader("__ContentTypeId__", Object.class.getName());
++		Message message = new Message(bytes, messageProperties);
++		Jackson2JsonMessageConverter j2Converter = new Jackson2JsonMessageConverter();
++
++		@SuppressWarnings("unchecked")
++		Map<String, Qux> foos = (Map<String, Qux>) j2Converter.fromMessage(message);
++		assertThat(foos).hasSize(1);
++		assertThat(foos.keySet().iterator().next()).isEqualTo("test");
++		assertThat(foos.values().iterator().next().getField()).isEqualTo("baz");
++	}
++
++	public List<Foo> fooLister() {
++		return null;
++	}
++
++	public Map<String, Qux> stringQuxLister() {
++		return null;
++	}
++
++	public List<Baz> bazLister() {
++		return null;
++	}
++
++	public List<Fiz> fizLister() {
++		return null;
++	}
++
+ 	public static class Foo {
+ 
+ 		private String name = "foo";
+@@ -412,47 +528,7 @@
+ 			}
+ 			return true;
+ 		}
+-	}
+ 
+-	@Test
+-	void concreteInListRegression() throws Exception {
+-		byte[] bytes = "[{\"name\":\"bar\"}]".getBytes();
+-		MessageProperties messageProperties = new MessageProperties();
+-		messageProperties.setInferredArgumentType(getClass().getDeclaredMethod("fooLister").getGenericReturnType());
+-		messageProperties.setHeader("__TypeId__", List.class.getName());
+-		messageProperties.setHeader("__ContentTypeId__", Object.class.getName());
+-		Message message = new Message(bytes, messageProperties);
+-		Jackson2JsonMessageConverter j2Converter = new Jackson2JsonMessageConverter();
+-		@SuppressWarnings("unchecked")
+-		List<Foo> foos = (List<Foo>) j2Converter.fromMessage(message);
+-		assertThat(foos).hasSize(1);
+-		assertThat(foos.get(0).getName()).isEqualTo("bar");
+-	}
+-
+-	@Test
+-	void concreteInMapRegression() throws Exception {
+-		byte[] bytes = "{\"test\":{\"field\":\"baz\"}}".getBytes();
+-		MessageProperties messageProperties = new MessageProperties();
+-		messageProperties.setInferredArgumentType(getClass().getDeclaredMethod("stringQuxLister").getGenericReturnType());
+-		messageProperties.setHeader("__TypeId__", Map.class.getName());
+-		messageProperties.setHeader("__KeyTypeId__", String.class.getName());
+-		messageProperties.setHeader("__ContentTypeId__", Object.class.getName());
+-		Message message = new Message(bytes, messageProperties);
+-		Jackson2JsonMessageConverter j2Converter = new Jackson2JsonMessageConverter();
+-
+-		@SuppressWarnings("unchecked")
+-		Map<String, Qux> foos = (Map<String, Qux>) j2Converter.fromMessage(message);
+-		assertThat(foos).hasSize(1);
+-		assertThat(foos.keySet().iterator().next()).isEqualTo("test");
+-		assertThat(foos.values().iterator().next().getField()).isEqualTo("baz");
+-	}
+-
+-	public List<Foo> fooLister() {
+-		return null;
+-	}
+-
+-	public Map<String, Qux> stringQuxLister() {
+-		return null;
+ 	}
+ 
+ 	interface Sample {
+@@ -463,7 +539,7 @@
+ 		String getName();
+ 
+ 	}
+-	
++
+ 	public interface Baz {
+ 
+ 	}
+@@ -471,10 +547,10 @@
+ 	public static class Qux implements Baz {
+ 
+ 		private String field;
+-
++		
+ 		public Qux() {
+ 		}
+-		
++
+ 		public Qux(String field) {
+ 			this.field = field;
+ 		}
+@@ -488,5 +564,52 @@
+ 		}
+ 
+ 	}
++
++	@SuppressWarnings("serial")
++	public static class BazDeserializer extends StdDeserializer<Baz> {
++
++		public BazDeserializer() {
++			super(Baz.class);
++		}
++
++		@Override
++		public Baz deserialize(JsonParser p, DeserializationContext ctxt)
++				throws IOException, JsonProcessingException {
++
++			p.nextFieldName();
++			String field = p.nextTextValue();
++			p.nextToken();
++			return new Qux(field);
++
++		}
++
++	}
++
++	public interface Fiz {
++
++	}
++
++	public static class Buz implements Fiz {
++
++		private String field;
++
++		public String getField() {
++			return this.field;
++		}
++
++		public void setField(String field) {
++			this.field = field;
++		}
++
++	}
++
++	@SuppressWarnings("serial")
++	public static class BazModule extends SimpleModule {
++
++		public BazModule() {
++			addDeserializer(Baz.class, new BazDeserializer());
++		}
++
++	}
+ 
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/reference/asciidoc/amqp.adoc ./RegMiner4APR-Regression-Bugs/BIC/src/reference/asciidoc/amqp.adoc
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/reference/asciidoc/amqp.adoc	2025-12-24 14:43:11.789898437 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/reference/asciidoc/amqp.adoc	2025-12-24 15:33:07.689118644 +1100
+@@ -3608,6 +3608,15 @@
+ IMPORTANT: Starting with version 1.6.11, `Jackson2JsonMessageConverter` and, therefore, `DefaultJackson2JavaTypeMapper` (`DefaultClassMapper`) provide the `trustedPackages` option to overcome https://pivotal.io/security/cve-2017-4995[Serialization Gadgets] vulnerability.
+ By default and for backward compatibility, the `Jackson2JsonMessageConverter` trusts all packages -- that is, it uses `*` for the option.
+ 
++[[jackson-abstract]]
++====== Deserializing Abstract Classes
++
++Prior to version 2.2.8, if the inferred type of a `@RabbitListener` was an abstract class (including interfaces), the converter would fall back to looking for type information in the headers and, if present, used that information; if that was not present, it would try to create the abstract class.
++This caused a problem when a custom `ObjectMapper` that is configured with a custom deserializer to handle the abstract class is used, but the incoming message has invalid type headers.
++
++Starting with version 2.2.8, the previous behavior is retained by default. If you have such a custom `ObjectMapper` and you want to ignore type headers, and always use the inferred type for conversion, set the `alwaysConvertToInferredType` to `true`.
++This is needed for backwards compatibility and to avoid the overhead of an attempted conversion when it would fail (with a standard `ObjectMapper`).
++
+ [[data-projection]]
+ ====== Using Spring Data Projection Interfaces
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/reference/asciidoc/whats-new.adoc ./RegMiner4APR-Regression-Bugs/BIC/src/reference/asciidoc/whats-new.adoc
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/reference/asciidoc/whats-new.adoc	2025-12-24 14:43:11.793898438 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/reference/asciidoc/whats-new.adoc	2025-12-24 15:33:07.693118643 +1100
+@@ -11,6 +11,11 @@
+ Two additional connection factories are now provided.
+ See <<choosing-factory>> for more information.
+ 
++==== Message Converter Changes
++
++The `Jackson2JMessageConverter` s can now deserialize abstract classes (including interfaces) if the `ObjectMapper` is configured with a custom deserializer.
++See <<jackson-abstract>> for more information.
++
+ ==== Testing Changes
+ 
+ A new annotation `@SpringRabbitTest` is provided to automatically configure some infrastructure beans for when you are not using `SpringBootTest`.

@@ -1,0 +1,510 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/CloseConnectionCommand.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/CloseConnectionCommand.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/CloseConnectionCommand.java	2025-12-21 02:32:56.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/CloseConnectionCommand.java	2025-12-21 02:27:36.000000000 +1100
+@@ -24,7 +24,7 @@
+   static final CloseConnectionCommand INSTANCE = new CloseConnectionCommand();
+ 
+   private CloseConnectionCommand() {
+-    super(ar -> {});
++    handler = ar -> {};
+   }
+ 
+   @Override
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/ClosePortalCommand.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/ClosePortalCommand.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/ClosePortalCommand.java	2025-12-21 02:32:56.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/ClosePortalCommand.java	2025-12-21 02:27:37.000000000 +1100
+@@ -27,8 +27,7 @@
+ 
+   private final String portal;
+ 
+-  ClosePortalCommand(String portal, Handler<? super CommandResponse<Void>> handler) {
+-    super(handler);
++  ClosePortalCommand(String portal) {
+     this.portal = portal;
+   }
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/CloseStatementCommand.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/CloseStatementCommand.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/CloseStatementCommand.java	2025-12-21 02:32:56.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/CloseStatementCommand.java	2025-12-21 02:27:37.000000000 +1100
+@@ -17,19 +17,13 @@
+ 
+ package io.reactiverse.pgclient.impl;
+ 
+-import io.reactiverse.pgclient.impl.codec.decoder.InboundMessage;
+ import io.reactiverse.pgclient.impl.codec.encoder.MessageEncoder;
+-import io.vertx.core.Handler;
+ 
+ /**
+  * @author <a href="mailto:julien@julienviet.com">Julien Viet</a>
+  */
+ class CloseStatementCommand extends CommandBase<Void> {
+ 
+-  CloseStatementCommand(Handler<? super CommandResponse<Void>> handler) {
+-    super(handler);
+-  }
+-
+   @Override
+   void exec(MessageEncoder out) {
+     /*
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/CommandBase.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/CommandBase.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/CommandBase.java	2025-12-21 02:32:57.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/CommandBase.java	2025-12-21 02:27:37.000000000 +1100
+@@ -41,10 +41,6 @@
+   Throwable failure;
+   R result;
+ 
+-  public CommandBase(Handler<? super CommandResponse<R>> handler) {
+-    this.handler = handler;
+-  }
+-
+   public void handleBackendKeyData(int processId, int secretKey) {
+     logger.warn(getClass().getSimpleName() + " should handle message BackendKeyData");
+   }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/CommandResponse.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/CommandResponse.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/CommandResponse.java	2025-12-21 02:32:56.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/CommandResponse.java	2025-12-21 02:27:36.000000000 +1100
+@@ -64,6 +64,8 @@
+     };
+   }
+ 
++  // The connection that executed the command
++  CommandScheduler scheduler;
+   private final TxStatus txStatus;
+ 
+   public CommandResponse(TxStatus txStatus) {
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl: CommandScheduler.java
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/ExtendedBatchQueryCommand.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/ExtendedBatchQueryCommand.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/ExtendedBatchQueryCommand.java	2025-12-21 02:32:57.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/ExtendedBatchQueryCommand.java	2025-12-21 02:30:25.000000000 +1100
+@@ -36,9 +36,8 @@
+                             Iterator<Tuple> paramsIterator,
+                             boolean singleton,
+                             Collector<Row, ?, T> collector,
+-                            QueryResultHandler<T> resultHandler,
+-                            Handler<AsyncResult<Boolean>> handler) {
+-    this(ps, paramsIterator, 0, null, false, singleton, collector, resultHandler, handler);
++                            QueryResultHandler<T> resultHandler) {
++    this(ps, paramsIterator, 0, null, false, singleton, collector, resultHandler);
+   }
+ 
+   ExtendedBatchQueryCommand(PreparedStatement ps,
+@@ -48,9 +47,8 @@
+                             boolean suspended,
+                             boolean singleton,
+                             Collector<Row, ?, T> collector,
+-                            QueryResultHandler<T> resultHandler,
+-                            Handler<AsyncResult<Boolean>> handler) {
+-    super(ps, fetch, portal, suspended, singleton, collector, resultHandler, handler);
++                            QueryResultHandler<T> resultHandler) {
++    super(ps, fetch, portal, suspended, singleton, collector, resultHandler);
+     this.paramsIterator = paramsIterator;
+   }
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/ExtendedQueryCommandBase.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/ExtendedQueryCommandBase.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/ExtendedQueryCommandBase.java	2025-12-21 02:32:57.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/ExtendedQueryCommandBase.java	2025-12-21 02:27:36.000000000 +1100
+@@ -40,9 +40,8 @@
+                            boolean suspended,
+                            boolean singleton,
+                            Collector<Row, ?, R> collector,
+-                           QueryResultHandler<R> resultHandler,
+-                           Handler<AsyncResult<Boolean>> handler) {
+-    super(collector, resultHandler, handler);
++                           QueryResultHandler<R> resultHandler) {
++    super(collector, resultHandler);
+     this.ps = ps;
+     this.fetch = fetch;
+     this.portal = portal;
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/ExtendedQueryCommand.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/ExtendedQueryCommand.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/ExtendedQueryCommand.java	2025-12-21 02:32:56.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/ExtendedQueryCommand.java	2025-12-21 02:27:37.000000000 +1100
+@@ -21,8 +21,6 @@
+ import io.reactiverse.pgclient.Tuple;
+ import io.reactiverse.pgclient.impl.codec.encoder.MessageEncoder;
+ import io.reactiverse.pgclient.impl.codec.encoder.Parse;
+-import io.vertx.core.AsyncResult;
+-import io.vertx.core.Handler;
+ 
+ import java.util.List;
+ import java.util.stream.Collector;
+@@ -35,9 +33,8 @@
+                        Tuple params,
+                        boolean singleton,
+                        Collector<Row, ?, T> collector,
+-                       QueryResultHandler<T> resultHandler,
+-                       Handler<AsyncResult<Boolean>> handler) {
+-    this(ps, params, 0, null, false, singleton, collector, resultHandler, handler);
++                       QueryResultHandler<T> resultHandler) {
++    this(ps, params, 0, null, false, singleton, collector, resultHandler);
+   }
+ 
+   ExtendedQueryCommand(PreparedStatement ps,
+@@ -47,9 +44,8 @@
+                        boolean suspended,
+                        boolean singleton,
+                        Collector<Row, ?, T> collector,
+-                       QueryResultHandler<T> resultHandler,
+-                       Handler<AsyncResult<Boolean>> handler) {
+-    super(ps, fetch, portal, suspended, singleton, collector, resultHandler, handler);
++                       QueryResultHandler<T> resultHandler) {
++    super(ps, fetch, portal, suspended, singleton, collector, resultHandler);
+     this.params = params;
+   }
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/InitCommand.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/InitCommand.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/InitCommand.java	2025-12-21 02:32:57.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/InitCommand.java	2025-12-21 02:30:25.000000000 +1100
+@@ -46,9 +46,7 @@
+     SocketConnection conn,
+     String username,
+     String password,
+-    String database,
+-    Handler<? super CommandResponse<Connection>> handler) {
+-    super(handler);
++    String database) {
+     this.conn = conn;
+     this.username = username;
+     this.password = password;
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/PgClientBase.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/PgClientBase.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/PgClientBase.java	2025-12-21 02:32:57.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/PgClientBase.java	2025-12-21 02:30:25.000000000 +1100
+@@ -26,9 +26,7 @@
+ import java.util.function.Function;
+ import java.util.stream.Collector;
+ 
+-public abstract class PgClientBase<C extends PgClient> implements PgClient {
+-
+-  protected abstract void schedule(CommandBase<?> cmd);
++public abstract class PgClientBase<C extends PgClient> implements PgClient, CommandScheduler {
+ 
+   @Override
+   public C query(String sql, Handler<AsyncResult<PgRowSet>> handler) {
+@@ -47,7 +45,7 @@
+     Collector<Row, ?, R1> collector,
+     Handler<AsyncResult<R3>> handler) {
+     PgResultBuilder<R1, R2, R3> b = new PgResultBuilder<>(factory, handler);
+-    schedule(new SimpleQueryCommand<>(sql, singleton, collector, b, b));
++    schedule(new SimpleQueryCommand<>(sql, singleton, collector, b), b);
+     return (C) this;
+   }
+ 
+@@ -68,20 +66,20 @@
+     Function<R1, R2> factory,
+     Collector<Row, ?, R1> collector,
+     Handler<AsyncResult<R3>> handler) {
+-    schedule(new PrepareStatementCommand(sql, ar -> {
+-      if (ar.succeeded()) {
+-        PreparedStatement ps = ar.result();
++    schedule(new PrepareStatementCommand(sql), cr -> {
++      if (cr.succeeded()) {
++        PreparedStatement ps = cr.result();
+         String msg = ps.prepare((List<Object>) arguments);
+         if (msg != null) {
+           handler.handle(Future.failedFuture(msg));
+         } else {
+           PgResultBuilder<R1, R2, R3> b = new PgResultBuilder<>(factory, handler);
+-          schedule(new ExtendedQueryCommand<>(ps, arguments, singleton, collector, b, b));
++          cr.scheduler.schedule(new ExtendedQueryCommand<>(ps, arguments, singleton, collector, b), b);
+         }
+       } else {
+-        handler.handle(Future.failedFuture(ar.cause()));
++        handler.handle(Future.failedFuture(cr.cause()));
+       }
+-    }));
++    });
+     return (C) this;
+   }
+ 
+@@ -112,9 +110,9 @@
+     Function<R1, R2> factory,
+     Collector<Row, ?, R1> collector,
+     Handler<AsyncResult<R3>> handler) {
+-    schedule(new PrepareStatementCommand(sql, ar -> {
+-      if (ar.succeeded()) {
+-        PreparedStatement ps = ar.result();
++    schedule(new PrepareStatementCommand(sql), cr -> {
++      if (cr.succeeded()) {
++        PreparedStatement ps = cr.result();
+         for  (Tuple args : batch) {
+           String msg = ps.prepare((List<Object>) args);
+           if (msg != null) {
+@@ -123,17 +121,16 @@
+           }
+         }
+         PgResultBuilder<R1, R2, R3> b = new PgResultBuilder<>(factory, handler);
+-        schedule(new ExtendedBatchQueryCommand<>(
++        cr.scheduler.schedule(new ExtendedBatchQueryCommand<>(
+           ps,
+           batch.iterator(),
+           singleton,
+           collector,
+-          b,
+-          b));
++          b), b);
+       } else {
+-        handler.handle(Future.failedFuture(ar.cause()));
++        handler.handle(Future.failedFuture(cr.cause()));
+       }
+-    }));
++    });
+     return (C) this;
+   }
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/PgConnectionImpl.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/PgConnectionImpl.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/PgConnectionImpl.java	2025-12-21 02:32:57.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/PgConnectionImpl.java	2025-12-21 02:30:25.000000000 +1100
+@@ -51,6 +51,15 @@
+   }
+ 
+   @Override
++  public <R> void schedule(CommandBase<R> cmd, Handler<? super CommandResponse<R>> handler) {
++    cmd.handler = cr -> {
++      // Tx might be gone ???
++      cr.scheduler = this;
++      handler.handle(cr);
++    };
++    schedule(cmd);
++  }
++
+   protected void schedule(CommandBase<?> cmd) {
+     if (context == Vertx.currentContext()) {
+       if (tx != null) {
+@@ -141,13 +150,13 @@
+ 
+   @Override
+   public PgConnection prepare(String sql, Handler<AsyncResult<PgPreparedQuery>> handler) {
+-    schedule(new PrepareStatementCommand(sql, ar -> {
+-      if (ar.succeeded()) {
+-        handler.handle(Future.succeededFuture(new PgPreparedQueryImpl(conn, context, ar.result())));
++    schedule(new PrepareStatementCommand(sql), cr -> {
++      if (cr.succeeded()) {
++        handler.handle(Future.succeededFuture(new PgPreparedQueryImpl(conn, context, cr.result())));
+       } else {
+-        handler.handle(Future.failedFuture(ar.cause()));
++        handler.handle(Future.failedFuture(cr.cause()));
+       }
+-    }));
++    });
+     return this;
+   }
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/PgPoolImpl.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/PgPoolImpl.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/PgPoolImpl.java	2025-12-21 02:32:57.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/PgPoolImpl.java	2025-12-21 02:30:25.000000000 +1100
+@@ -20,6 +20,8 @@
+ import io.reactiverse.pgclient.*;
+ import io.vertx.core.*;
+ 
++import java.util.function.BiConsumer;
++
+ /**
+  * Todo :
+  *
+@@ -74,12 +76,25 @@
+   }
+ 
+   @Override
+-  protected void schedule(CommandBase<?> cmd) {
++  public <R> void schedule(CommandBase<R> cmd, Handler<? super CommandResponse<R>> handler) {
+     Context current = Vertx.currentContext();
+     if (current == context) {
+-      pool.acquire(new CommandWaiter() {
++      pool.acquire(new CommandWaiter() { // SHOULD BE IT !!!!!
+         @Override
+         protected void onSuccess(Connection conn) {
++          cmd.handler = ar -> {
++            ar.scheduler = new CommandScheduler() {
++              @Override
++              public <R> void schedule(CommandBase<R> cmd, Handler<? super CommandResponse<R>> handler) {
++                cmd.handler = cr -> {
++                  cr.scheduler = this;
++                  handler.handle(cr);
++                };
++                conn.schedule(cmd);
++              }
++            };
++            handler.handle(ar);
++          };
+           conn.schedule(cmd);
+           conn.close(this);
+         }
+@@ -89,7 +104,7 @@
+         }
+       });
+     } else {
+-      context.runOnContext(v -> schedule(cmd));
++      context.runOnContext(v -> schedule(cmd, handler));
+     }
+   }
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/PgPreparedQueryImpl.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/PgPreparedQueryImpl.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/PgPreparedQueryImpl.java	2025-12-21 02:32:57.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/PgPreparedQueryImpl.java	2025-12-21 02:30:25.000000000 +1100
+@@ -74,7 +74,7 @@
+       if (msg != null) {
+         handler.handle(Future.failedFuture(msg));
+       } else {
+-        conn.schedule(new ExtendedQueryCommand<>(
++        ExtendedQueryCommand cmd = new ExtendedQueryCommand<>(
+           ps,
+           args,
+           fetch,
+@@ -82,8 +82,9 @@
+           suspended,
+           singleton,
+           collector,
+-          resultHandler,
+-          handler));
++          resultHandler);
++        cmd.handler = handler;
++        conn.schedule(cmd);
+       }
+     } else {
+       context.runOnContext(v -> execute(args, fetch, portal, suspended, singleton, collector, resultHandler, handler));
+@@ -129,7 +130,9 @@
+       }
+     }
+     PgResultBuilder<R1, R2, R3> b = new PgResultBuilder<>(factory, handler);
+-    conn.schedule(new ExtendedBatchQueryCommand<>(ps, argsList.iterator(), singleton, collector, b, b));
++    ExtendedBatchQueryCommand cmd = new ExtendedBatchQueryCommand<>(ps, argsList.iterator(), singleton, collector, b);
++    cmd.handler = b;
++    conn.schedule(cmd);
+     return this;
+   }
+ 
+@@ -141,14 +144,18 @@
+   @Override
+   public void close(Handler<AsyncResult<Void>> completionHandler) {
+     if (closed.compareAndSet(false, true)) {
+-      conn.schedule(new CloseStatementCommand(completionHandler));
++      CloseStatementCommand cmd = new CloseStatementCommand();
++      cmd.handler = completionHandler;
++      conn.schedule(cmd);
+     } else {
+       completionHandler.handle(Future.failedFuture("Already closed"));
+     }
+   }
+ 
+   void closePortal(String portal, Handler<AsyncResult<Void>> handler) {
+-    conn.schedule(new ClosePortalCommand(portal, handler));
++    ClosePortalCommand cmd = new ClosePortalCommand(portal);
++    cmd.handler = handler;
++    conn.schedule(cmd);
+   }
+ 
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/PrepareStatementCommand.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/PrepareStatementCommand.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/PrepareStatementCommand.java	2025-12-21 02:32:57.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/PrepareStatementCommand.java	2025-12-21 02:27:36.000000000 +1100
+@@ -35,8 +35,7 @@
+   private ParameterDescription parameterDesc;
+   private RowDescription rowDesc;
+ 
+-  PrepareStatementCommand(String sql, Handler<? super CommandResponse<PreparedStatement>> handler) {
+-    super(handler);
++  PrepareStatementCommand(String sql) {
+     this.sql = sql;
+   }
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/QueryCommandBase.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/QueryCommandBase.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/QueryCommandBase.java	2025-12-21 02:32:57.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/QueryCommandBase.java	2025-12-21 02:27:37.000000000 +1100
+@@ -21,8 +21,6 @@
+ import io.reactiverse.pgclient.Row;
+ import io.reactiverse.pgclient.impl.codec.decoder.ErrorResponse;
+ import io.reactiverse.pgclient.impl.codec.decoder.RowDescription;
+-import io.vertx.core.AsyncResult;
+-import io.vertx.core.Handler;
+ 
+ import java.util.stream.Collector;
+ 
+@@ -36,8 +34,7 @@
+   final QueryResultHandler<T> resultHandler;
+   final Collector<Row, ?, T> collector;
+ 
+-  QueryCommandBase(Collector<Row, ?, T> collector, QueryResultHandler<T> resultHandler, Handler<AsyncResult<Boolean>> handler) {
+-    super(handler);
++  QueryCommandBase(Collector<Row, ?, T> collector, QueryResultHandler<T> resultHandler) {
+     this.resultHandler = resultHandler;
+     this.collector = collector;
+   }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/SimpleQueryCommand.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/SimpleQueryCommand.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/SimpleQueryCommand.java	2025-12-21 02:32:56.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/SimpleQueryCommand.java	2025-12-21 02:27:36.000000000 +1100
+@@ -38,9 +38,8 @@
+   SimpleQueryCommand(String sql,
+                      boolean singleton,
+                      Collector<Row, ?, T> collector,
+-                     QueryResultHandler<T> resultHandler,
+-                     Handler<AsyncResult<Boolean>> handler) {
+-    super(collector, resultHandler, handler);
++                     QueryResultHandler<T> resultHandler) {
++    super(collector, resultHandler);
+     this.sql = sql;
+     this.singleton = singleton;
+   }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/SocketConnection.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/SocketConnection.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/SocketConnection.java	2025-12-21 02:32:57.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/SocketConnection.java	2025-12-21 02:30:25.000000000 +1100
+@@ -112,7 +112,9 @@
+         handleException(e);
+       }
+     });
+-    schedule(new InitCommand(this, username, password, database, completionHandler));
++    InitCommand cmd = new InitCommand(this, username, password, database);
++    cmd.handler = completionHandler;
++    schedule(cmd);
+   }
+ 
+   static class CachedPreparedStatement implements Handler<CommandResponse<PreparedStatement>> {
+@@ -169,6 +171,9 @@
+   }
+ 
+   public void schedule(CommandBase<?> cmd) {
++    if (cmd.handler == null) {
++      throw new IllegalArgumentException();
++    }
+     if (Vertx.currentContext() != context) {
+       throw new IllegalStateException();
+     }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/Transaction.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/Transaction.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/reactiverse/pgclient/impl/Transaction.java	2025-12-21 02:32:57.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/reactiverse/pgclient/impl/Transaction.java	2025-12-21 02:30:25.000000000 +1100
+@@ -19,10 +19,10 @@
+ import io.reactiverse.pgclient.*;
+ import io.reactiverse.pgclient.impl.codec.TxStatus;
+ import io.vertx.core.*;
+-import io.vertx.core.impl.NoStackTraceThrowable;
+ 
+ import java.util.ArrayDeque;
+ import java.util.Deque;
++import java.util.function.BiConsumer;
+ 
+ class Transaction extends PgClientBase<Transaction> implements PgTransaction {
+ 
+@@ -102,6 +102,15 @@
+     }
+   }
+ 
++  @Override
++  public <R> void schedule(CommandBase<R> cmd, Handler<? super CommandResponse<R>> handler) {
++    cmd.handler = cr -> {
++      cr.scheduler = this;
++      handler.handle(cr);
++    };
++    schedule(cmd);
++  }
++
+   public void schedule(CommandBase<?> cmd) {
+     synchronized (this) {
+       pending.add(cmd);
+@@ -174,6 +183,8 @@
+ 
+   private CommandBase doQuery(String sql, Handler<AsyncResult<PgRowSet>> handler) {
+     PgResultBuilder<PgRowSet, PgRowSetImpl, PgRowSet> b = new PgResultBuilder<>(PgRowSetImpl.FACTORY, handler);
+-    return new SimpleQueryCommand<>(sql, false, PgRowSetImpl.COLLECTOR, b, b);
++    SimpleQueryCommand<PgRowSet> cmd = new SimpleQueryCommand<>(sql, false, PgRowSetImpl.COLLECTOR, b);
++    cmd.handler = b;
++    return cmd;
+   }
+ }

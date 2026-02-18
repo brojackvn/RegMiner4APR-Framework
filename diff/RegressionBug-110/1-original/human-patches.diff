@@ -1,0 +1,65 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/CHANGES ./RegMiner4APR-Regression-Bugs/BFC/CHANGES
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/CHANGES	2026-01-19 21:53:24.618772415 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/CHANGES	2026-01-19 21:45:59.342347975 +1100
+@@ -108,6 +108,9 @@
+   * Bugfix: in certain locales (Turkey specifically), lowercasing and case insensitivity could fail for specific items.
+     <https://github.com/jhy/jsoup/pull/820>
+ 
++  * Bugfix: after an element was cloned, changes to its child list where not notifying the element correctly.
++    <https://github.com/jhy/jsoup/issues/951>
++
+ *** Release 1.10.2 [2017-Jan-02]
+  * Improved startup time, particularly on Android, by reducing garbage generation and CPU execution time when loading
+    the HTML entity files. About 1.72x faster in this area.
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/nodes/Element.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/nodes/Element.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/nodes/Element.java	2026-01-19 21:53:24.622772419 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/nodes/Element.java	2026-01-19 21:45:59.342347975 +1100
+@@ -86,7 +86,7 @@
+ 
+     protected List<Node> ensureChildNodes() {
+         if (childNodes == EMPTY_NODES) {
+-            childNodes = new NodeList(4);
++            childNodes = new NodeList(this, 4);
+         }
+         return childNodes;
+     }
+@@ -1399,20 +1399,22 @@
+         Element clone = (Element) super.doClone(parent);
+         clone.attributes = attributes != null ? attributes.clone() : null;
+         clone.baseUri = baseUri;
+-        clone.childNodes = new NodeList(childNodes.size());
+-
++        clone.childNodes = new NodeList(clone, childNodes.size());
+         clone.childNodes.addAll(childNodes);
+ 
+         return clone;
+     }
+ 
+-    private final class NodeList extends ChangeNotifyingArrayList<Node> {
+-        NodeList(int initialCapacity) {
++    private static final class NodeList extends ChangeNotifyingArrayList<Node> {
++        private final Element owner;
++
++        NodeList(Element owner, int initialCapacity) {
+             super(initialCapacity);
++            this.owner = owner;
+         }
+ 
+         public void onContentsChanged() {
+-            nodelistChanged();
++            owner.nodelistChanged();
+         }
+     }
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/jsoup/nodes/ElementTest.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/jsoup/nodes/ElementTest.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/jsoup/nodes/ElementTest.java	2026-01-19 21:53:24.626772423 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/jsoup/nodes/ElementTest.java	2026-01-19 21:45:59.350347982 +1100
+@@ -1209,7 +1209,6 @@
+ 	    attribs.put("class", "abc ");
+ 	    boolean hasClass = el.hasClass("ab");
+ 	    assertFalse(hasClass);
+-	        
+ 	}
+ 
+ 	@Test

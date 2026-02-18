@@ -1,0 +1,51 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/parser/HtmlTreeBuilder.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/parser/HtmlTreeBuilder.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/parser/HtmlTreeBuilder.java	2025-12-14 14:09:41.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/parser/HtmlTreeBuilder.java	2025-12-14 14:09:40.000000000 +1100
+@@ -464,13 +464,13 @@
+     }
+ 
+     private boolean inSpecificScope(String[] targetNames, String[] baseTypes, String[] extraTypes) {
+-        int depth = stack.size() -1;
+-        if (depth > MaxScopeSearchDepth) {
+-            depth = MaxScopeSearchDepth;
+-        }
+-        for (int pos = depth; pos >= 0; pos--) {
+-            Element el = stack.get(pos);
+-            String elName = el.nodeName();
++        // https://html.spec.whatwg.org/multipage/parsing.html#has-an-element-in-the-specific-scope
++        final int bottom = stack.size() -1;
++        final int top = bottom > MaxScopeSearchDepth ? bottom - MaxScopeSearchDepth : 0;
++        // don't walk too far up the tree
++
++        for (int pos = bottom; pos >= top; pos--) {
++            final String elName = stack.get(pos).nodeName();
+             if (inSorted(elName, targetNames))
+                 return true;
+             if (inSorted(elName, baseTypes))
+@@ -478,7 +478,7 @@
+             if (extraTypes != null && inSorted(elName, extraTypes))
+                 return false;
+         }
+-        Validate.fail("Should not be reachable");
++        //Validate.fail("Should not be reachable"); // would end up false because hitting 'html' at root (basetypes)
+         return false;
+     }
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/jsoup/integration/UrlConnectTest.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/jsoup/integration/UrlConnectTest.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/jsoup/integration/UrlConnectTest.java	2025-12-14 14:09:41.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/jsoup/integration/UrlConnectTest.java	2025-12-14 14:09:40.000000000 +1100
+@@ -658,4 +658,13 @@
+         assertTrue(System.currentTimeMillis() - start < 1000);
+     }
+ 
++    @Test public void handles966() throws IOException {
++        // http://szshb.nxszs.gov.cn/
++        // https://github.com/jhy/jsoup/issues/966
++
++        Document doc = Jsoup.connect("http://szshb.nxszs.gov.cn/").get();
++
++        assertEquals("石嘴山市环境保护局", doc.title());
++    }
++
+ }

@@ -1,0 +1,20 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/scijava/command/CommandInfo.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/scijava/command/CommandInfo.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/scijava/command/CommandInfo.java	2025-12-31 03:24:16.021996685 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/scijava/command/CommandInfo.java	2025-12-31 03:21:37.910048156 +1100
+@@ -52,6 +52,7 @@
+ import org.scijava.plugin.Parameter;
+ import org.scijava.plugin.Plugin;
+ import org.scijava.plugin.PluginInfo;
++import org.scijava.service.Service;
+ import org.scijava.util.ClassUtils;
+ import org.scijava.util.StringMaker;
+ import org.scijava.util.Types;
+@@ -460,7 +461,8 @@
+ 			}
+ 
+ 			final String name = f.getName();
+-			if (inputMap.containsKey(name) || outputMap.containsKey(name)) {
++			if ((inputMap.containsKey(name) || outputMap.containsKey(name)) && !Service.class.isAssignableFrom(f.getType())) {
+ 				// NB: Shadowed parameters are bad because they are ambiguous.
+ 				final String error = "Invalid duplicate parameter: " + f;
+ 				problems.add(new ValidityProblem(error));

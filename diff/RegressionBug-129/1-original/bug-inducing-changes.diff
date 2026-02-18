@@ -1,0 +1,110 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/spring-data-rest-webmvc/src/main/java/org/springframework/data/rest/webmvc/config/RepositoryRestConfigurerDelegate.java ./RegMiner4APR-Regression-Bugs/BIC/spring-data-rest-webmvc/src/main/java/org/springframework/data/rest/webmvc/config/RepositoryRestConfigurerDelegate.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/spring-data-rest-webmvc/src/main/java/org/springframework/data/rest/webmvc/config/RepositoryRestConfigurerDelegate.java	2025-12-23 04:28:56.446503553 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/spring-data-rest-webmvc/src/main/java/org/springframework/data/rest/webmvc/config/RepositoryRestConfigurerDelegate.java	2025-12-23 04:07:08.246812902 +1100
+@@ -34,7 +34,7 @@
+  * @author Oliver Gierke
+  * @soundtrack Florian Reichelt & Max Ender - Abschlusskonzert (https://www.youtube.com/watch?v=5WP0P-ndinY)
+  */
+-public class RepositoryRestConfigurerDelegate implements RepositoryRestConfigurer {
++class RepositoryRestConfigurerDelegate implements RepositoryRestConfigurer {
+ 
+ 	private final Iterable<RepositoryRestConfigurer> delegates;
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/spring-data-rest-webmvc/src/main/java/org/springframework/data/rest/webmvc/config/RepositoryRestMvcConfiguration.java ./RegMiner4APR-Regression-Bugs/BIC/spring-data-rest-webmvc/src/main/java/org/springframework/data/rest/webmvc/config/RepositoryRestMvcConfiguration.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/spring-data-rest-webmvc/src/main/java/org/springframework/data/rest/webmvc/config/RepositoryRestMvcConfiguration.java	2025-12-23 04:28:56.446503553 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/spring-data-rest-webmvc/src/main/java/org/springframework/data/rest/webmvc/config/RepositoryRestMvcConfiguration.java	2025-12-23 04:07:08.246812902 +1100
+@@ -259,17 +259,16 @@
+ 				new DefaultRepositoryInvokerFactory(repositories.get(), defaultConversionService), getEntityLookups()));
+ 
+ 		this.defaultConversionService = new DefaultFormattingConversionService();
+-		this.configurerDelegate = Lazy.of(() -> context.getBean(RepositoryRestConfigurerDelegate.class));
++
++		this.configurerDelegate = Lazy.of(() -> {
++			return new RepositoryRestConfigurerDelegate(context.getBeansOfType(RepositoryRestConfigurer.class).values());
++		});
++
+ 		this.repositoryRestConfiguration = Lazy.of(() -> context.getBean(RepositoryRestConfiguration.class));
+ 		this.pageableResolver = Lazy.of(() -> context.getBean(HateoasPageableHandlerMethodArgumentResolver.class));
+ 		this.sortResolver = Lazy.of(() -> context.getBean(HateoasSortHandlerMethodArgumentResolver.class));
+ 	}
+ 
+-	@Bean
+-	public static RepositoryRestConfigurerDelegate configurerDelegate(List<RepositoryRestConfigurer> configurers) {
+-		return new RepositoryRestConfigurerDelegate(configurers);
+-	}
+-
+ 	/*
+ 	 * (non-Javadoc)
+ 	 * @see org.springframework.beans.factory.BeanClassLoaderAware#setBeanClassLoader(java.lang.ClassLoader)
+@@ -305,8 +304,7 @@
+ 	@Bean
+ 	@Qualifier
+ 	public DefaultFormattingConversionService defaultConversionService(PersistentEntities persistentEntities,
+-			RepositoryInvokerFactory repositoryInvokerFactory, Repositories repositories,
+-			RepositoryRestConfigurerDelegate configurerDelegate) {
++			RepositoryInvokerFactory repositoryInvokerFactory, Repositories repositories) {
+ 
+ 		DefaultFormattingConversionService conversionService = (DefaultFormattingConversionService) defaultConversionService;
+ 
+@@ -316,7 +314,7 @@
+ 		conversionService.addConverter(StringToLdapNameConverter.INSTANCE);
+ 		addFormatters(conversionService);
+ 
+-		configurerDelegate.configureConversionService(conversionService);
++		configurerDelegate.get().configureConversionService(conversionService);
+ 
+ 		return conversionService;
+ 	}
+@@ -326,11 +324,11 @@
+ 	 * {@link org.springframework.validation.Validator} instances assigned to specific domain types.
+ 	 */
+ 	@Bean
+-	public ValidatingRepositoryEventListener validatingRepositoryEventListener(ObjectFactory<PersistentEntities> entities,
+-			RepositoryRestConfigurerDelegate configurerDelegate) {
++	public ValidatingRepositoryEventListener validatingRepositoryEventListener(
++			ObjectFactory<PersistentEntities> entities) {
+ 
+ 		ValidatingRepositoryEventListener listener = new ValidatingRepositoryEventListener(entities);
+-		configurerDelegate.configureValidatingRepositoryEventListener(listener);
++		configurerDelegate.get().configureValidatingRepositoryEventListener(listener);
+ 
+ 		return listener;
+ 	}
+@@ -775,7 +773,7 @@
+ 			@Qualifier("halJacksonHttpMessageConverter") TypeConstrainedMappingJackson2HttpMessageConverter halJacksonHttpMessageConverter,
+ 			@Qualifier("halFormsJacksonHttpMessageConverter") TypeConstrainedMappingJackson2HttpMessageConverter halFormsJacksonHttpMessageConverter,
+ 			AlpsJsonHttpMessageConverter alpsJsonHttpMessageConverter,
+-			UriListHttpMessageConverter uriListHttpMessageConverter, RepositoryRestConfigurerDelegate configurerDelegate,
++			UriListHttpMessageConverter uriListHttpMessageConverter,
+ 			RepositoryRestConfiguration repositoryRestConfiguration) {
+ 
+ 		List<HttpMessageConverter<?>> messageConverters = new ArrayList<>();
+@@ -800,7 +798,7 @@
+ 		messageConverters.add(fallbackJsonConverter);
+ 		messageConverters.add(uriListHttpMessageConverter);
+ 
+-		configurerDelegate.configureHttpMessageConverters(messageConverters);
++		configurerDelegate.get().configureHttpMessageConverters(messageConverters);
+ 
+ 		return messageConverters;
+ 	}
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/spring-data-rest-webmvc/src/test/java/org/springframework/data/rest/webmvc/config/RepositoryRestMvConfigurationIntegrationTests.java ./RegMiner4APR-Regression-Bugs/BIC/spring-data-rest-webmvc/src/test/java/org/springframework/data/rest/webmvc/config/RepositoryRestMvConfigurationIntegrationTests.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/spring-data-rest-webmvc/src/test/java/org/springframework/data/rest/webmvc/config/RepositoryRestMvConfigurationIntegrationTests.java	2025-12-23 04:28:56.454503561 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/spring-data-rest-webmvc/src/test/java/org/springframework/data/rest/webmvc/config/RepositoryRestMvConfigurationIntegrationTests.java	2025-12-23 04:07:08.258812895 +1100
+@@ -64,7 +64,6 @@
+ import org.springframework.data.util.Lazy;
+ import org.springframework.data.util.Streamable;
+ import org.springframework.test.util.ReflectionTestUtils;
+-
+ /**
+  * Integration tests for basic application bootstrapping (general configuration related checks).
+  *
+@@ -247,7 +246,7 @@
+ 				config.setSortParamName("mySort");
+ 			});
+ 		}
+-				
++
+ 		@Bean
+ 		@Order(100)
+ 		RepositoryRestConfigurer otherConfigurer() {

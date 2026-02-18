@@ -1,0 +1,176 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/lang3/reflect/ConstructorUtils.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/lang3/reflect/ConstructorUtils.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/lang3/reflect/ConstructorUtils.java	2025-12-18 16:10:52.926989607 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/lang3/reflect/ConstructorUtils.java	2025-12-18 15:49:09.754029321 +1100
+@@ -114,6 +114,10 @@
+             throw new NoSuchMethodException(
+                 "No such accessible constructor on object: " + cls.getName());
+         }
++        if (ctor.isVarArgs()) {
++            Class<?>[] methodParameterTypes = ctor.getParameterTypes();
++            args = MethodUtils.getVarArgs(args, methodParameterTypes);
++        }
+         return ctor.newInstance(args);
+     }
+ 
+@@ -258,14 +262,12 @@
+         // return best match:
+         for (Constructor<?> ctor : ctors) {
+             // compare parameters
+-            if (ClassUtils.isAssignable(parameterTypes, ctor.getParameterTypes(), true)) {
++            if (MemberUtils.isMatchingConstructor(ctor, parameterTypes)) {
+                 // get accessible version of constructor
+                 ctor = getAccessibleConstructor(ctor);
+                 if (ctor != null) {
+                     MemberUtils.setAccessibleWorkaround(ctor);
+-                    if (result == null
+-                            || MemberUtils.compareParameterTypes(ctor.getParameterTypes(), result
+-                                    .getParameterTypes(), parameterTypes) < 0) {
++                    if (result == null || MemberUtils.compareConstructorFit(ctor, result, parameterTypes) < 0) {
+                         // temporary variable for annotation, see comment above (1)
+                         @SuppressWarnings("unchecked")
+                         final
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/lang3/reflect/MemberUtils.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/lang3/reflect/MemberUtils.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/lang3/reflect/MemberUtils.java	2025-12-18 16:10:52.930989610 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/lang3/reflect/MemberUtils.java	2025-12-18 15:49:09.754029321 +1100
+@@ -85,18 +87,52 @@
+      * @return int consistent with {@code compare} semantics
+      * @since 3.5
+      */
+-    static int compareParameterTypes(final Class<?>[] left, final Class<?>[] right, final Class<?>[] actual) {
++    static int compareConstructorFit(final Constructor<?> left, final Constructor<?> right, final Class<?>[] actual) {
++      return compareParameterTypes(Executable.of(left), Executable.of(right), actual);
++    }
+
++    private static int compareParameterTypes(final Executable left, final Executable right, final Class<?>[] actual) {
+         final float leftCost = getTotalTransformationCost(actual, left);
+         final float rightCost = getTotalTransformationCost(actual, right);
+         return leftCost < rightCost ? -1 : rightCost < leftCost ? 1 : 0;
+@@ -107,15 +143,44 @@
+      * @param isVarArgs True if the destination arguments are for a varags methods
+      * @return The total transformation cost
+      */
+-    private static float getTotalTransformationCost(final Class<?>[] srcArgs, final Class<?>[] destArgs) {
++    private static float getTotalTransformationCost(final Class<?>[] srcArgs, final Executable executable) {
++        final Class<?>[] destArgs = executable.getParameterTypes();
++        final boolean isVarArgs = executable.isVarArgs();
+
+         float totalCost = 0.0f;
+-        for (int i = 0; i < srcArgs.length; i++) {
+-            Class<?> srcClass, destClass;
+-            srcClass = srcArgs[i];
+-            destClass = destArgs[i];
+-            totalCost += getObjectTransformationCost(srcClass, destClass);
++        final long normalArgsLen = isVarArgs ? destArgs.length-1 : destArgs.length;
++        if (srcArgs.length < normalArgsLen)
++            return Float.MAX_VALUE;
++        for (int i = 0; i < normalArgsLen; i++) {
++            totalCost += getObjectTransformationCost(srcArgs[i], destArgs[i]);
++        }
++        if (isVarArgs) {
++            final boolean noVarArgsPassed = srcArgs.length < destArgs.length;
++            final boolean explicitArrayForVarags = (srcArgs.length == destArgs.length) && srcArgs[srcArgs.length-1].isArray();
+
++            final float varArgsCost = 0.001f;
++            Class<?> destClass = destArgs[destArgs.length-1].getComponentType();
++            if (noVarArgsPassed) {
++                totalCost += getObjectTransformationCost(destClass, Object.class) + varArgsCost;
++            }
++            else if (explicitArrayForVarags) {
++                Class<?> sourceClass = srcArgs[srcArgs.length-1].getComponentType();
++                totalCost += getObjectTransformationCost(sourceClass, destClass) + varArgsCost;
++            }
++            else {
++                for (int i = destArgs.length-1; i < srcArgs.length; i++) {
++                    Class<?> srcClass = srcArgs[i];
++                    totalCost += getObjectTransformationCost(srcClass, destClass) + varArgsCost;
++                }
++            }
+         }
+         return totalCost;
+     }
+@@ -182,4 +247,58 @@
+         return cost;
+     }
+ 
++    static boolean isMatchingMethod(Method method, Class<?>[] parameterTypes) {
++      return MemberUtils.isMatchingExecutable(Executable.of(method), parameterTypes);
++    }
+
++    static boolean isMatchingConstructor(Constructor<?> method, Class<?>[] parameterTypes) {
++      return MemberUtils.isMatchingExecutable(Executable.of(method), parameterTypes);
++    }
+
++    private static boolean isMatchingExecutable(Executable method, Class<?>[] parameterTypes) {
++        final Class<?>[] methodParameterTypes = method.getParameterTypes();
++        if (method.isVarArgs()) {
++            int i;
++            for (i = 0; i < methodParameterTypes.length - 1 && i < parameterTypes.length; i++) {
++                if (!ClassUtils.isAssignable(parameterTypes[i], methodParameterTypes[i], true)) {
++                    return false;
++                }
++            }
++            Class<?> varArgParameterType = methodParameterTypes[methodParameterTypes.length - 1].getComponentType();
++            for (; i < parameterTypes.length; i++) {
++                if (!ClassUtils.isAssignable(parameterTypes[i], varArgParameterType, true)) {
++                    return false;
++                }
++            }
++            return true;
++        }
++        return ClassUtils.isAssignable(parameterTypes, methodParameterTypes, true);
++    }
+
++    private static final class Executable {
++      private final Class<?>[] parameterTypes;
++      private final boolean  isVarArgs;
+
++      private static Executable of(Method method) { return new Executable(method); }
++      private static Executable of(Constructor<?> constructor) { return new Executable(constructor); }
+
++      private Executable(Method method) {
++        parameterTypes = method.getParameterTypes();
++        isVarArgs = method.isVarArgs();
++      }
+
++      private Executable(Constructor<?> constructor) {
++        parameterTypes = constructor.getParameterTypes();
++        isVarArgs = constructor.isVarArgs();
++      }
+
++      public Class<?>[] getParameterTypes() { return parameterTypes; }
+
++      public boolean isVarArgs() { return isVarArgs; }
++    }
+
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/lang3/reflect/MethodUtils.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/lang3/reflect/MethodUtils.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/lang3/reflect/MethodUtils.java	2025-12-18 16:10:52.930989610 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/lang3/reflect/MethodUtils.java	2025-12-18 15:49:09.754029321 +1100
+@@ -341,9 +343,61 @@
++    static Object[] getVarArgs(Object[] args, Class<?>[] methodParameterTypes) {
++        if (args.length == methodParameterTypes.length
++                && args[args.length - 1].getClass().equals(methodParameterTypes[methodParameterTypes.length - 1])) {
++            return args;
++        }
+
++        Object[] newArgs = new Object[methodParameterTypes.length];
++        System.arraycopy(args, 0, newArgs, 0, methodParameterTypes.length - 1);
+
++        Class<?> varArgComponentType = methodParameterTypes[methodParameterTypes.length - 1].getComponentType();
++        int varArgLength = args.length - methodParameterTypes.length + 1;
++
++        Object varArgsArray = Array.newInstance(ClassUtils.primitiveToWrapper(varArgComponentType), varArgLength);
++        System.arraycopy(args, methodParameterTypes.length - 1, varArgsArray, 0, varArgLength);
++
++        if(varArgComponentType.isPrimitive()) {
++            varArgsArray = ArrayUtils.toPrimitive(varArgsArray);
++        }
+
++        newArgs[methodParameterTypes.length - 1] = varArgsArray;
+
++        return newArgs;
++    }
+
+     /**
+      * <p>Invokes a {@code static} method whose parameter types match exactly the object
+      * types.</p>

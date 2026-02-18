@@ -1,0 +1,30 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY/gson: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/gson/src/main/java/com/google/gson/internal/bind/JsonTreeReader.java ./RegMiner4APR-Regression-Bugs/BFC/gson/src/main/java/com/google/gson/internal/bind/JsonTreeReader.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/gson/src/main/java/com/google/gson/internal/bind/JsonTreeReader.java	2025-12-19 14:22:47.901133816 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/gson/src/main/java/com/google/gson/internal/bind/JsonTreeReader.java	2025-12-19 14:15:55.969443915 +1100
+@@ -259,9 +259,13 @@
+       pathNames[stackSize - 2] = "null";
+     } else {
+       popStack();
+-      pathNames[stackSize - 1] = "null";
++      if (stackSize > 0) {
++        pathNames[stackSize - 1] = "null";
++      }
++    }
++    if (stackSize > 0) {
++      pathIndices[stackSize - 1]++;
+     }
+-    pathIndices[stackSize - 1]++;
+   }
+ 
+   @Override public String toString() {
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/gson/src/test/java/com/google/gson/internal/bind/JsonTreeReaderTest.java ./RegMiner4APR-Regression-Bugs/BFC/gson/src/test/java/com/google/gson/internal/bind/JsonTreeReaderTest.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/gson/src/test/java/com/google/gson/internal/bind/JsonTreeReaderTest.java	2025-12-19 14:22:47.913133807 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/gson/src/test/java/com/google/gson/internal/bind/JsonTreeReaderTest.java	2025-12-19 14:15:55.977443908 +1100
+@@ -47,4 +47,4 @@
+     in.skipValue();
+     assertEquals(JsonToken.END_DOCUMENT, in.peek());
+   }
+-}
+\ No newline at end of file
++}

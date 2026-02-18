@@ -1,0 +1,43 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/processor/core/AbstractBeanConversionProcessor.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/processor/core/AbstractBeanConversionProcessor.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/processor/core/AbstractBeanConversionProcessor.java	2025-12-29 16:01:47.091238733 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/processor/core/AbstractBeanConversionProcessor.java	2025-12-29 16:00:34.751288070 +1100
+@@ -298,13 +298,22 @@
+ 		if (headers == null) {
+ 			headers = ArgumentUtils.EMPTY_STRING_ARRAY;
+ 		}
++
++		boolean boundToIndex = false;
++
+ 		int last = headers.length > row.length ? headers.length : row.length;
+ 		for (FieldMapping mapping : parsedFields) {
+ 			int index = mapping.getIndex();
++			if (index >= 0) {
++				boundToIndex = true;
++			}
+ 			if (last < index) {
+-				last = index + 1;
++				last = index;
+ 			}
+ 		}
++		if (boundToIndex) {
++			last++;
++		}
+ 
+ 		FieldMapping[] fieldOrder = new FieldMapping[last];
+ 		TreeSet<String> fieldsNotFound = new TreeSet<String>();
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/univocity/parsers/issues/github/Github_138.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/univocity/parsers/issues/github/Github_138.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/univocity/parsers/issues/github/Github_138.java	2025-12-29 16:01:47.107238723 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/univocity/parsers/issues/github/Github_138.java	2025-12-29 16:00:34.771288057 +1100
+@@ -1,4 +1,3 @@
+-
+ /*******************************************************************************
+  * Copyright 2017 uniVocity Software Pty Ltd
+  *
+@@ -72,4 +71,4 @@
+ 	}
+ 
+ 
+-}
+\ No newline at end of file
++}

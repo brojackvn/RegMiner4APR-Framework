@@ -1,0 +1,22 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/cactoos/func/RepeatedFunc.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/cactoos/func/RepeatedFunc.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/cactoos/func/RepeatedFunc.java	2025-12-22 04:04:32.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/cactoos/func/RepeatedFunc.java	2025-12-22 04:04:32.000000000 +1100
+@@ -25,7 +25,6 @@
+ 
+ import org.cactoos.Func;
+ import org.cactoos.Proc;
+-import org.cactoos.Scalar;
+ 
+ /**
+  * Func that repeats its calculation a few times before
+@@ -84,8 +83,7 @@
+         for (int idx = 0; idx < this.times; ++idx) {
+             result = this.func.apply(input);
+         }
+-        final Y rslt = result;
+-        return new Scalar.NoNulls<Y>(()->rslt).value();
++        return result;
+     }
+ 
+ }

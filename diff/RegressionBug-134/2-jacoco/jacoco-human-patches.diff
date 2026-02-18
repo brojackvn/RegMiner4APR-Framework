@@ -1,0 +1,12 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/spring-amqp/src/main/java/org/springframework/amqp/support/converter/DefaultJackson2JavaTypeMapper.java ./RegMiner4APR-Regression-Bugs/BFC/spring-amqp/src/main/java/org/springframework/amqp/support/converter/DefaultJackson2JavaTypeMapper.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/spring-amqp/src/main/java/org/springframework/amqp/support/converter/DefaultJackson2JavaTypeMapper.java	2025-12-24 15:37:14.609036254 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/spring-amqp/src/main/java/org/springframework/amqp/support/converter/DefaultJackson2JavaTypeMapper.java	2025-12-24 15:40:27.124971949 +1100
+@@ -130,7 +130,7 @@
+ 	}
+ 
+ 	private boolean canConvert(JavaType inferredType) {
+-		if (inferredType.isAbstract()) {
++		if (inferredType.isAbstract() && !inferredType.isContainerType()) {
+ 			return false;
+ 		}
+ 		if (inferredType.isContainerType() && inferredType.getContentType().isAbstract()) {

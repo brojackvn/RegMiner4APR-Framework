@@ -1,0 +1,27 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/google/code/regexp/Matcher.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/google/code/regexp/Matcher.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/google/code/regexp/Matcher.java	2025-12-11 20:59:19.358587058 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/google/code/regexp/Matcher.java	2025-12-11 20:59:36.986603333 +1100
+@@ -320,7 +320,9 @@
+         }
+ 
+         int nextIndex = 0;
+-        while (!matcher.hitEnd() && matcher.find(nextIndex)) {
++        int lastNextIndex = 0;
++        matcher.reset();
++        while (matcher.find(nextIndex)) {
+             Map<String, String> matches = new LinkedHashMap<String, String>();
+ 
+             for (String groupName : groupNames) {
+@@ -329,6 +331,11 @@
+                 nextIndex = matcher.end();
+             }
+ 
++            if (nextIndex == lastNextIndex) {
++                break;
++            }
++            lastNextIndex = nextIndex;
+
+             result.add(matches);
+         }
+         return result;

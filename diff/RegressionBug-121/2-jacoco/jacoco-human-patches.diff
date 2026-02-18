@@ -1,0 +1,31 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/nodes/Attribute.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/nodes/Attribute.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/nodes/Attribute.java	2025-12-20 13:41:12.120510541 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/nodes/Attribute.java	2025-12-20 13:37:26.864682842 +1100
+@@ -159,11 +159,10 @@
+         return shouldCollapseAttribute(key, val, out);
+     }
+ 
+-    protected static boolean shouldCollapseAttribute(String key, String val, Document.OutputSettings out) {
+-        return (val == null || "".equals(val) || val.equalsIgnoreCase(key))
+-            && out.syntax() == Document.OutputSettings.Syntax.html
+-            && isBooleanAttribute(key);
++    protected static boolean shouldCollapseAttribute(final String key, final String val, final Document.OutputSettings out) {
++        return (
++            out.syntax() == Document.OutputSettings.Syntax.html &&
++                (val == null || ("".equals(val) || val.equalsIgnoreCase(key)) && Attribute.isBooleanAttribute(key)));
+     }
+ 
+     /**
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/nodes/Attributes.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/nodes/Attributes.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/nodes/Attributes.java	2025-12-20 13:41:12.120510541 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/nodes/Attributes.java	2025-12-20 13:37:26.864682842 +1100
+@@ -316,9 +316,7 @@
+             accum.append(' ').append(key);
+ 
+             // collapse checked=null, checked="", checked=checked; write out others
+-            if (!(out.syntax() == Document.OutputSettings.Syntax.html
+-                && (val == null || val.equals(key) && Attribute.isBooleanAttribute(key)))) {
++            if (!Attribute.shouldCollapseAttribute(key, val, out)) {
+                 accum.append("=\"");
+                 Entities.escape(accum, val == null ? EmptyString : val, out, true, false, false);
+                 accum.append('"');

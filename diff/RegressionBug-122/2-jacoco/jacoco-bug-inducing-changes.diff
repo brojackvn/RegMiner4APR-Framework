@@ -1,0 +1,343 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java	2025-12-21 01:54:23.243381952 +1100
+@@ -1413,7 +1413,7 @@
+                 }
+             }
+         }
+-        JexlPropertyGet vg = uberspect.getPropertyGet(object, attribute, node);
++        JexlPropertyGet vg = uberspect.getPropertyGet(object, attribute);
+         if (vg != null) {
+             try {
+                 Object value = vg.invoke(object);
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/AbstractExecutor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/AbstractExecutor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/AbstractExecutor.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/AbstractExecutor.java	2025-12-21 01:54:23.247381950 +1100
+@@ -29,7 +27,7 @@
+  *
+  * @since 1.0
+  */
+-public abstract class AbstractExecutor {
++abstract class AbstractExecutor {
+     /** A marker for invocation failures in tryInvoke. */
+     public static final Object TRY_FAILED = new Object() {
+         @Override
+@@ -54,6 +52,34 @@
+     }
+ 
+     /**
++    static Integer toInteger(Object arg) {
++        if (arg == null) {
++            return null;
++        } else if (arg instanceof Number) {
++            return Integer.valueOf(((Number) arg).intValue());
++        } else {
++            try {
++                return Integer.valueOf(arg.toString());
++            } catch (NumberFormatException xnumber) {
++                return null;
++            }
++        }
++    }
+
++    static String toString(Object arg) {
++        return arg == null ? null : arg.toString();
++    }
+ 
+     /**
+      * Creates an arguments array.
+      * @param args the list of arguments
+      * @return the arguments array
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/BooleanGetExecutor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/BooleanGetExecutor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/BooleanGetExecutor.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/BooleanGetExecutor.java	2025-12-21 01:54:23.247381950 +1100
+@@ -24,33 +24,48 @@
+ public final class BooleanGetExecutor extends AbstractExecutor.Get {
+     /** The property. */
+     private final String property;
+
++    public static BooleanGetExecutor discover(Introspector is, final Class<?> clazz, String property) {
++        java.lang.reflect.Method m = PropertyGetExecutor.discoverGet(is, "is", clazz, property);
++        if (m != null && (m.getReturnType() == Boolean.TYPE || m.getReturnType() == Boolean.class)) {
++            return new BooleanGetExecutor(clazz, m, property);
++        } else {
++            return null;
++        }
++    }
+     
+     /**
+      * Creates an instance by attempting discovery of the get method.
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/ClassMap.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/ClassMap.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/ClassMap.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/ClassMap.java	2025-12-21 01:54:23.247381950 +1100
+@@ -77,7 +77,7 @@
+     /**
+      * Keep track of all methods with the same name; this is not modified after creation.
+      */
+-    private final Map<String, List<Method>> byName = new HashMap<String, List<Method>>();
++    private final Map<String, Method[]> byName = new HashMap<String, Method[]>();
+     /** 
+      * Cache of fields.
+      */
+@@ -130,8 +130,7 @@
+      * @return the array of method names
+      */
+     String[] getMethodNames() {
+-        java.util.Set<String> set = byName.keySet();
+-        return set.toArray(new String[set.size()]);
++        return byName.keySet().toArray(new String[byName.size()]);
+     }
+ 
+     /**
+@@ -140,9 +139,9 @@
+      * @return the array of methods (null or non-empty)
+      */
+     Method[] getMethods(final String methodName) {
+-        List<Method> lm = byName.get(methodName);
+-        if (lm != null && !lm.isEmpty()) {
+-            return lm.toArray(new Method[lm.size()]);
++        Method[] lm = byName.get(methodName);
++        if (lm != null && lm.length > 0) {
++            return lm.clone();
+         } else {
+             return null;
+         }
+@@ -173,7 +172,7 @@
+         } else if (cacheEntry == null) {
+             try {
+                 // That one is expensive...
+-                List<Method> methodList = byName.get(methodKey.getMethod());
++                Method[] methodList = byName.get(methodKey.getMethod());
+                 if (methodList != null) {
+                     cacheEntry = methodKey.getMostSpecificMethod(methodList);
+                 }
+@@ -244,7 +243,7 @@
+                         break;
+                     }
+                 }
+-                List<Method> lmn = lm.subList(start, end);
++                Method[] lmn = lm.subList(start, end).toArray(new Method[end - start]);
+                 cache.byName.put(name, lmn);
+                 start = end;
+             }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/DuckGetExecutor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/DuckGetExecutor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/DuckGetExecutor.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/DuckGetExecutor.java	2025-12-21 01:54:23.247381950 +1100
+@@ -34,43 +34,45 @@
+      * @param method the method held by this executor
+      * @param identifier the property to get
+      */
+-    public DuckGetExecutor(Introspector is, Class<?> clazz, Object identifier) {
+-        super(clazz, discover(is, clazz, identifier));
++    private DuckGetExecutor(Class<?> clazz, java.lang.reflect.Method method, Object identifier) {
++        super(clazz, method);
+         property = identifier;
+     }
+ 
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection: FieldGetExecutor.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection: IndexedType.java
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/ListGetExecutor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/ListGetExecutor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/ListGetExecutor.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/ListGetExecutor.java	2025-12-21 01:54:23.247381950 +1100
+@@ -34,29 +34,44 @@
+      * @param identifier the key to use as an argument to the get method
+      * @return the executor if found, null otherwise
+      */
+-    public ListGetExecutor(Introspector is, Class<?> clazz, Integer key) {
+-        super(clazz, discover(clazz));
+-        property = key;
++    public static ListGetExecutor discover(Introspector is, Class<?> clazz, Object identifier) {
++        java.lang.reflect.Method method = null;
++        Integer index = toInteger(identifier);
++        if (index != null) {
++            if (clazz.isArray()) {
++                method = ARRAY_GET;
++            } else if (List.class.isAssignableFrom(clazz)) {
++                method = LIST_GET;
++            }
++        }
++        return method == null ? null : new ListGetExecutor(clazz, method, index);
++    }
+ 
+     /**
+      * Creates an instance.
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/MapGetExecutor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/MapGetExecutor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/MapGetExecutor.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/MapGetExecutor.java	2025-12-21 01:54:23.247381950 +1100
+@@ -31,53 +31,54 @@
+      * @param identifier the key to use as an argument to the get method
+      * @return the executor if found, null otherwise
+      */
+-    public MapGetExecutor(Introspector is, Class<?> clazz, Object key) {
+-        super(clazz, discover(clazz));
++    public static MapGetExecutor discover(Introspector is, Class<?> clazz, Object identifier) {
++        if (Map.class.isAssignableFrom(clazz)) {
++            return new MapGetExecutor(clazz, MAP_GET, identifier);
++        } else {
++            return null;
++        }
++    }
+ 
+     /**
+      * Creates an instance.
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/PropertyGetExecutor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/PropertyGetExecutor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/PropertyGetExecutor.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/PropertyGetExecutor.java	2025-12-21 01:54:23.247381950 +1100
+@@ -29,34 +29,45 @@
+      * @param property the property name to find
+      * @return the executor if found, null otherwise
+      */
++    public static PropertyGetExecutor discover(Introspector is, Class<?> clazz, String property) {
++        java.lang.reflect.Method method = discoverGet(is, "get", clazz, property);
++        return method == null? null : new PropertyGetExecutor(clazz, method, property);
++    }
+     
+     /**
+      * Creates an instance.
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/Uberspect.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/Uberspect.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/Uberspect.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/Uberspect.java	2025-12-21 01:54:23.243381952 +1100
+@@ -50,39 +43,20 @@
+      * Creates a new Uberspect.
+      * @param runtimeLogger the logger used for all logging needs
+      */
+-    protected String toString(Object arg) {
+-        return arg == null ? null : arg.toString();
++    public Uberspect(Log runtimeLogger) {
++        rlog = runtimeLogger;
++        ref = new SoftReference<Introspector>(null);
+     }
+
+     /**
+      * Gets the current introspector base.
+      * <p>If the reference has been collected, this method will recreate the underlying introspector.</p>
+@@ -187,158 +160,113 @@
+     public final Method[] getMethods(Class<?> c, final String methodName) {
+         return base().getMethods(c, methodName);
+     }
+
+-    public Uberspect(Log runtimeLogger) {
+-        rlog = runtimeLogger;
+-        ref = new SoftReference<Introspector>(null);
+-    }
+
+-    public void setLoader(ClassLoader cloader) {
+-        base().setLoader(cloader);
+-    }
+
+-    protected final Constructor<?> getConstructor(Object ctorHandle, Object[] args) {
+-        String className = null;
+-        Class<?> clazz = null;
+-        if (ctorHandle instanceof Class<?>) {
+-            clazz = (Class<?>) ctorHandle;
+-            className = clazz.getName();
+-        } else if (ctorHandle != null) {
+-            className = ctorHandle.toString();
+-        } else {
+-            return null;
+-        }
+-        return base().getConstructor(clazz, new MethodKey(className, args));
+-    }
+
+-    protected final AbstractExecutor.Method getMethodExecutor(Object obj, String name, Object[] args) {
+-        AbstractExecutor.Method me = new MethodExecutor(base(), obj, name, args);
+-        return me.isAlive() ? me : null;
++    @Override
++    public JexlMethod getMethod(Object obj, String method, Object[] args) {
++        return MethodExecutor.discover(base(), obj, method, args);
+     }
+ 
+-    protected final AbstractExecutor.Get getGetExecutor(Object obj, Object identifier) {
++    @Override
++    public JexlPropertyGet getPropertyGet(Object obj, Object identifier) {
+         final Class<?> claz = obj.getClass();
+-        final String property = toString(identifier);
++        final String property = AbstractExecutor.toString(identifier);
+         final Introspector is = base();
+-        AbstractExecutor.Get executor;
++        JexlPropertyGet executor;
+         // first try for a getFoo() type of property (also getfoo() )
+         if (property != null) {
+-            executor = new PropertyGetExecutor(is, claz, property);
+-            if (executor.isAlive()) {
++            executor = PropertyGetExecutor.discover(is, claz, property);
++            if (executor != null) {
+                 return executor;
+             }
+-            executor = new BooleanGetExecutor(is, claz, property);
+-            if (executor.isAlive()) {
++            // look for boolean isFoo()
++            executor = BooleanGetExecutor.discover(is, claz, property);
++            if (executor != null) {
+                 return executor;
+             }
+         }
+         // let's see if we are a map...
+-        executor = new MapGetExecutor(is, claz, identifier);
+-        if (executor.isAlive()) {
++        executor = MapGetExecutor.discover(is, claz, identifier);
++        if (executor != null) {
+             return executor;
+         }
+-        Integer index = toInteger(identifier);
+-        if (index != null) {
+-            executor = new ListGetExecutor(is, claz, index);
+-            if (executor.isAlive()) {
++        executor = ListGetExecutor.discover(is, claz, identifier);
++        if (executor != null) {
++            return executor;
++        }
++        executor = DuckGetExecutor.discover(is, claz, identifier);
++        if (executor != null) {
++            return executor;
++        }
++        if (property != null && !(identifier instanceof String)) {
++            // if that didn't work, look for set("foo")
++            executor = DuckGetExecutor.discover(is, claz, property);
++            if (executor != null) {
+                 return executor;
+             }
+         }
+-        executor = new DuckGetExecutor(is, claz, identifier);
+-        if (executor.isAlive()) {
++        executor = FieldGetExecutor.discover(is, claz, property);
++        if (executor != null) {
+             return executor;
+         }
+-        executor = new DuckGetExecutor(is, claz, property);
+-        if (executor.isAlive()) {
++        executor = IndexedType.discover(is, obj, property);
++        if (executor != null) {
+             return executor;
+         }
+         return null;
+     }
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/JexlException.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/JexlException.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/JexlException.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/JexlException.java	2025-12-21 01:54:23.243381952 +1100
+@@ -35,9 +36,9 @@
+     /** A marker to use in NPEs stating a null operand error. */
+     public static final String NULL_OPERAND = "jexl.null";
+     /** Minimum number of characters around exception location. */
+-    private static final int MIN_EXCHARLOC = 5;
++    private static final int MIN_EXCHARLOC = 10;
+     /** Maximum number of characters around exception location. */
+-    private static final int MAX_EXCHARLOC = 10;
++    private static final int MAX_EXCHARLOC = 15;
+ 
+     /**
+      * Creates a new JexlException.
+Only in ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3: JexlInfoHandle.java
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/JexlNode.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/JexlNode.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/JexlNode.java	2025-12-21 01:56:15.923330529 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/JexlNode.java	2025-12-21 01:54:23.247381950 +1100
+@@ -17,14 +17,13 @@
+  *
+  * @since 2.0
+  */
+-public abstract class JexlNode extends SimpleNode implements JexlInfoHandle {
++public abstract class JexlNode extends SimpleNode {
+     /** A marker interface for literals.
+      * @param <T> the literal type
+      */

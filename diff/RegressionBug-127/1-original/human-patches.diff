@@ -1,0 +1,73 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/pom.xml ./RegMiner4APR-Regression-Bugs/BFC/pom.xml
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/pom.xml	2025-12-22 04:51:44.210253809 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/pom.xml	2025-12-22 04:44:47.382396338 +1100
+@@ -31,12 +31,6 @@
+ 
+ 	<dependencies>
+ 		<dependency>
+-			<groupId>org.mockito</groupId>
+-			<artifactId>mockito-all</artifactId>
+-			<version>1.9.5</version>
+-			<scope>test</scope>
+-		</dependency>
+-		<dependency>
+ 			<groupId>ch.qos.logback</groupId>
+ 			<artifactId>logback-classic</artifactId>
+ 			<version>1.0.3</version>
+@@ -75,6 +69,13 @@
+ 		</dependency>
+ 
+ 		<dependency>
++			<groupId>org.mockito</groupId>
++			<artifactId>mockito-all</artifactId>
++			<version>1.9.5</version>
++			<scope>test</scope>
++		</dependency>
++
++		<dependency>
+ 			<groupId>org.testng</groupId>
+ 			<artifactId>testng</artifactId>
+ 			<scope>compile</scope>
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/tynamo/security/services/SecurityModule.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/tynamo/security/services/SecurityModule.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/tynamo/security/services/SecurityModule.java	2025-12-22 04:51:44.214253808 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/tynamo/security/services/SecurityModule.java	2025-12-22 04:44:47.386396336 +1100
+@@ -3,9 +3,11 @@
+ import java.io.UnsupportedEncodingException;
+ import java.lang.annotation.Annotation;
+ import java.lang.reflect.Method;
++import java.util.Arrays;
+ import java.util.List;
+ 
+ import org.apache.shiro.ShiroException;
++import org.apache.shiro.codec.Base64;
+ import org.apache.shiro.io.Serializer;
+ import org.apache.shiro.mgt.RememberMeManager;
+ import org.apache.shiro.mgt.SubjectFactory;
+@@ -92,8 +94,10 @@
+ 		CookieRememberMeManager rememberMeManager = new CookieRememberMeManager();
+ 		// the default Shiro serializer produces obnoxiously long cookies
+ 		rememberMeManager.setSerializer(serializer);
+-		String cipherKey = rememberMeCipherKey;
+-		if (cipherKey.isEmpty()) {
++
++		// assume properly configured cipher is of the right width (divisable by 16)
++		byte[] cipherKey = Base64.decode(rememberMeCipherKey);
++		if (cipherKey.length <= 0) {
+ 			if (hmacPassphrase.isEmpty()) {
+ 				logger
+ 					.error("Neither symbol '"
+@@ -107,9 +111,11 @@
+ 			logger.warn("Symbol '" + SecuritySymbols.REMEMBERME_CIPHERKERY + "' is not set, using '"
+ 				+ SymbolConstants.HMAC_PASSPHRASE
+ 				+ "' as the cipher. Beware that changing the value will invalidate rememberMe cookies");
+-			cipherKey = hmacPassphrase;
++			if (hmacPassphrase.length() < 16) hmacPassphrase = hmacPassphrase + ("================".substring(hmacPassphrase.length()));
++			cipherKey = hmacPassphrase.getBytes("UTF-8");
++			if (cipherKey.length > 16) cipherKey = Arrays.copyOf(cipherKey, 16);
+ 		}
+-		rememberMeManager.setCipherKey(cipherKey.getBytes("UTF-8"));
++		rememberMeManager.setCipherKey(cipherKey);
+ 		return rememberMeManager;
+ 	}
+ 

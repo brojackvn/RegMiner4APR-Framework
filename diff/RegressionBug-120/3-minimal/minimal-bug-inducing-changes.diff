@@ -1,0 +1,32 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/select/Elements.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/select/Elements.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/select/Elements.java	2025-12-20 13:23:21.681498517 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/select/Elements.java	2025-12-20 13:20:52.809702094 +1100
+@@ -633,11 +636,48 @@
+      * no forms.
+      */
+     public List<FormElement> forms() {
+-        ArrayList<FormElement> forms = new ArrayList<>();
+-        for (Element el: this)
+-            if (el instanceof FormElement)
+-                forms.add((FormElement) el);
+-        return forms;
++        return nodesOfType(FormElement.class);
++    }
+
++    private <T extends Node> List<T> nodesOfType(Class<T> tClass) {
++        ArrayList<T> nodes = new ArrayList<>();
++        for (Element el: this) {
++            if (el.getClass().isInstance(tClass)) { // Handles FormElements
++                nodes.add(tClass.cast(el));
++            } else if (Node.class.isAssignableFrom(tClass)) { // check if child nodes match
++                for (int i = 0; i < el.childNodeSize(); i++) {
++                    Node node = el.childNode(i);
++                    if (tClass.isInstance(node))
++                        nodes.add(tClass.cast(node));
++                }
++            }
++        }
++        return nodes;
+     }
+ 
+ }

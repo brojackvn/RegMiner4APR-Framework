@@ -1,0 +1,66 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/spring-rabbit/src/main/java/org/springframework/amqp/rabbit/listener/adapter/MessagingMessageListenerAdapter.java ./RegMiner4APR-Regression-Bugs/BIC/spring-rabbit/src/main/java/org/springframework/amqp/rabbit/listener/adapter/MessagingMessageListenerAdapter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/spring-rabbit/src/main/java/org/springframework/amqp/rabbit/listener/adapter/MessagingMessageListenerAdapter.java	2025-12-24 04:11:05.095417071 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/spring-rabbit/src/main/java/org/springframework/amqp/rabbit/listener/adapter/MessagingMessageListenerAdapter.java	2025-12-24 04:07:12.639577750 +1100
+@@ -333,12 +334,21 @@
+				 * We're looking for a single parameter, or one annotated with @Payload.
+ 				 * We ignore parameters with type Message because they are not involved with conversion.
+ 				 */
++				boolean isHeader = methodParameter.hasParameterAnnotation(Header.class);
++				boolean isPayload = methodParameter.hasParameterAnnotation(Payload.class);
++				if (isHeader && isPayload) {
++					if (MessagingMessageListenerAdapter.this.logger.isWarnEnabled()) {
++						MessagingMessageListenerAdapter.this.logger.warn(this.method.getName()
++							+ ": Cannot annotate a parameter with both @Header and @Payload; "
++							+ "ignored for payload conversion");
++					}
++				}
+ 				if (isEligibleParameter(methodParameter)
+-						&& (methodParameter.getParameterAnnotations().length == 0 || methodParameter.hasParameterAnnotation(Payload.class))) {
++						&& (!isHeader || isPayload) && !(isHeader && isPayload)) {
++
+ 					if (genericParameterType == null) {
+ 						genericParameterType = extractGenericParameterTypFromMethodParameter(methodParameter);
+ 					}
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/spring-rabbit/src/test/java/org/springframework/amqp/rabbit/annotation/EnableRabbitIntegrationTests.java ./RegMiner4APR-Regression-Bugs/BIC/spring-rabbit/src/test/java/org/springframework/amqp/rabbit/annotation/EnableRabbitIntegrationTests.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/spring-rabbit/src/test/java/org/springframework/amqp/rabbit/annotation/EnableRabbitIntegrationTests.java	2025-12-24 04:11:05.103417066 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/spring-rabbit/src/test/java/org/springframework/amqp/rabbit/annotation/EnableRabbitIntegrationTests.java	2025-12-24 04:07:12.647577744 +1100
+@@ -1148,8 +1149,9 @@
+ 
+ 		}
+ 
+-		@RabbitListener(id = "different", queues = "differentTypes", containerFactory = "jsonListenerContainerFactory")
++		@RabbitListener(id = "different", queues = "differentTypes", containerFactory = "jsonListenerContainerFactoryNoClassMapper")
+-		public void handleDifferent(Foo2 foo) {
++		public void handleDifferent(@Validated Foo2 foo) {
+ 			foos.add(foo);
+ 			latch.countDown();
+ 		}
+@@ -1593,6 +1595,19 @@
+ 		}
+ 
+ 		@Bean
++		public SimpleRabbitListenerContainerFactory jsonListenerContainerFactoryNoClassMapper() {
++			SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
++			factory.setConnectionFactory(rabbitConnectionFactory());
++			factory.setErrorHandler(errorHandler());
++			factory.setConsumerTagStrategy(consumerTagStrategy());
++			Jackson2JsonMessageConverter messageConverter = new Jackson2JsonMessageConverter();
++			factory.setMessageConverter(messageConverter);
++			factory.setReceiveTimeout(10L);
++			factory.setConcurrentConsumers(2);
++			return factory;
++		}
+
++		@Bean
+ 		public MeterRegistry meterRegistry() {
+ 			return new SimpleMeterRegistry();
+ 		}
+@@ -2189,7 +2204,7 @@
+ 		}
+ 
+ 		@RabbitListener(queues = "test.converted.args2")
+-		public String foo2a(@Payload Foo2 foo2, @Header("amqp_consumerQueue") String queue) {
++		public String foo2a(Foo2 foo2, @Header("amqp_consumerQueue") String queue) {
+ 			return foo2 + queue;
+ 		}
+ 

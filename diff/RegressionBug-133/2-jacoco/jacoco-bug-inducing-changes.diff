@@ -1,0 +1,25 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/javaslang/collection/Stream.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/javaslang/collection/Stream.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/javaslang/collection/Stream.java	2025-12-24 16:37:14.557902956 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/javaslang/collection/Stream.java	2025-12-24 16:48:24.729480733 +1100
+@@ -846,7 +846,7 @@
+         if (isEmpty()) {
+             return Nil.instance();
+         } else {
+-            return new Cons<>(() -> mapper.apply(head()), () -> tail().map(mapper));
++            return new Cons<>(mapper.apply(head()), () -> tail().map(mapper));
+         }
+     }
+ 
+@@ -1329,14 +1327,14 @@
+      * @param head A head element
+      * @param tail A tail {@code Stream} supplier, {@linkplain Nil} denotes the end of the {@code Stream}
+      */
+-    public Cons(Supplier<? extends T> head, Supplier<? extends Stream<T>> tail) {
+-        this.head = Lazy.of(head);
++    public Cons(T head, Supplier<? extends Stream<T>> tail) {
++        this.head = head;
+         this.tail = Lazy.of(Objects.requireNonNull(tail, "tail is null"));
+     }
+ 
+     @Override
+     public T head() {

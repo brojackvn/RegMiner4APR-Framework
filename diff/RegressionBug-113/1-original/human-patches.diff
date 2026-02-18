@@ -1,0 +1,39 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/parser/JSONLexerBase.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/parser/JSONLexerBase.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/parser/JSONLexerBase.java	2025-12-16 03:58:39.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/parser/JSONLexerBase.java	2025-12-16 03:58:36.000000000 +1100
+@@ -2500,7 +2500,7 @@
+                 count = bp + offset - start - 1;
+             }
+ 
+-            if ((!exp) && count < 17) {
++            if ((!exp) && count < 12) {
+                 value = (float) (((double) intVal) / power);
+                 if (negative) {
+                     value = -value;
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/parser/JSONScanner.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/parser/JSONScanner.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/alibaba/fastjson/parser/JSONScanner.java	2025-12-16 03:58:39.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/alibaba/fastjson/parser/JSONScanner.java	2025-12-16 03:58:37.000000000 +1100
+@@ -1807,7 +1807,7 @@
+                 count = offset - start - 1;
+             }
+ 
+-            if (!exp && count < 20) {
++            if (!exp && count < 18) {
+                 value = ((double) intVal) / power;
+                 if (negative) {
+                     value = -value;
+Only in ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/alibaba/json/bvt/basicType: DoubleTest3_random.java
+Only in ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/alibaba/json/bvt/basicType: FloatTest3_array_random.java
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/alibaba/json/bvt/issue_1700/Issue1769.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/alibaba/json/bvt/issue_1700/Issue1769.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/alibaba/json/bvt/issue_1700/Issue1769.java	2025-12-16 15:56:11.503366301 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/alibaba/json/bvt/issue_1700/Issue1769.java	2025-12-17 13:52:08.997812595 +1100
+@@ -8,7 +8,7 @@
+ import java.util.Date;
+ 
+ public class Issue1769 extends TestCase {
+-    public void Ignore_test_for_issue() throws Exception {
++    public void test_for_issue() throws Exception {
+         byte[] newby = "{\"beginTime\":\"420180319160440\"}".getBytes();
+         QueryTaskResultReq rsp3 = JSON.parseObject(newby, QueryTaskResultReq.class);
+         assertEquals("{\"beginTime\":\"152841225111920\"}", new String(JSON.toJSONBytes(rsp3)));

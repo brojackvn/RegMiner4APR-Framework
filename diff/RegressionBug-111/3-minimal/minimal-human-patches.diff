@@ -1,0 +1,20 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/beanutils/BeanUtilsBean.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/beanutils/BeanUtilsBean.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/beanutils/BeanUtilsBean.java	2025-12-15 04:10:30.349229802 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/beanutils/BeanUtilsBean.java	2025-12-15 04:18:24.137623725 +1100
+@@ -27,6 +27,7 @@
+ import java.util.ArrayList;
+ import java.util.Collection;
+ import java.util.HashMap;
++import java.util.List;
+ import java.util.Map;
+ 
+ import org.apache.commons.beanutils.expression.Resolver;
+@@ -952,6 +953,8 @@
+                 }
+                 type = ((IndexedPropertyDescriptor) descriptor).
+                     getIndexedPropertyType();
++            } else if (index >= 0 && List.class.isAssignableFrom(descriptor.getPropertyType())) {
++                type = Object.class;
+             } else if (key != null) {
+                 if (descriptor.getReadMethod() == null) {
+                     if (log.isDebugEnabled()) {

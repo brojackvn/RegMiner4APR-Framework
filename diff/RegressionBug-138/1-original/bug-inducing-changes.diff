@@ -1,0 +1,502 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java	2025-12-29 14:58:12.477651004 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java	2025-12-29 15:59:52.875316653 +1100
+@@ -229,6 +229,11 @@
+ 					throw new DataProcessingException("Unexpected error instantiating custom conversion class '" + conversionClass.getSimpleName() + "' (" + conversionClass.getName() + ')', e);
+ 				}
+ 			}
++
++			if (fieldType == String.class && (nullRead != null || nullWrite != null)) {
++				return new ToStringConversion(nullRead, nullWrite);
++			}
++
+ 			return null;
+ 		} catch (DataProcessingException ex) {
+ 			throw ex;
+@@ -688,4 +693,32 @@
+ 			}
+ 		}
+ 	}
++
++	/**
++	 * Returns Java's default value for a given type, in a primitive type wrapper.
++	 *
++	 * @param type the primitive type whose default value will be returned.
++	 *
++	 * @return the default value for the given primitive type, or {@code null} if the type is not primitive.
++	 */
++	public static final Object getDefaultPrimitiveValue(Class type) {
++		if (type == int.class) {
++			return Integer.valueOf(0);
++		} else if (type == double.class) {
++			return 0.0D;
++		} else if (type == boolean.class) {
++			return Boolean.FALSE;
++		} else if (type == long.class) {
++			return Long.valueOf(0L);
++		} else if (type == float.class) {
++			return 0.0F;
++		} else if (type == byte.class) {
++			return Byte.valueOf((byte) 0);
++		} else if (type == char.class) {
++			return Character.valueOf('\0');
++		} else if (type == short.class) {
++			return Short.valueOf((short) 0);
++		}
++		return null;
++	}
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/FieldMapping.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/FieldMapping.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/FieldMapping.java	2025-12-29 14:58:12.477651004 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/FieldMapping.java	2025-12-29 15:59:52.875316653 +1100
+@@ -21,6 +21,8 @@
+ 
+ import java.lang.reflect.*;
+ 
++import static com.univocity.parsers.annotations.helpers.AnnotationHelper.*;
++
+ /**
+  * A helper class with information about the location of an field annotated with {@link Parsed} in a record.
+  *
+@@ -34,7 +36,10 @@
+ 	private final Class<?> beanClass;
+ 	private final Method readMethod;
+ 	private final Method writeMethod;
+-	private boolean accessible = false;
++	private boolean accessible;
++	private final boolean primitive;
++	private final Object defaultPrimitiveValue;
++	private Boolean applyDefault = null;
+ 
+ 	/**
+ 	 * Creates the mapping and identifies how it is mapped (by name or by index)
+@@ -48,6 +53,18 @@
+ 		this.readMethod = property != null ? property.getReadMethod() : null;
+ 		this.writeMethod = property != null ? property.getWriteMethod() : null;
+ 
++		Class typeToSet;
++
++		if(field != null){
++			typeToSet = field.getType();
++		} else if (writeMethod != null && writeMethod.getParameterTypes().length == 1){
++			typeToSet = writeMethod.getParameterTypes()[0];
++		} else {
++			typeToSet = Object.class;
++		}
++
++		primitive = typeToSet.isPrimitive();
++		defaultPrimitiveValue = getDefaultPrimitiveValue(typeToSet);
+ 		determineFieldMapping();
+ 	}
+ 
+@@ -181,6 +198,10 @@
+ 	 * @return the value contained in the given instance's field
+ 	 */
+ 	public Object read(Object instance) {
++		return read(instance, false);
++	}
++
++	private Object read(Object instance, boolean ignoreErrors){
+ 		setAccessible(readMethod);
+ 		try {
+ 			if (readMethod != null) {
+@@ -189,8 +210,11 @@
+ 				return field.get(instance);
+ 			}
+ 		} catch (Throwable e) {
+-			throw new DataProcessingException("Unable to get value from field '" + field.getName() + "' in " + this.beanClass.getName(), e);
++			if(!ignoreErrors) {
++				throw new DataProcessingException("Unable to get value from field '" + field.getName() + "' in " + this.beanClass.getName(), e);
++			}
+ 		}
++		return null;
+ 	}
+ 
+ 	/**
+@@ -201,14 +225,24 @@
+ 	public void write(Object instance, Object value) {
+ 		setAccessible(writeMethod);
+ 		try {
++			if(value == null && primitive){
++				if(applyDefault == null){
++					Object currentValue = read(instance, true);
++					applyDefault = defaultPrimitiveValue.equals(currentValue);
++				}
++				if (applyDefault == Boolean.TRUE){
++					value = defaultPrimitiveValue;
++				} else {
++					return;
++				}
++			}
+ 			if (writeMethod != null) {
+ 				writeMethod.invoke(instance, value);
+ 			} else {
+ 				field.set(instance, value);
+ 			}
+ 		} catch (Throwable e) {
+-			DataProcessingException ex = new DataProcessingException("Unable to set value '{value}' of field '" + field.getName() + "' in " + this.beanClass.getName(), e);
+-			ex.setValue(value);
++			DataProcessingException ex = new DataProcessingException("Unable to set value '{value}' to field '" + field.getName() + "' in " + this.beanClass.getName(), e);
+ 			ex.markAsNonFatal();
+ 			ex.setValue(value);
+ 			throw ex;
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/DefaultConversionProcessor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/DefaultConversionProcessor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/DefaultConversionProcessor.java	2025-12-29 14:58:12.485650998 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/DefaultConversionProcessor.java	2025-12-29 15:59:52.883316648 +1100
+@@ -63,23 +63,23 @@
+ 		return conversions;
+ 	}
+ 
+-	private void initializeConversions(String[] row, Context context) {
++	protected void initializeConversions(String[] row, Context context) {
+ 		conversionsInitialized = true;
+ 
+ 		this.fieldIndexes = null;
+ 		this.fieldsReordered = false;
+ 		this.conversionsInitialized = false;
+ 
+-//		String[] contextHeaders = ((DefaultContext)context).fullHeaders();
+-		String[] contextHeaders = context.headers();
++		String[] contextHeaders = context == null ? null : context.headers();
+ 		if (contextHeaders != null && contextHeaders.length > 0) {
+ 			conversions.prepareExecution(false, contextHeaders);
+ 		} else {
+ 			conversions.prepareExecution(false, row);
+ 		}
+-
+-		this.fieldIndexes = context.extractedFieldIndexes();
+-		this.fieldsReordered = context.columnsReordered();
++		if (context != null) {
++			this.fieldIndexes = context.extractedFieldIndexes();
++			this.fieldsReordered = context.columnsReordered();
++		}
+ 	}
+ 
+ 	/**
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/processor/core/AbstractBeanConversionProcessor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/processor/core/AbstractBeanConversionProcessor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/processor/core/AbstractBeanConversionProcessor.java	2025-12-29 14:58:12.481651001 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/processor/core/AbstractBeanConversionProcessor.java	2025-12-29 15:59:52.883316648 +1100
+@@ -32,6 +32,8 @@
+ 	protected final Set<FieldMapping> parsedFields = new LinkedHashSet<FieldMapping>();
+ 	private int lastFieldIndexMapped = -1;
+ 	private FieldMapping[] readOrder;
++	private FieldMapping[] missing;
++	private Object[] valuesForMissing;
+ 	protected boolean initialized = false;
+ 	boolean strictHeaderValidationEnabled = false;
+ 	private String[] syntheticHeaders = null;
+@@ -236,7 +238,7 @@
+ 	 * @param mapping    the helper object that contains information about how a field is mapped.
+ 	 */
+ 	@SuppressWarnings("rawtypes")
+-	private void addConversion(Conversion conversion, FieldMapping mapping) {
++	protected void addConversion(Conversion conversion, FieldMapping mapping) {
+ 		if (conversion == null) {
+ 			return;
+ 		}
+@@ -262,13 +264,25 @@
+ 		}
+ 
+ 		int last = row.length < readOrder.length ? row.length : readOrder.length;
+-		for (int i = 0; i < last; i++) {
++		int i = 0;
++		for (; i < last; i++) {
+ 			FieldMapping field = readOrder[i];
+ 			if (field != null) {
+ 				Object value = row[i];
+ 				field.write(instance, value);
+ 			}
+ 		}
++
++		if (missing != null) {
++			for (i = 0; i < missing.length; i++) {
++				Object value = valuesForMissing[i];
++				if(value != null) {
++					FieldMapping field = missing[i];
++					field.write(instance, value);
++				}
++			}
++		}
++
+ 	}
+ 
+ 	/**
+@@ -284,16 +298,15 @@
+ 		if (headers == null) {
+ 			headers = ArgumentUtils.EMPTY_STRING_ARRAY;
+ 		}
+-		int biggestIndex = headers.length > row.length ? headers.length : row.length;
++		int last = headers.length > row.length ? headers.length : row.length;
+ 		for (FieldMapping mapping : parsedFields) {
+ 			int index = mapping.getIndex();
+-			if (biggestIndex < index) {
+-				biggestIndex = index;
++			if (last < index) {
++				last = index;
+ 			}
+ 		}
+ 
+-		FieldMapping[] fieldOrder = new FieldMapping[biggestIndex + 1];
+-
++		FieldMapping[] fieldOrder = new FieldMapping[last];
+ 		TreeSet<String> fieldsNotFound = new TreeSet<String>();
+ 
+ 		for (FieldMapping mapping : parsedFields) {
+@@ -353,8 +366,39 @@
+ 			}
+ 		}
+ 
+-		this.readOrder = fieldOrder;
++		readOrder = fieldOrder;
++		initializeValuesForMissing();
++
++	}
+ 
++	private void initializeValuesForMissing(){
++		if (readOrder.length < parsedFields.size()) {
++			Set<FieldMapping> unmapped = new LinkedHashSet<FieldMapping>(parsedFields);
++			unmapped.removeAll(Arrays.asList(readOrder));
++			missing = unmapped.toArray(new FieldMapping[0]);
++			String[] headers = new String[missing.length];
++			AbstractBeanConversionProcessor tmp = new AbstractBeanConversionProcessor(getBeanClass()){
++				protected void addConversion(Conversion conversion, FieldMapping mapping) {
++					if (conversion == null) {
++						return;
++					}
++					convertFields(conversion).add(mapping.getFieldName());
++				}
++			};
++
++			for(int i = 0; i < missing.length; i++){
++				FieldMapping mapping = missing[i];
++				if (processField(mapping)) {
++					tmp.setupConversions(mapping.getField(), mapping);
++				}
++				headers[i] = mapping.getFieldName();
++			}
++			tmp.initializeConversions(headers, null);
++			valuesForMissing = tmp.applyConversions(new String[missing.length], null);
++		} else {
++			missing = null;
++			valuesForMissing = null;
++		}
+ 	}
+ 
+ 	/**
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/conversions: NullConversion.java
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/conversions/ObjectConversion.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/conversions/ObjectConversion.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/conversions/ObjectConversion.java	2025-12-29 14:58:12.489650994 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/conversions/ObjectConversion.java	2025-12-29 15:59:52.887316645 +1100
+@@ -22,49 +22,58 @@
+  * <p>This abstract class provides default results for conversions when the input is null.
+  * <p>It also provides a default implementation of {@link ObjectConversion#revert(Object)} that returns the result of <i>input.toString()</i>
+  *
+- * @author uniVocity Software Pty Ltd - <a href="mailto:parsers@univocity.com">parsers@univocity.com</a>
+- *
+  * @param <T> The object type resulting from conversions of String values.
++ *
++ * @author uniVocity Software Pty Ltd - <a href="mailto:parsers@univocity.com">parsers@univocity.com</a>
+  */
+-public abstract class ObjectConversion<T> implements Conversion<String, T> {
+-
+-	private T valueIfStringIsNull;
+-	private String valueIfObjectIsNull;
++public abstract class ObjectConversion<T> extends NullConversion<String, T> {
+ 
+ 	/**
+ 	 * Creates a Conversion from String to an Object with default values to return when the input is null.
+ 	 * The default constructor assumes the output of a conversion should be null when input is null
+ 	 */
+ 	public ObjectConversion() {
+-		this(null, null);
++		super(null, null);
+ 	}
+ 
+ 	/**
+ 	 * Creates a Conversion from String to an Object with default values to return when the input is null.
++	 *
+ 	 * @param valueIfStringIsNull default value of type <b>T</b> to be returned when the input String is null. Used when {@link ObjectConversion#execute(String)} is invoked.
+ 	 * @param valueIfObjectIsNull default String value to be returned when an input of type <b>T</b> is null. Used when {@link ObjectConversion#revert(Object)} is invoked.
+ 	 */
+ 	public ObjectConversion(T valueIfStringIsNull, String valueIfObjectIsNull) {
+-		this.valueIfStringIsNull = valueIfStringIsNull;
+-		this.valueIfObjectIsNull = valueIfObjectIsNull;
++		super(valueIfStringIsNull, valueIfObjectIsNull);
+ 	}
+ 
+ 	/**
+ 	 * Converts the given String to an instance of <b>T</b>
++	 *
+ 	 * @param input the input String to be converted to an object of type <b>T</b>
+-	 * @return the conversion result, or the value of {@link ObjectConversion#valueIfStringIsNull} if the input String is null.
++	 *
++	 * @return the conversion result, or the value of {@link ObjectConversion#getValueIfStringIsNull()} if the input String is null.
+ 	 */
+ 	@Override
+ 	public T execute(String input) {
+-		if (input == null) {
+-			return valueIfStringIsNull;
+-		}
++		return super.execute(input);
++	}
++
++	/**
++	 * Creates an instance of <b>T</b> from a String representation.
++	 *
++	 * @param input The String to be converted to <b>T</b>
++	 *
++	 * @return an instance of <b>T</b>, converted from the String input.
++	 */
++	protected final T fromInput(String input) {
+ 		return fromString(input);
+ 	}
+ 
+ 	/**
+ 	 * Creates an instance of <b>T</b> from a String representation.
++	 *
+ 	 * @param input The String to be converted to <b>T</b>
++	 *
+ 	 * @return an instance of <b>T</b>, converted from the String input.
+ 	 */
+ 	protected abstract T fromString(String input);
+@@ -72,47 +81,55 @@
+ 	/**
+ 	 * Converts a value of type <b>T</b> back to a String
+ 	 * <p> This is a general implementation that simply returns the result of <i>input.toString()</i>
++	 *
+ 	 * @param input the input of type <b>T</b> to be converted to a String
+-	 * @return the conversion result, or the value of {@link ObjectConversion#valueIfObjectIsNull} if the input object is null.
++	 *
++	 * @return the conversion result, or the value of {@link ObjectConversion#getValueIfObjectIsNull()} if the input object is null.
+ 	 */
+ 	@Override
+ 	public String revert(T input) {
+-		if (input == null) {
+-			return valueIfObjectIsNull;
+-		}
++		return super.revert(input);
++	}
++
++	@Override
++	protected final String undo(T input) {
+ 		return String.valueOf(input);
+ 	}
+ 
+ 	/**
+-	 *returns a default value of type <b>T</b> to be returned when the input String is null. Used when {@link ObjectConversion#execute(String)} is invoked.
++	 * returns a default value of type <b>T</b> to be returned when the input String is null. Used when {@link ObjectConversion#execute(String)} is invoked.
++	 *
+ 	 * @return the default value of type <b>T</b> used when converting from a null input
+ 	 */
+ 	public T getValueIfStringIsNull() {
+-		return valueIfStringIsNull;
++		return getValueOnNullInput();
+ 	}
+ 
+ 	/**
+ 	 * returns default String value to be returned when an input of type <b>T</b> is null. Used when {@link ObjectConversion#revert(Object)} is invoked.
++	 *
+ 	 * @return the default String value used when converting from a null input
+ 	 */
+ 	public String getValueIfObjectIsNull() {
+-		return valueIfObjectIsNull;
++		return getValueOnNullOutput();
+ 	}
+ 
+ 	/**
+ 	 * defines a default value of type <b>T</b> which should be returned when the input String is null. Used when {@link ObjectConversion#execute(String)} is invoked.
++	 *
+ 	 * @param valueIfStringIsNull the default value of type <b>T</b> when converting from a null input
+ 	 */
+ 	public void setValueIfStringIsNull(T valueIfStringIsNull) {
+-		this.valueIfStringIsNull = valueIfStringIsNull;
++		setValueOnNullInput(valueIfStringIsNull);
+ 	}
+ 
+ 	/**
+ 	 * returns default value of type <b>T</b> which should be returned when the input String is null. Used when {@link ObjectConversion#revert(Object)} is invoked.
++	 *
+ 	 * @param valueIfObjectIsNull a default value of type <b>T</b> when converting from a null input
+ 	 */
+ 	public void setValueIfObjectIsNull(String valueIfObjectIsNull) {
+-		this.valueIfObjectIsNull = valueIfObjectIsNull;
++		setValueOnNullOutput(valueIfObjectIsNull);
+ 	}
+ 
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/conversions/ToStringConversion.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/conversions/ToStringConversion.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/conversions/ToStringConversion.java	2025-12-29 14:58:12.489650994 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/conversions/ToStringConversion.java	2025-12-29 15:59:52.887316645 +1100
+@@ -19,17 +19,25 @@
+ /**
+  * Converts any non-null object to its String representation.
+  */
+-public class ToStringConversion implements Conversion<Object, Object> {
++public class ToStringConversion extends NullConversion<Object, Object> {
++
++	public ToStringConversion() {
++	}
++
++	public ToStringConversion(Object valueOnNullInput, Object valueOnNullOutput) {
++		super(valueOnNullInput, valueOnNullOutput);
++	}
++
+ 	@Override
+-	public Object execute(Object input) {
+-		if(input != null){
++	protected Object fromInput(Object input) {
++		if (input != null) {
+ 			return input.toString();
+ 		}
+ 		return null;
+ 	}
+ 
+ 	@Override
+-	public Object revert(Object input) {
++	protected Object undo(Object input) {
+ 		return execute(input);
+ 	}
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/univocity/parsers/common/processor/AnnotatedBeanProcessorTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/univocity/parsers/common/processor/AnnotatedBeanProcessorTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/univocity/parsers/common/processor/AnnotatedBeanProcessorTest.java	2025-12-29 14:58:12.497650988 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/univocity/parsers/common/processor/AnnotatedBeanProcessorTest.java	2025-12-29 15:59:52.895316640 +1100
+@@ -147,13 +147,13 @@
+ 		TestBean bean;
+ 		bean = beans.get(0);
+ 		assertEquals(bean.amnt, new BigDecimal("555.999"));
+-		assertNull(bean.quantity);
++		assertEquals(bean.quantity, Integer.valueOf(0));
+ 		assertNull(bean.pending);
+ 		assertNull(bean.commts);
+ 
+ 		bean = beans.get(1);
+ 		assertEquals(bean.amnt, null);
+-		assertNull(bean.quantity);
++		assertEquals(bean.quantity, Integer.valueOf(0));
+ 		assertNull(bean.pending);
+ 		assertNull(bean.commts);
+ 	}
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/univocity/parsers/common/processor/MultiBeanListProcessorTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/univocity/parsers/common/processor/MultiBeanListProcessorTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/univocity/parsers/common/processor/MultiBeanListProcessorTest.java	2025-12-29 14:58:12.497650988 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/univocity/parsers/common/processor/MultiBeanListProcessorTest.java	2025-12-29 15:59:52.895316640 +1100
+@@ -57,7 +57,18 @@
+ 		String commts;
+ 
+ 		@Parsed
+-		int quantity;  //NullPointer can be thrown here
++		int quantity;
++
++		public int getQuantity() {
++			return this.quantity;
++		}
++
++		public void setQuantity(int quantity) {
++			if(quantity == 0) {
++				throw new NullPointerException("throwing error on purpose");
++			}
++			this.quantity = quantity;
++		}
+ 	}
+ 
+ 
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/univocity/parsers/issues/github: Github_116.java

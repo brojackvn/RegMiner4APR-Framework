@@ -1,0 +1,353 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/beanutils/locale/BaseLocaleConverter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/beanutils/locale/BaseLocaleConverter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/beanutils/locale/BaseLocaleConverter.java	2025-12-15 04:34:53.114515344 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/beanutils/locale/BaseLocaleConverter.java	2025-12-15 04:34:33.210497056 +1100
+@@ -17,13 +17,14 @@
+ 
+ package org.apache.commons.beanutils.locale;
+ 
++import java.text.ParseException;
++import java.util.Locale;
++
+ import org.apache.commons.beanutils.ConversionException;
++import org.apache.commons.beanutils.ConvertUtils;
+ import org.apache.commons.logging.Log;
+ import org.apache.commons.logging.LogFactory;
+ 
+-import java.text.ParseException;
+-import java.util.Locale;
+-
+ 
+ /**
+  * <p>The base class for all standart type locale-sensitive converters.
+@@ -158,7 +159,7 @@
+ 
+     /**
+      * Convert the specified locale-sensitive input object into an output object.
+-     * The default pattern is used for the convertion.
++     * The default pattern is used for the conversion.
+      *
+      * @param value The input object to be converted
+      * @return The converted value
+@@ -174,7 +175,7 @@
+      * Convert the specified locale-sensitive input object into an output object.
+      *
+      * @param value The input object to be converted
+-     * @param pattern The pattern is used for the convertion
++     * @param pattern The pattern is used for the conversion
+      * @return The converted value
+      *
+      * @exception ConversionException if conversion cannot be performed
+@@ -188,6 +189,7 @@
+      * Convert the specified locale-sensitive input object into an output object of the
+      * specified type. The default pattern is used for the convertion.
+      *
++     * @param <T> The desired target type of the conversion
+      * @param type Data type to which this value should be converted
+      * @param value The input object to be converted
+      * @return The converted value
+@@ -195,7 +197,7 @@
+      * @exception ConversionException if conversion cannot be performed
+      *  successfully
+      */
+-    public Object convert(Class type, Object value) {
++    public <T> T convert(Class<T> type, Object value) {
+         return convert(type, value, null);
+     }
+ 
+@@ -203,6 +205,7 @@
+      * Convert the specified locale-sensitive input object into an output object of the
+      * specified type.
+      *
++     * @param <T> The desired target type of the conversion
+      * @param type Data is type to which this value should be converted
+      * @param value is the input object to be converted
+      * @param pattern is the pattern is used for the conversion; if null is
+@@ -213,10 +216,11 @@
+      * @exception ConversionException if conversion cannot be performed
+      *  successfully
+      */
+-    public Object convert(Class type, Object value, String pattern) {
++    public <T> T convert(Class<T> type, Object value, String pattern) {
++        Class<T> targetType = ConvertUtils.primitiveToWrapper(type);
+         if (value == null) {
+             if (useDefault) {
+-                return (defaultValue);
++                return getDefaultAs(targetType);
+             } else {
+                 // symmetric beanutils function allows null
+                 // so do not: throw new ConversionException("No value specified");
+@@ -227,13 +231,13 @@
+ 
+         try {
+             if (pattern != null) {
+-                return parse(value, pattern);
++                return checkConversionResult(targetType, parse(value, pattern));
+             } else {
+-                return parse(value, this.pattern);
++                return checkConversionResult(targetType, parse(value, this.pattern));
+             }
+         } catch (Exception e) {
+             if (useDefault) {
+-                return (defaultValue);
++                return getDefaultAs(targetType);
+             } else {
+                 if (e instanceof ConversionException) {
+                     throw (ConversionException)e;
+@@ -242,4 +246,44 @@
+             }
+         }
+     }
++
++    /**
++     * Returns the default object specified for this converter cast for the
++     * given target type. If the default value is not conform to the given type,
++     * an exception is thrown.
++     *
++     * @param <T> the desired target type
++     * @param type the target class of the conversion
++     * @return the default value in the given target type
++     * @throws ConversionException if the default object is not compatible with
++     *         the target type
++     */
++    private <T> T getDefaultAs(Class<T> type) {
++        return checkConversionResult(type, defaultValue);
++    }
++
++    /**
++     * Checks whether the result of a conversion is conform to the specified
++     * target type. If this is the case, the passed in result object is cast to
++     * the correct target type. Otherwise, an exception is thrown.
++     *
++     * @param <T> the desired result type
++     * @param type the target class of the conversion
++     * @param result the conversion result object
++     * @return the result cast to the target class
++     * @throws ConversionException if the result object is not compatible with
++     *         the target type
++     */
++    private static <T> T checkConversionResult(Class<T> type, Object result) {
++        if (type == null) {
++            // in this case we cannot do much; the result object is returned
++            @SuppressWarnings("unchecked")
++            T temp = (T) result;
++            return temp;
++        }
++        if (type.isInstance(result)) {
++            return type.cast(result);
++        }
++        throw new ConversionException("Unsupported target type: " + type);
++    }
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/beanutils/IndexedPropertyTestCase.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/beanutils/IndexedPropertyTestCase.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/beanutils/IndexedPropertyTestCase.java	2026-01-18 13:45:49.851170494 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/beanutils/IndexedPropertyTestCase.java	2026-01-18 13:44:49.939135640 +1100
+@@ -521,7 +521,7 @@
+             fail("Threw exception " + e);
+         }
+     }
+-
++    
+     /**
+      * Test setting an indexed item of a List using setIndexedProperty("name", value)
+      */
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/beanutils/locale/converters/BigDecimalLocaleConverterTestCase.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/beanutils/locale/converters/BigDecimalLocaleConverterTestCase.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/beanutils/locale/converters/BigDecimalLocaleConverterTestCase.java	2025-12-15 04:34:53.126515354 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/beanutils/locale/converters/BigDecimalLocaleConverterTestCase.java	2025-12-15 04:34:33.222497067 +1100
+@@ -103,9 +103,9 @@
+         //
+         // BaseLocaleConverter completely ignores the type - so even if we specify
+         // Double.class here it still returns a BigDecimal.
+-        //  **** SHOULD IMPLEMENT THIS BEHAVIOUR ****
++        //  **** This has been changed due to BEANUTILS-449 ****
+         // **************************************************************************
+-        convertValueToType(converter, "(B)", Double.class, localizedDecimalValue, localizedDecimalPattern, expectedValue);
++        //convertValueToType(converter, "(B)", Double.class, localizedDecimalValue, localizedDecimalPattern, expectedValue);
+ 
+ 
+         // ------------- Construct with non-localized pattern ------------
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/beanutils/locale/converters/BigIntegerLocaleConverterTestCase.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/beanutils/locale/converters/BigIntegerLocaleConverterTestCase.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/beanutils/locale/converters/BigIntegerLocaleConverterTestCase.java	2025-12-15 04:34:53.130515358 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/beanutils/locale/converters/BigIntegerLocaleConverterTestCase.java	2025-12-15 04:34:33.222497067 +1100
+@@ -19,6 +19,8 @@
+ 
+ import java.math.BigInteger;
+ 
++import org.apache.commons.beanutils.ConversionException;
++
+ /**
+  * Test Case for the BigIntegerLocaleConverter class.
+  *
+@@ -102,9 +104,9 @@
+         //
+         // BaseLocaleConverter completely ignores the type - so even if we specify
+         // Double.class here it still returns a BigInteger.
+-        //  **** SHOULD IMPLEMENT THIS BEHAVIOUR ****
++        //  **** This has been changed due to BEANUTILS-449 ****
+         // **************************************************************************
+-        convertValueToType(converter, "(B)", Double.class, localizedIntegerValue, localizedIntegerPattern, expectedValue);
++        //convertValueToType(converter, "(B)", Double.class, localizedIntegerValue, localizedIntegerPattern, expectedValue);
+ 
+ 
+         // ------------- Construct with non-localized pattern ------------
+@@ -259,7 +261,19 @@
+ 
+     }
+ 
+-
++    /**
++     * Tries to convert to an unsupported type. This tests behavior of the base
++     * class. All locale converters should react in the same way.
++     */
++    public void testUnsupportedType() {
++        converter = new BigIntegerLocaleConverter();
++        try {
++            converter.convert(getClass(), "test", null);
++            fail("Unsupported type not detected!");
++        } catch (ConversionException cex) {
++            // expected result
++        }
++    }
+ 
+ }
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/beanutils/locale/converters/ByteLocaleConverterTestCase.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/beanutils/locale/converters/ByteLocaleConverterTestCase.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/beanutils/locale/converters/ByteLocaleConverterTestCase.java	2025-12-15 04:34:53.130515358 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/beanutils/locale/converters/ByteLocaleConverterTestCase.java	2025-12-15 04:34:33.222497067 +1100
+@@ -108,9 +108,9 @@
+         //
+         // BaseLocaleConverter completely ignores the type - so even if we specify
+         // Double.class here it still returns a Byte.
+-        //  **** SHOULD IMPLEMENT THIS BEHAVIOUR ****
++        //  **** This has been changed due to BEANUTILS-449 ****
+         // **************************************************************************
+-        convertValueToType(converter, "(B)", Double.class, localizedIntegerValue, localizedIntegerPattern, expectedValue);
++        //convertValueToType(converter, "(B)", Double.class, localizedIntegerValue, localizedIntegerPattern, expectedValue);
+ 
+ 
+         // ------------- Construct with non-localized pattern ------------
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/beanutils/locale/converters/DateLocaleConverterTestCase.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/beanutils/locale/converters/DateLocaleConverterTestCase.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/beanutils/locale/converters/DateLocaleConverterTestCase.java	2025-12-15 04:34:53.130515358 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/beanutils/locale/converters/DateLocaleConverterTestCase.java	2025-12-15 04:34:33.222497067 +1100
+@@ -17,15 +17,14 @@
+ 
+ package org.apache.commons.beanutils.locale.converters;
+ 
+-import java.text.SimpleDateFormat;
+-import java.text.ParseException;
+ import java.text.DateFormatSymbols;
+-
++import java.text.ParseException;
++import java.text.SimpleDateFormat;
+ import java.util.Locale;
+ 
+ import org.apache.commons.beanutils.ConversionException;
+-import org.apache.commons.logging.LogFactory;
+ import org.apache.commons.logging.Log;
++import org.apache.commons.logging.LogFactory;
+ 
+ /**
+  * Test Case for the DateLocaleConverter class.
+@@ -239,9 +238,9 @@
+         //
+         // BaseLocaleConverter completely ignores the type - so even if we specify
+         // Double.class here it still returns a Date.
+-        //  **** SHOULD IMPLEMENT THIS BEHAVIOUR ****
++        //  **** This has been changed due to BEANUTILS-449 ****
+         // **************************************************************************
+-        convertValueToType(converter, "(B)", String.class, localizedDateValue, localizedDatePattern, expectedValue);
++        //convertValueToType(converter, "(B)", String.class, localizedDateValue, localizedDatePattern, expectedValue);
+ 
+ 
+         // ------------- Construct with non-localized pattern ------------
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/beanutils/locale/converters/DoubleLocaleConverterTestCase.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/beanutils/locale/converters/DoubleLocaleConverterTestCase.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/beanutils/locale/converters/DoubleLocaleConverterTestCase.java	2025-12-15 04:34:53.130515358 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/beanutils/locale/converters/DoubleLocaleConverterTestCase.java	2025-12-15 04:34:33.222497067 +1100
+@@ -102,9 +102,9 @@
+         //
+         // BaseLocaleConverter completely ignores the type - so even if we specify
+         // Double.class here it still returns a Double.
+-        //  **** SHOULD IMPLEMENT THIS BEHAVIOUR ****
++        //  **** This has been changed due to BEANUTILS-449 ****
+         // **************************************************************************
+-        convertValueToType(converter, "(B)", Integer.class, localizedDecimalValue, localizedDecimalPattern, expectedValue);
++        //convertValueToType(converter, "(B)", Integer.class, localizedDecimalValue, localizedDecimalPattern, expectedValue);
+ 
+ 
+         // ------------- Construct with non-localized pattern ------------
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/beanutils/locale/converters/FloatLocaleConverterTestCase.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/beanutils/locale/converters/FloatLocaleConverterTestCase.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/beanutils/locale/converters/FloatLocaleConverterTestCase.java	2025-12-15 04:34:53.130515358 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/beanutils/locale/converters/FloatLocaleConverterTestCase.java	2025-12-15 04:34:33.226497071 +1100
+@@ -107,9 +107,9 @@
+         //
+         // BaseLocaleConverter completely ignores the type - so even if we specify
+         // Float.class here it still returns a Float.
+-        //  **** SHOULD IMPLEMENT THIS BEHAVIOUR ****
++        //  **** This has been changed due to BEANUTILS-449 ****
+         // **************************************************************************
+-        convertValueToType(converter, "(B)", Integer.class, localizedDecimalValue, localizedDecimalPattern, expectedValue);
++        //convertValueToType(converter, "(B)", Integer.class, localizedDecimalValue, localizedDecimalPattern, expectedValue);
+ 
+ 
+         // ------------- Construct with non-localized pattern ------------
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/beanutils/locale/converters/IntegerLocaleConverterTestCase.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/beanutils/locale/converters/IntegerLocaleConverterTestCase.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/beanutils/locale/converters/IntegerLocaleConverterTestCase.java	2025-12-15 04:34:53.130515358 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/beanutils/locale/converters/IntegerLocaleConverterTestCase.java	2025-12-15 04:34:33.226497071 +1100
+@@ -101,9 +101,9 @@
+         //
+         // BaseLocaleConverter completely ignores the type - so even if we specify
+         // Double.class here it still returns a Integer.
+-        //  **** SHOULD IMPLEMENT THIS BEHAVIOUR ****
++        //  **** This has been changed due to BEANUTILS-449 ****
+         // **************************************************************************
+-        convertValueToType(converter, "(B)", Double.class, localizedIntegerValue, localizedIntegerPattern, expectedValue);
++        //convertValueToType(converter, "(B)", Double.class, localizedIntegerValue, localizedIntegerPattern, expectedValue);
+ 
+ 
+         // ------------- Construct with non-localized pattern ------------
+@@ -272,6 +272,15 @@
+         assertEquals("Convert Long",    value, converter.convert(new Long(value.intValue())));
+     }
+ 
+-
++    /**
++     * Tests whether a conversion to a primitive type can be performed.
++     */
++    public void testToPrimitiveType() {
++        converter = new IntegerLocaleConverter();
++        Integer value = 20131028;
++        Class<Integer> target = Integer.TYPE;
++        int result = converter.convert(target, (Object) value.toString());
++        assertEquals("Wrong result", value.intValue(), result);
++    }
+ }
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/beanutils/locale/converters/LongLocaleConverterTestCase.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/beanutils/locale/converters/LongLocaleConverterTestCase.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/beanutils/locale/converters/LongLocaleConverterTestCase.java	2025-12-15 04:34:53.130515358 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/beanutils/locale/converters/LongLocaleConverterTestCase.java	2025-12-15 04:34:33.226497071 +1100
+@@ -101,9 +101,9 @@
+         //
+         // BaseLocaleConverter completely ignores the type - so even if we specify
+         // Double.class here it still returns a Long.
+-        //  **** SHOULD IMPLEMENT THIS BEHAVIOUR ****
++        //  **** This has been changed due to BEANUTILS-449 ****
+         // **************************************************************************
+-        convertValueToType(converter, "(B)", Double.class, localizedIntegerValue, localizedIntegerPattern, expectedValue);
++        //convertValueToType(converter, "(B)", Double.class, localizedIntegerValue, localizedIntegerPattern, expectedValue);
+ 
+ 
+         // ------------- Construct with non-localized pattern ------------
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/beanutils/locale/converters/ShortLocaleConverterTestCase.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/beanutils/locale/converters/ShortLocaleConverterTestCase.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/beanutils/locale/converters/ShortLocaleConverterTestCase.java	2025-12-15 04:34:53.130515358 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/beanutils/locale/converters/ShortLocaleConverterTestCase.java	2025-12-15 04:34:33.226497071 +1100
+@@ -101,9 +101,9 @@
+         //
+         // BaseLocaleConverter completely ignores the type - so even if we specify
+         // Double.class here it still returns a Short.
+-        //  **** SHOULD IMPLEMENT THIS BEHAVIOUR ****
++        //  **** This has been changed due to BEANUTILS-449 ****
+         // **************************************************************************
+-        convertValueToType(converter, "(B)", Double.class, localizedIntegerValue, localizedIntegerPattern, expectedValue);
++        //convertValueToType(converter, "(B)", Double.class, localizedIntegerValue, localizedIntegerPattern, expectedValue);
+ 
+ 
+         // ------------- Construct with non-localized pattern ------------

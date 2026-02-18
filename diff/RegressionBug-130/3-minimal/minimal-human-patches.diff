@@ -1,0 +1,23 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jongo/query/BsonQueryFactory.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jongo/query/BsonQueryFactory.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jongo/query/BsonQueryFactory.java	2025-12-23 04:46:54.958750591 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jongo/query/BsonQueryFactory.java	2025-12-23 04:44:54.958764034 +1100
+@@ -124,9 +124,15 @@
+ 
+         for (char nextChar : query.toCharArray()) {
+             if (ctxStack.peek() == Context.STRING) {
+-                currentToken.append(nextChar);
+-                if (nextChar == currentStringStartingQuote) {
+-                    ctxStack.pop();
++                if (currentTokenWithNextCharIsToken(currentToken, nextChar)) {
++                    currentToken.delete(currentToken.length() - token.length() + 1, currentToken.length());
++                    currentToken.append(parameters[paramIndex]);
++                    paramIndex++;
++                } else {
++                    currentToken.append(nextChar);
++                    if (nextChar == currentStringStartingQuote) {
++                        ctxStack.pop();
++                    }
+                 }
+             } else if (isAQuote(nextChar)) {
+                 ctxStack.push(Context.STRING);

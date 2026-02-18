@@ -1,0 +1,230 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/helper/StringUtil.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/helper/StringUtil.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/helper/StringUtil.java	2025-12-14 14:14:15.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/helper/StringUtil.java	2025-12-14 14:12:00.000000000 +1100
+@@ -168,9 +168,10 @@
+         }
+     }
+ 
+-    public static boolean in(String needle, String... haystack) {
+-        for (String hay : haystack) {
+-            if (hay.equals(needle))
++    public static boolean in(final String needle, final String... haystack) {
++        final int len = haystack.length;
++        for (int i = 0; i < len; i++) {
++            if (haystack[i].equals(needle))
+             return true;
+         }
+         return false;
+@@ -180,6 +181,11 @@
+         return Arrays.binarySearch(haystack, needle) >= 0;
+     }
+ 
++    public static String[] sort(String[] array) {
++        Arrays.sort(array);
++        return array;
++    }
++
+     /**
+      * Create a new absolute URL, from a provided existing absolute URL and a relative URL component.
+      * @param base the existing absolute base URL
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/HtmlTreeBuilder.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/HtmlTreeBuilder.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/HtmlTreeBuilder.java	2025-12-14 14:14:16.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/HtmlTreeBuilder.java	2025-12-14 14:12:00.000000000 +1100
+@@ -16,25 +16,30 @@
+ import java.util.ArrayList;
+ import java.util.List;
+ 
++import static org.jsoup.helper.StringUtil.inSorted;
++import static org.jsoup.helper.StringUtil.sort;
++
+ /**
+  * HTML Tree Builder; creates a DOM from Tokens.
+  */
+ public class HtmlTreeBuilder extends TreeBuilder {
+-    // tag searches
+-    private static final String[] TagsSearchInScope = new String[]{"applet", "caption", "html", "table", "td", "th", "marquee", "object"};
+-    private static final String[] TagSearchList = new String[]{"ol", "ul"};
+-    private static final String[] TagSearchButton = new String[]{"button"};
+-    private static final String[] TagSearchTableScope = new String[]{"html", "table"};
+-    private static final String[] TagSearchSelectScope = new String[]{"optgroup", "option"};
+-    private static final String[] TagSearchEndTags = new String[]{"dd", "dt", "li", "option", "optgroup", "p", "rp", "rt"};
+-    private static final String[] TagSearchSpecial = new String[]{"address", "applet", "area", "article", "aside", "base", "basefont", "bgsound",
+-            "blockquote", "body", "br", "button", "caption", "center", "col", "colgroup", "command", "dd",
+-            "details", "dir", "div", "dl", "dt", "embed", "fieldset", "figcaption", "figure", "footer", "form",
+-            "frame", "frameset", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header", "hgroup", "hr", "html",
+-            "iframe", "img", "input", "isindex", "li", "link", "listing", "marquee", "menu", "meta", "nav",
+-            "noembed", "noframes", "noscript", "object", "ol", "p", "param", "plaintext", "pre", "script",
+-            "section", "select", "style", "summary", "table", "tbody", "td", "textarea", "tfoot", "th", "thead",
+-            "title", "tr", "ul", "wbr", "xmp"};
++    // tag searches. must be sorted, used in inSorted
++    private static final String[] TagsSearchInScope = sort(new String[]{"applet", "caption", "html", "table", "td", "th", "marquee", "object"});
++    private static final String[] TagSearchList = sort(new String[]{"ol", "ul"});
++    private static final String[] TagSearchButton = sort(new String[]{"button"});
++    private static final String[] TagSearchTableScope = sort(new String[]{"html", "table"});
++    private static final String[] TagSearchSelectScope = sort(new String[]{"optgroup", "option"});
++    private static final String[] TagSearchEndTags = sort(new String[]{"dd", "dt", "li", "option", "optgroup", "p", "rp", "rt"});
++    private static final String[] TagSearchSpecial = sort(new String[]{"address", "applet", "area", "article", "aside", "base", "basefont", "bgsound",
++        "blockquote", "body", "br", "button", "caption", "center", "col", "colgroup", "command", "dd",
++        "details", "dir", "div", "dl", "dt", "embed", "fieldset", "figcaption", "figure", "footer", "form",
++        "frame", "frameset", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header", "hgroup", "hr", "html",
++        "iframe", "img", "input", "isindex", "li", "link", "listing", "marquee", "menu", "meta", "nav",
++        "noembed", "noframes", "noscript", "object", "ol", "p", "param", "plaintext", "pre", "script",
++        "section", "select", "style", "summary", "table", "tbody", "td", "textarea", "tfoot", "th", "thead",
++        "title", "tr", "ul", "wbr", "xmp"});
++
++    public static final int MaxScopeSearchDepth = 100; // prevents the parser bogging down in exceptionally broken pages
+ 
+     private HtmlTreeBuilderState state; // the current state
+     private HtmlTreeBuilderState originalState; // original / marked state
+@@ -332,11 +337,12 @@
+         }
+     }
+ 
++    // elnames is sorted, comes from Constants
+     void popStackToClose(String... elNames) {
+         for (int pos = stack.size() -1; pos >= 0; pos--) {
+             Element next = stack.get(pos);
+             stack.remove(pos);
+-            if (StringUtil.in(next.nodeName(), elNames))
++            if (inSorted(next.nodeName(), elNames))
+                 break;
+         }
+     }
+@@ -459,14 +465,18 @@
+     }
+ 
+     private boolean inSpecificScope(String[] targetNames, String[] baseTypes, String[] extraTypes) {
+-        for (int pos = stack.size() -1; pos >= 0; pos--) {
++        int depth = stack.size() -1;
++        if (depth > MaxScopeSearchDepth) {
++            depth = MaxScopeSearchDepth;
++        }
++        for (int pos = depth; pos >= 0; pos--) {
+             Element el = stack.get(pos);
+             String elName = el.nodeName();
+-            if (StringUtil.in(elName, targetNames))
++            if (inSorted(elName, targetNames))
+                 return true;
+-            if (StringUtil.in(elName, baseTypes))
++            if (inSorted(elName, baseTypes))
+                 return false;
+-            if (extraTypes != null && StringUtil.in(elName, extraTypes))
++            if (extraTypes != null && inSorted(elName, extraTypes))
+                 return false;
+         }
+         Validate.fail("Should not be reachable");
+@@ -505,7 +515,7 @@
+             String elName = el.nodeName();
+             if (elName.equals(targetName))
+                 return true;
+-            if (!StringUtil.in(elName, TagSearchSelectScope)) // all elements except
++            if (!inSorted(elName, TagSearchSelectScope)) // all elements except
+                 return false;
+         }
+         Validate.fail("Should not be reachable");
+@@ -559,7 +569,7 @@
+      */
+     void generateImpliedEndTags(String excludeTag) {
+         while ((excludeTag != null && !currentElement().nodeName().equals(excludeTag)) &&
+-                StringUtil.in(currentElement().nodeName(), TagSearchEndTags))
++                inSorted(currentElement().nodeName(), TagSearchEndTags))
+             pop();
+     }
+ 
+@@ -571,7 +581,7 @@
+         // todo: mathml's mi, mo, mn
+         // todo: svg's foreigObject, desc, title
+         String name = el.nodeName();
+-        return StringUtil.in(name, TagSearchSpecial);
++        return inSorted(name, TagSearchSpecial);
+     }
+ 
+     Element lastFormattingElement() {
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/HtmlTreeBuilderState.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/HtmlTreeBuilderState.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/parser/HtmlTreeBuilderState.java	2025-12-14 14:14:15.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/parser/HtmlTreeBuilderState.java	2025-12-14 14:12:00.000000000 +1100
+@@ -1,7 +1,12 @@
+ package org.jsoup.parser;
+ 
+ import org.jsoup.helper.StringUtil;
+-import org.jsoup.nodes.*;
++import org.jsoup.nodes.Attribute;
++import org.jsoup.nodes.Attributes;
++import org.jsoup.nodes.Document;
++import org.jsoup.nodes.DocumentType;
++import org.jsoup.nodes.Element;
++import org.jsoup.nodes.Node;
+ 
+ import java.util.ArrayList;
+ 
+@@ -1499,27 +1504,28 @@
+ 
+     // lists of tags to search through. A little harder to read here, but causes less GC than dynamic varargs.
+     // was contributing around 10% of parse GC load.
++    // must make sure these are sorted, as used in findSorted
+     private static final class Constants {
+-        private static final String[] InBodyStartToHead = new String[]{"base", "basefont", "bgsound", "command", "link", "meta", "noframes", "script", "style", "title"};
+-        private static final String[] InBodyStartPClosers = new String[]{"address", "article", "aside", "blockquote", "center", "details", "dir", "div", "dl",
+-                "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "menu", "nav", "ol",
+-                "p", "section", "summary", "ul"};
+-        private static final String[] Headings = new String[]{"h1", "h2", "h3", "h4", "h5", "h6"};
+-        private static final String[] InBodyStartPreListing = new String[]{"pre", "listing"};
+-        private static final String[] InBodyStartLiBreakers = new String[]{"address", "div", "p"};
+-        private static final String[] DdDt = new String[]{"dd", "dt"};
+-        private static final String[] Formatters = new String[]{"b", "big", "code", "em", "font", "i", "s", "small", "strike", "strong", "tt", "u"};
+-        private static final String[] InBodyStartApplets = new String[]{"applet", "marquee", "object"};
+-        private static final String[] InBodyStartEmptyFormatters = new String[]{"area", "br", "embed", "img", "keygen", "wbr"};
+-        private static final String[] InBodyStartMedia = new String[]{"param", "source", "track"};
+-        private static final String[] InBodyStartInputAttribs = new String[]{"name", "action", "prompt"};
+-        private static final String[] InBodyStartOptions = new String[]{"optgroup", "option"};
+-        private static final String[] InBodyStartRuby = new String[]{"rp", "rt"};
+-        private static final String[] InBodyStartDrop = new String[]{"caption", "col", "colgroup", "frame", "head", "tbody", "td", "tfoot", "th", "thead", "tr"};
+-        private static final String[] InBodyEndClosers = new String[]{"address", "article", "aside", "blockquote", "button", "center", "details", "dir", "div",
+-                "dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "listing", "menu",
+-                "nav", "ol", "pre", "section", "summary", "ul"};
+-        private static final String[] InBodyEndAdoptionFormatters = new String[]{"a", "b", "big", "code", "em", "font", "i", "nobr", "s", "small", "strike", "strong", "tt", "u"};
+-        private static final String[] InBodyEndTableFosters = new String[]{"table", "tbody", "tfoot", "thead", "tr"};
++        private static final String[] InBodyStartToHead = StringUtil.sort(new String[]{"base", "basefont", "bgsound", "command", "link", "meta", "noframes", "script", "style", "title"});
++        private static final String[] InBodyStartPClosers = StringUtil.sort(new String[]{"address", "article", "aside", "blockquote", "center", "details", "dir", "div", "dl",
++            "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "menu", "nav", "ol",
++            "p", "section", "summary", "ul"});
++        private static final String[] Headings = StringUtil.sort(new String[]{"h1", "h2", "h3", "h4", "h5", "h6"});
++        private static final String[] InBodyStartPreListing = StringUtil.sort(new String[]{"pre", "listing"});
++        private static final String[] InBodyStartLiBreakers = StringUtil.sort(new String[]{"address", "div", "p"});
++        private static final String[] DdDt = StringUtil.sort(new String[]{"dd", "dt"});
++        private static final String[] Formatters = StringUtil.sort(new String[]{"b", "big", "code", "em", "font", "i", "s", "small", "strike", "strong", "tt", "u"});
++        private static final String[] InBodyStartApplets = StringUtil.sort(new String[]{"applet", "marquee", "object"});
++        private static final String[] InBodyStartEmptyFormatters = StringUtil.sort(new String[]{"area", "br", "embed", "img", "keygen", "wbr"});
++        private static final String[] InBodyStartMedia = StringUtil.sort(new String[]{"param", "source", "track"});
++        private static final String[] InBodyStartInputAttribs = StringUtil.sort(new String[]{"name", "action", "prompt"});
++        private static final String[] InBodyStartOptions = StringUtil.sort(new String[]{"optgroup", "option"});
++        private static final String[] InBodyStartRuby = StringUtil.sort(new String[]{"rp", "rt"});
++        private static final String[] InBodyStartDrop = StringUtil.sort(new String[]{"caption", "col", "colgroup", "frame", "head", "tbody", "td", "tfoot", "th", "thead", "tr"});
++        private static final String[] InBodyEndClosers = StringUtil.sort(new String[]{"address", "article", "aside", "blockquote", "button", "center", "details", "dir", "div",
++            "dl", "fieldset", "figcaption", "figure", "footer", "header", "hgroup", "listing", "menu",
++            "nav", "ol", "pre", "section", "summary", "ul"});
++        private static final String[] InBodyEndAdoptionFormatters = StringUtil.sort(new String[]{"a", "b", "big", "code", "em", "font", "i", "nobr", "s", "small", "strike", "strong", "tt", "u"});
++        private static final String[] InBodyEndTableFosters = StringUtil.sort(new String[]{"table", "tbody", "tfoot", "thead", "tr"});
+     }
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/jsoup/integration/UrlConnectTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/jsoup/integration/UrlConnectTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/jsoup/integration/UrlConnectTest.java	2025-12-14 14:14:15.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/jsoup/integration/UrlConnectTest.java	2025-12-14 14:12:00.000000000 +1100
+@@ -697,4 +697,17 @@
+         assertTrue(doc2.title().contains("Environment"));
+     }
+ 
++    @Test public void handlesSuperDeepPage() throws IOException {
++        // https://github.com/jhy/jsoup/issues/955
++
++        long start = System.currentTimeMillis();
++        String url = "http://sv.stargate.wikia.com/wiki/M2J";
++        Document doc = Jsoup.connect(url).get();
++        assertEquals("M2J | Sv.stargate Wiki | FANDOM powered by Wikia", doc.title());
++        assertEquals(110160, doc.select("dd").size());
++        // those are all <dl><dd> stacked in each other. wonder how that got generated?
++        assertTrue(System.currentTimeMillis() - start < 1000);
++
++    }
++
+ }

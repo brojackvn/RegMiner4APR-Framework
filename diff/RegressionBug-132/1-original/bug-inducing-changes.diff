@@ -1,0 +1,494 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/AbstractParser.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/AbstractParser.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/AbstractParser.java	2025-12-24 04:38:18.478181796 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/AbstractParser.java	2025-12-24 04:34:08.758365500 +1100
+@@ -102,7 +102,7 @@
+ 			}
+ 		} catch (Throwable ex) {
+ 			try {
+-				handleException(ex);
++				ex = handleException(ex);
+ 			} finally {
+ 				stopParsing(ex);
+ 			}
+@@ -212,7 +212,28 @@
+ 
+ 		}
+ 
+-		throw new TextParsingException(context, message, ex);
++		if (ex instanceof ArrayIndexOutOfBoundsException) {
++			try {
++				int index = Integer.parseInt(ex.getMessage());
++				if (index == settings.getMaxCharsPerColumn()) {
++					message += "\nHint: Number of characters processed may have exceeded limit of " + index + " characters per column. Use settings.setMaxCharsPerColumn(int) to define the maximum number of characters a column can have";
++				}
++				if (index == settings.getMaxColumns()) {
++					message += "\nHint: Number of columns processed may have exceeded limit of " + index + " columns. Use settings.setMaxColumns(int) to define the maximum number of columns your input can have";
++				}
++				message += "\nEnsure your configuration is correct, with delimiters, quotes and escape sequences that match the input format you are trying to parse";
++			} catch (Throwable t) {
++				//ignore;
++			}
++		}
++
++		try {
++			message += "\nParser Configuration: " + settings.toString();
++		} catch (Exception t) {
++			//ignore
++		}
++
++		return new TextParsingException(context, message, ex);
+ 	}
+ 
+ 	private String displayLineSeparators(String str, boolean addNewLine) {
+@@ -327,11 +348,12 @@
+ 			}
+ 		} catch (Throwable ex) {
+ 			try {
+-				throw handleException(ex);
++				ex = handleException(ex);
+ 			} finally {
+ 				stopParsing(ex);
+ 			}
+ 		}
++		return null;
+ 	}
+ 
+ 	/**
+@@ -379,10 +401,11 @@
+ 			throw new IllegalStateException("Error parsing next record.", ex);
+ 		} catch (Throwable ex) {
+ 			try {
+-				throw handleException(ex);
++				ex = handleException(ex);
+ 			} finally {
+ 				stopParsing(ex);
+ 			}
+ 		}
++		return null;
+ 	}
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/CommonParserSettings.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/CommonParserSettings.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/CommonParserSettings.java	2025-12-24 04:38:18.478181796 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/CommonParserSettings.java	2025-12-24 04:34:08.762365497 +1100
+@@ -15,6 +15,8 @@
+  ******************************************************************************/
+ package com.univocity.parsers.common;
+ 
++import java.util.*;
++
+ import com.univocity.parsers.common.input.*;
+ import com.univocity.parsers.common.input.concurrent.*;
+ import com.univocity.parsers.common.processor.*;
+@@ -232,4 +234,21 @@
+ 		this.lineSeparatorDetectionEnabled = lineSeparatorDetectionEnabled;
+ 	}
+ 
++	@Override
++	protected TreeMap<String, Object> getConfiguration() {
++		TreeMap<String, Object> out = new TreeMap<String, Object>();
++		out.put("Header extraction enabled", headerExtractionEnabled);
++		out.put("Row processor", rowProcessor == null ? "none" : rowProcessor.getClass().getName());
++		out.put("Column reordering enabled", columnReorderingEnabled);
++		out.put("Input buffer size", inputBufferSize);
++		out.put("Input reading on separate thread", readInputOnSeparateThread);
++		out.put("Number of records to read", numberOfRecordsToRead == -1 ? "all" : numberOfRecordsToRead);
++		out.put("Line separator detection enabled", lineSeparatorDetectionEnabled);
++
++		addConfiguration(out);
++		return out;
++	}
++
++	protected void addConfiguration(Map<String, Object> out) {
++	}
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/CommonSettings.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/CommonSettings.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/CommonSettings.java	2025-12-24 04:38:18.478181796 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/CommonSettings.java	2025-12-24 04:34:08.762365497 +1100
+@@ -15,6 +15,9 @@
+  ******************************************************************************/
+ package com.univocity.parsers.common;
+ 
++import java.util.*;
++import java.util.Map.Entry;
++
+ import com.univocity.parsers.common.fields.*;
+ 
+ /**
+@@ -294,4 +297,34 @@
+ 	 *
+ 	 */
+ 	protected abstract F createDefaultFormat();
++
++	@Override
++	public final String toString() {
++		StringBuilder out = new StringBuilder();
++
++		out.append(getClass().getSimpleName()).append(':');
++
++		TreeMap<String, Object> config = getConfiguration();
++		config.put("Null value=", nullValue);
++		config.put("Maximum number of characters per column=", maxCharsPerColumn);
++		config.put("Maximum number of columns=", maxColumns);
++		config.put("Skip empty lines=", skipEmptyLines);
++		config.put("Ignore trailing whitespaces=", ignoreTrailingWhitespaces);
++		config.put("Ignore leading whitespaces=", ignoreLeadingWhitespaces);
++		config.put("Selected fields=", fieldSelector == null ? "none" : fieldSelector.describe());
++		config.put("Headers=", Arrays.toString(headers));
++
++		for (Entry<String, Object> e : getConfiguration().entrySet()) {
++			out.append("\n\t");
++			out.append(e.getKey()).append('=').append(e.getValue());
++		}
++
++		out.append("Format configuration:\n\t").append(getFormat().toString());
++
++		return out.toString();
++	}
++
++	protected TreeMap<String, Object> getConfiguration() {
++		return new TreeMap<String, Object>();
++	}
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/CommonWriterSettings.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/CommonWriterSettings.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/CommonWriterSettings.java	2025-12-24 04:38:18.478181796 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/CommonWriterSettings.java	2025-12-24 04:34:08.762365497 +1100
+@@ -15,6 +15,8 @@
+  ******************************************************************************/
+ package com.univocity.parsers.common;
+ 
++import java.util.*;
++
+ import com.univocity.parsers.common.processor.*;
+ 
+ /**
+@@ -84,4 +86,16 @@
+ 	public void setRowWriterProcessor(RowWriterProcessor<?> rowWriterProcessor) {
+ 		this.rowWriterProcessor = rowWriterProcessor;
+ 	}
++
++	@Override
++	protected TreeMap<String, Object> getConfiguration() {
++		TreeMap<String, Object> out = new TreeMap<String, Object>();
++		out.put("Empty value", emptyValue);
++		out.put("Row processor", rowWriterProcessor == null ? "none" : rowWriterProcessor.getClass().getName());
++		addConfiguration(out);
++		return out;
++	}
++
++	protected void addConfiguration(Map<String, Object> out) {
++	}
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/FieldSet.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/FieldSet.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/fields/FieldSet.java	2025-12-24 04:38:18.478181796 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/fields/FieldSet.java	2025-12-24 04:34:08.762365497 +1100
+@@ -128,4 +128,9 @@
+ 	public String describe() {
+ 		return "field selection: " + fields.toString();
+ 	}
++
++	@Override
++	public String toString() {
++		return fields.toString();
++	}
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/Format.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/Format.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/Format.java	2025-12-24 04:38:18.478181796 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/Format.java	2025-12-24 04:34:08.762365497 +1100
+@@ -15,6 +15,9 @@
+  ******************************************************************************/
+ package com.univocity.parsers.common;
+ 
++import java.util.Map.Entry;
++import java.util.*;
++
+ /**
+  * This is the parent class for all configuration classes that define a text format.
+  *
+@@ -164,4 +167,55 @@
+ 	public boolean isComment(char ch) {
+ 		return this.comment == ch;
+ 	}
++
++	private String getFormattedValue(Object value) {
++		if (value instanceof Character) {
++			char ch = (Character) value;
++			switch (ch) {
++				case '\n':
++					return "\\n";
++				case '\r':
++					return "\\r";
++				case '\t':
++					return "\\t";
++				case '\0':
++					return "\\0";
++				default:
++					return value.toString();
++			}
++		}
++		if (value instanceof String) {
++			String s = (String) value;
++			StringBuilder tmp = new StringBuilder();
++			for (int i = 0; i < s.length(); i++) {
++				tmp.append(getFormattedValue(s.charAt(i)));
++			}
++			value = tmp.toString();
++		}
++		if (String.valueOf(value).trim().isEmpty()) {
++			return "'" + value + "'";
++		}
++		return String.valueOf(value);
++	}
++
++	@Override
++	public final String toString() {
++		StringBuilder out = new StringBuilder();
++
++		out.append(getClass().getSimpleName()).append(':');
++
++		TreeMap<String, Object> config = getConfiguration();
++		config.put("Comment character", comment);
++		config.put("Line separator sequence", lineSeparatorString);
++		config.put("Line separator (normalized)", normalizedNewline);
++
++		for (Entry<String, Object> e : config.entrySet()) {
++			out.append("\n\t\t");
++			out.append(e.getKey()).append('=').append(getFormattedValue(e.getValue()));
++		}
++
++		return out.toString();
++	}
++
++	protected abstract TreeMap<String, Object> getConfiguration();
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvFormat.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvFormat.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvFormat.java	2025-12-24 04:38:18.482181793 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvFormat.java	2025-12-24 04:34:08.766365495 +1100
+@@ -15,6 +15,8 @@
+  ******************************************************************************/
+ package com.univocity.parsers.csv;
+ 
++import java.util.*;
++
+ import com.univocity.parsers.common.*;
+ 
+ /**
+@@ -165,4 +167,14 @@
+ 	public final boolean isCharToEscapeQuoteEscaping(char ch) {
+ 		return this.charToEscapeQuoteEscaping != '\0' && this.charToEscapeQuoteEscaping == ch;
+ 	}
++
++	@Override
++	protected TreeMap<String, Object> getConfiguration() {
++		TreeMap<String, Object> out = new TreeMap<String, Object>();
++		out.put("Quote character", quote);
++		out.put("Quote escape character", "quote escape");
++		out.put("Quote escape escape character", charToEscapeQuoteEscaping);
++		out.put("Field delimiter", delimiter);
++		return out;
++	}
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvParserSettings.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvParserSettings.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvParserSettings.java	2025-12-24 04:38:18.486181790 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvParserSettings.java	2025-12-24 04:34:08.766365495 +1100
+@@ -15,6 +15,8 @@
+  ******************************************************************************/
+ package com.univocity.parsers.csv;
+ 
++import java.util.*;
++
+ import com.univocity.parsers.common.*;
+ import com.univocity.parsers.common.input.*;
+ 
+@@ -100,4 +102,9 @@
+ 		this.parseUnescapedQuotes = parseUnescapedQuotes;
+ 	}
+ 
++	@Override
++	protected void addConfiguration(Map<String, Object> out) {
++		out.put("Empty value", emptyValue);
++		out.put("Parse unescaped quotes", parseUnescapedQuotes);
++	}
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvWriterSettings.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvWriterSettings.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/csv/CsvWriterSettings.java	2025-12-24 04:38:18.486181790 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/csv/CsvWriterSettings.java	2025-12-24 04:34:08.766365495 +1100
+@@ -15,6 +15,8 @@
+  ******************************************************************************/
+ package com.univocity.parsers.csv;
+ 
++import java.util.*;
++
+ import com.univocity.parsers.common.*;
+ 
+ /**
+@@ -70,4 +72,8 @@
+ 		return new CsvFormat();
+ 	}
+ 
++	@Override
++	protected void addConfiguration(Map<String, Object> out) {
++		out.put("Quote all fields", quoteAllFields);
++	}
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthFieldLengths.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthFieldLengths.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthFieldLengths.java	2025-12-24 04:38:18.486181790 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthFieldLengths.java	2025-12-24 04:34:08.766365495 +1100
+@@ -154,4 +154,21 @@
+ 		validateLength("at index " + position, newLength);
+ 		fieldLengths.set(position, newLength);
+ 	}
++
++	@Override
++	public String toString() {
++		StringBuilder out = new StringBuilder();
++
++		if (fieldNames.size() == fieldLengths.size()) {
++			int i = 0;
++			for (String name : fieldNames) {
++				out.append("\n\t\t").append(name);
++				out.append("=").append(fieldLengths.get(i++));
++			}
++		} else {
++			out.append(fieldLengths);
++		}
++
++		return out.toString();
++	}
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthFormat.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthFormat.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthFormat.java	2025-12-24 04:38:18.486181790 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthFormat.java	2025-12-24 04:34:08.766365495 +1100
+@@ -15,6 +15,8 @@
+  ******************************************************************************/
+ package com.univocity.parsers.fixed;
+ 
++import java.util.*;
++
+ import com.univocity.parsers.common.*;
+ 
+ /**
+@@ -58,4 +60,11 @@
+ 	public boolean isPadding(char padding) {
+ 		return this.padding == padding;
+ 	}
++
++	@Override
++	protected TreeMap<String, Object> getConfiguration() {
++		TreeMap<String, Object> out = new TreeMap<String, Object>();
++		out.put("Padding", padding);
++		return out;
++	}
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthParserSettings.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthParserSettings.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthParserSettings.java	2025-12-24 04:38:18.486181790 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthParserSettings.java	2025-12-24 04:34:08.766365495 +1100
+@@ -15,6 +15,8 @@
+  ******************************************************************************/
+ package com.univocity.parsers.fixed;
+ 
++import java.util.*;
++
+ import com.univocity.parsers.common.*;
+ import com.univocity.parsers.common.input.*;
+ 
+@@ -176,4 +178,10 @@
+ 		return max > minimum ? max : minimum;
+ 	}
+ 
++	@Override
++	protected void addConfiguration(Map<String, Object> out) {
++		out.put("Skip trailing characters until new line", skipTrailingCharsUntilNewline);
++		out.put("Record ends on new line", recordEndsOnNewline);
++		out.put("Field lengths", fieldLengths.toString());
++	}
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthWriterSettings.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthWriterSettings.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/fixed/FixedWidthWriterSettings.java	2025-12-24 04:38:18.486181790 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/fixed/FixedWidthWriterSettings.java	2025-12-24 04:34:08.770365492 +1100
+@@ -15,6 +15,8 @@
+  ******************************************************************************/
+ package com.univocity.parsers.fixed;
+ 
++import java.util.*;
++
+ import com.univocity.parsers.common.*;
+ 
+ /**
+@@ -69,4 +71,9 @@
+ 	protected FixedWidthFormat createDefaultFormat() {
+ 		return new FixedWidthFormat();
+ 	}
++
++	@Override
++	protected void addConfiguration(Map<String, Object> out) {
++		out.put("Field lengths", fieldLengths);
++	}
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/tsv/TsvFormat.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/tsv/TsvFormat.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/tsv/TsvFormat.java	2025-12-24 04:38:18.486181790 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/tsv/TsvFormat.java	2025-12-24 04:34:08.770365492 +1100
+@@ -15,6 +15,8 @@
+  ******************************************************************************/
+ package com.univocity.parsers.tsv;
+ 
++import java.util.*;
++
+ import com.univocity.parsers.common.*;
+ 
+ /**
+@@ -56,4 +58,11 @@
+ 	public boolean isEscapeChar(char ch) {
+ 		return this.escapeChar == ch;
+ 	}
++
++	@Override
++	protected TreeMap<String, Object> getConfiguration() {
++		TreeMap<String, Object> out = new TreeMap<String, Object>();
++		out.put("Escape character", escapeChar);
++		return out;
++	}
+ }
+\ No newline at end of file
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/tsv/TsvParserSettings.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/tsv/TsvParserSettings.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/tsv/TsvParserSettings.java	2025-12-24 04:38:18.486181790 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/tsv/TsvParserSettings.java	2025-12-24 04:34:08.770365492 +1100
+@@ -15,6 +15,8 @@
+  ******************************************************************************/
+ package com.univocity.parsers.tsv;
+ 
++import java.util.*;
++
+ import com.univocity.parsers.common.*;
+ 
+ /**
+@@ -39,4 +41,9 @@
+ 	protected TsvFormat createDefaultFormat() {
+ 		return new TsvFormat();
+ 	}
++
++	@Override
++	protected void addConfiguration(Map<String, Object> out) {
++
++	}
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/tsv/TsvWriterSettings.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/tsv/TsvWriterSettings.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/tsv/TsvWriterSettings.java	2025-12-24 04:38:18.486181790 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/tsv/TsvWriterSettings.java	2025-12-24 04:34:08.770365492 +1100
+@@ -15,6 +15,8 @@
+  ******************************************************************************/
+ package com.univocity.parsers.tsv;
+ 
++import java.util.*;
++
+ import com.univocity.parsers.common.*;
+ 
+ /**
+@@ -40,4 +42,8 @@
+ 		return new TsvFormat();
+ 	}
+ 
++	@Override
++	protected void addConfiguration(Map<String, Object> out) {
++	}
++
+ }

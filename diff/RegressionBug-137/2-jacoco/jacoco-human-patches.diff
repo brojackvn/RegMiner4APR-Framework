@@ -1,0 +1,15 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/AbstractParser.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/AbstractParser.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/AbstractParser.java	2025-12-27 05:57:21.005933259 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/AbstractParser.java	2025-12-27 05:54:33.558035024 +1100
+@@ -99,7 +99,11 @@
+ 				comments.put(line, lastComment);
+ 			}
+ 		} else {
+-			input.skipLines(1);
++			try {
++				input.skipLines(1);
++			} catch(IllegalArgumentException e){
++			}
+ 		}
+ 	}
+ 

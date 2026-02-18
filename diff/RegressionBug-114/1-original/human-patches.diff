@@ -1,0 +1,16 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/compress/archivers/tar/TarUtils.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/compress/archivers/tar/TarUtils.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/compress/archivers/tar/TarUtils.java	2025-12-17 14:13:39.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/compress/archivers/tar/TarUtils.java	2025-12-17 14:13:31.000000000 +1100
+@@ -132,11 +132,6 @@
+ 
+         for ( ;start < end; start++) {
+             final byte currentByte = buffer[start];
+-            if (currentByte == 0) {
+-                // some archivers don't pad the whole field but just insert a NUL
+-                // COMPRESS-301
+-                break;
+-            }
+             // CheckStyle:MagicNumber OFF
+             if (currentByte < '0' || currentByte > '7'){
+                 throw new IllegalArgumentException(

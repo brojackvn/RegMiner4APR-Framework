@@ -1,0 +1,18 @@
+Only in ./RegMiner4APR-Regression-Bugs//BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs//BUGGY/src/main/java/org/archive/url/BasicURLCanonicalizer.java ./RegMiner4APR-Regression-Bugs//BFC/src/main/java/org/archive/url/BasicURLCanonicalizer.java
+--- ./RegMiner4APR-Regression-Bugs//BUGGY/src/main/java/org/archive/url/BasicURLCanonicalizer.java	2025-12-11 05:20:30.672682539 +1100
++++ ./RegMiner4APR-Regression-Bugs//BFC/src/main/java/org/archive/url/BasicURLCanonicalizer.java	2025-12-11 05:13:58.700394950 +1100
+@@ -88,11 +88,11 @@
+ 		}
+ 		int start = 0, end = host.length();
+ 		boolean changed = false;
+-		while (host.charAt(start) == '.') {
++		while (start < end && host.charAt(start) == '.') {
+ 			start++;
+ 			changed = true;
+ 		}
+-		while (host.charAt(end - 1) == '.') {
++		while (end > start && host.charAt(end - 1) == '.') {
+ 			end--;
+ 			changed = true;
+ 		}

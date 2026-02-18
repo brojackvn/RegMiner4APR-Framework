@@ -1,0 +1,107 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/google/code/regexp/Matcher.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/google/code/regexp/Matcher.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/google/code/regexp/Matcher.java	2025-12-11 22:19:27.663118759 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/google/code/regexp/Matcher.java	2025-12-11 22:18:54.163094509 +1100
+@@ -272,14 +272,20 @@
+      * @return a map of the group named and matched values
+      * (empty if no match found)
+      */
+-    public Map<String, String> namedGroups() {
+-        Map<String, String> result = new LinkedHashMap<String, String>();
++    public List<Map<String, String>> namedGroups() {
++        List<Map<String, String>> result = new ArrayList<Map<String, String>>();
++
++        int nextIndex = 0;
++        while (matcher.find(nextIndex)) {
++            Map<String, String> matches = new LinkedHashMap<String, String>();
+ 
+-        if (matcher.find(0)) {
+             for (String groupName : parentPattern.groupNames()) {
+                 String groupValue = matcher.group(groupIndex(groupName));
+-                result.put(groupName, groupValue);
++                matches.put(groupName, groupValue);
++                nextIndex = matcher.end();
+             }
++
++            result.add(matches);
+         }
+         return result;
+     }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/google/code/regexp/MatchResult.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/google/code/regexp/MatchResult.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/google/code/regexp/MatchResult.java	2025-12-11 22:19:27.663118759 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/google/code/regexp/MatchResult.java	2025-12-11 22:18:54.163094509 +1100
+@@ -41,7 +41,7 @@
+      *
+      * @return the named capture groups
+      */
+-    public Map<String, String> namedGroups();
++    public List<Map<String, String>> namedGroups();
+ 
+     /**
+      * Returns the input subsequence captured by the given group during the
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/google/code/regexp/MatcherTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/google/code/regexp/MatcherTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/google/code/regexp/MatcherTest.java	2025-12-11 22:19:27.663118759 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/google/code/regexp/MatcherTest.java	2025-12-11 22:18:54.163094509 +1100
+@@ -302,7 +302,10 @@
+         Pattern p = Pattern.compile("(a)(?<foo>b)(?:c)(?<bar>d(?<named>x))");
+         Matcher m = p.matcher("abcdxyz");
+ 
+-        Map<String, String> map = m.namedGroups();
++        List<Map<String, String>> list = m.namedGroups();
++        assertEquals(1, list.size());
++
++        Map<String, String> map = list.get(0);
+         assertEquals(3, map.size());
+         assertEquals("b", map.get("foo"));
+         assertEquals("dx", map.get("bar"));
+@@ -314,8 +317,8 @@
+         Pattern p = Pattern.compile("(a)(?<foo>b)(?:c)(?<bar>d(?<named>x))");
+         Matcher m = p.matcher("nada");
+ 
+-        Map<String, String> map = m.namedGroups();
+-        assertEquals(0, map.size());
++        List<Map<String, String>> list = m.namedGroups();
++        assertEquals(0, list.size());
+     }
+ 
+     @Test
+@@ -715,4 +718,40 @@
+         assertTrue(m.find());
+         assertEquals("123", m.group("named"));
+     }
++
++    @Test
++    public void testNamedGroupsGetsAllMatchesInSingleGroup() {
++        Pattern pattern = Pattern.compile("(?<digit>\\d)(\\w)");
++        Matcher matcher = pattern.matcher("2foo3bar4");
++
++        final List<Map<String, String>> groups = matcher.namedGroups();
++        assertEquals(2, groups.size());
++        assertEquals("2", groups.get(0).get("digit"));
++        assertEquals("3", groups.get(1).get("digit"));
++    }
++
++    @Test
++    public void testNamedGroupsGetsAllMatchesInMultipleGroups() {
++        Pattern pattern = Pattern.compile("(?<dayOfYear>\\d+).(?<dayName>\\w+)");
++        Matcher matcher = pattern.matcher("1 Sunday foo bar 2 Monday foo bar 3 Tuesday foo bar 4 Wednesday foo bar 5 Thursday foo bar 6 Friday foo bar  7 Saturday foo bar 8 Sunday foo bar 9 Monday foo bar 10 Tuesday foo bar ");
++
++        final List<Map<String, String>> groups = matcher.namedGroups();
++        final String[] DAYS = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "Monday", "Tuesday"};
++        assertEquals(DAYS.length, groups.size());
++
++        for (int i = 0; i < DAYS.length; i++) {
++            assertEquals(i + 1 + "", groups.get(i).get("dayOfYear"));
++            assertEquals(DAYS[i], groups.get(i).get("dayName"));
++        }
++    }
++
++    // Specify 1 second timeout to account for potential infinite loop (Issue #9)
++    @Test(timeout=1000)
++    public void testNamedGroupsReturnsEmptyListWhenNoGroupPresent() {
++        Pattern pattern = Pattern.compile("\\d+ no groups");
++        Matcher matcher = pattern.matcher("123 no groups");
++
++        final List<Map<String, String>> groups = matcher.namedGroups();
++        assertTrue(groups.isEmpty());
++    }
+ }

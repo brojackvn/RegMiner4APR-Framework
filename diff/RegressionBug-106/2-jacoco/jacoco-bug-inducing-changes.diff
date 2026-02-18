@@ -1,0 +1,98 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/crawlercommons/domains/EffectiveTldFinder.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/crawlercommons/domains/EffectiveTldFinder.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/crawlercommons/domains/EffectiveTldFinder.java	2025-12-11 23:35:06.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/crawlercommons/domains/EffectiveTldFinder.java	2025-12-11 23:34:54.000000000 +1100
+@@ -308,13 +310,14 @@
+         public EffectiveTLD(String line) {
+             if (line.startsWith(EXCEPTION)) {
+                 exception = true;
+-                domain = line.substring(1, line.length());
++                domain = line.substring(EXCEPTION.length(), line.length());
+             } else if (line.startsWith(WILD_CARD)) {
+                 wild = true;
+-                domain = line.substring(2, line.length());
++                domain = line.substring(WILD_CARD.length(), line.length());
+             } else {
+                 domain = line;
+             }
+
+             domain = normalizeName(domain);
+         }
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/crawlercommons/domains/PaidLevelDomain.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/crawlercommons/domains/PaidLevelDomain.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/crawlercommons/domains/PaidLevelDomain.java	2025-12-11 23:35:06.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/crawlercommons/domains/PaidLevelDomain.java	2025-12-11 23:34:54.000000000 +1100
+@@ -35,19 +31,7 @@
+ public class PaidLevelDomain {
+     private static final Logger LOGGER = LoggerFactory.getLogger(PaidLevelDomain.class);
+ 
+-    private static final String CC_TLDS = "ac ad ae af ag ai al am an ao aq ar as at au aw ax az ba bb bd be bf bg bh bi "
+-                    + "bj bl bm bn bo br bs bt bv bw by bz ca cc cd cf cg ch ci ck cl cm cn co cr cu " + "cv cx cy cz de dj dk dm do dz ec ee eg eh er es et eu fi fj fk fm fo fr ga gb "
+-                    + "gd ge gf gg gh gi gl gm gn gp gq gr gs gt gu gw gy hk hm hn hr ht hu id ie il " + "im in io iq ir is it je jm jo jp ke kg kh ki km kn kp kr kw ky kz la lb lc li "
+-                    + "lk lr ls lt lu lv ly ma mc md me mf mg mh mk ml mm mn mo mp mq mr ms mt mu mv " + "mw mx my mz na nc ne nf ng ni nl no np nr nu nz om pa pe pf pg ph pk pl pm pn "
+-                    + "pr ps pt pw py qa re ro rs ru rw sa sb sc sd se sg sh si sj sk sl sm sn so sr " + "st su sv sy sz tc td tf tg th tj tk tl tm tn to tp tr tt tv tw tz ua ug uk um "
+-                    + "us uy uz va vc ve vg vi vn vu wf ws ye yt yu za zm zw";
+
+-    private static final String G_TLDS = "aero arpa asia biz cat com coop edu gov info int jobs me mil mobi museum name net " + "org pro rs tel";
+
+-    private static final Set<String> ccTLDs = new HashSet<String>(Arrays.asList(CC_TLDS.split(" ")));
+-    private static final Set<String> gTLDs = new HashSet<String>(Arrays.asList(G_TLDS.split(" ")));
+
+-    private static final Pattern IPV4_ADDRESS_PATTERN = Pattern.compile("(?:\\d{1,3}\\.){3}\\d{1,3}");
++    private static final Pattern IPV4_ADDRESS_PATTERN = Pattern.compile("\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}");
+ 
+     /**
+      * Extract the PLD (paid-level domain) from the hostname. If the format
+@@ -64,60 +48,20 @@
+             return hostname;
+         }
+ 
+-        String[] subNames = hostname.split("\\.");
+-        int numPieces = subNames.length;
+-        if (numPieces <= 2) {
+-            return hostname;
+-        }
+
+         // Check for ddd.ddd.ddd.ddd IPv4 format
+-        if ((numPieces == 4) && (IPV4_ADDRESS_PATTERN.matcher(hostname).matches())) {
++        if (IPV4_ADDRESS_PATTERN.matcher(hostname).matches()) {
+             return hostname;
+         }
+ 
+-        int firstHostPiece = 0;
+-        if (ccTLDs.contains(subNames[numPieces - 1].toLowerCase(Locale.ROOT))) {
+-            if (subNames[numPieces - 2].length() <= 2) {
+-                firstHostPiece = numPieces - 3;
+-            } else if (gTLDs.contains(subNames[numPieces - 2].toLowerCase(Locale.ROOT))) {
+-                firstHostPiece = numPieces - 3;
+-            } else {
+-                firstHostPiece = numPieces - 2;
+-            }
+-        } else if (gTLDs.contains(subNames[numPieces - 1].toLowerCase(Locale.ROOT))) {
+-            if (ccTLDs.contains(subNames[numPieces - 2].toLowerCase(Locale.ROOT))) {
+-                firstHostPiece = numPieces - 3;
+-            } else {
+-                firstHostPiece = numPieces - 2;
+-            }
++        String result = EffectiveTldFinder.getAssignedDomain(hostname, true);
++        if (result == null) {
++        	LOGGER.debug(String.format("Hostname %s isn't a valid FQDN", hostname));
++        	return hostname;
+         } else {
+-            LOGGER.debug("Unknown format for hostname: " + hostname);
+-        }
+-
+-        if (firstHostPiece == 0) {
+-            return hostname;
+-        } else {
+-            StringBuilder result = new StringBuilder();
+-            for (int i = firstHostPiece; i < numPieces; i++) {
+-                result.append(subNames[i]);
+-                result.append('.');
+-            }
+-            return result.deleteCharAt(result.length() - 1).toString();
++        	return result;
+         }
+     }
+ 
+     /**
+      * Extract the PLD (paid-level domain) from the URL.

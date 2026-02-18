@@ -1,0 +1,47 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/springframework/hateoas/mvc/ControllerLinkBuilder.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/springframework/hateoas/mvc/ControllerLinkBuilder.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/springframework/hateoas/mvc/ControllerLinkBuilder.java	2025-12-22 19:18:08.553519330 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/springframework/hateoas/mvc/ControllerLinkBuilder.java	2025-12-22 19:16:08.545631245 +1100
+@@ -253,56 +255,29 @@
+ 	 * 
+ 	 * @return
+ 	 */
+ 	static UriComponentsBuilder getBuilder() {
+		HttpServletRequest request = getCurrentRequest();
+-		ServletUriComponentsBuilder builder = ServletUriComponentsBuilder.fromServletMapping(request);
++		UriComponentsBuilder builder = UriComponentsBuilder.fromHttpRequest(new ServletServerHttpRequest(request));
++		String forwardedSsl = request.getHeader("X-Forwarded-Ssl");
+		ForwardedHeader forwarded = ForwardedHeader.of(request.getHeader(ForwardedHeader.NAME));
+		String proto = hasText(forwarded.getProto()) ? forwarded.getProto() : request.getHeader("X-Forwarded-Proto");
+-		String forwardedSsl = request.getHeader("X-Forwarded-Ssl");
+-		if (hasText(proto)) {
+-			builder.scheme(proto);
+-		} else if (hasText(forwardedSsl) && forwardedSsl.equalsIgnoreCase("on")) {
+-			builder.scheme("https");
+-		}
+-		String host = forwarded.getHost();
+-		host = hasText(host) ? host : request.getHeader("X-Forwarded-Host");
+-		if (!hasText(host)) {
+-			return builder;
+-		}
+-		String[] hosts = commaDelimitedListToStringArray(host);
+-		String hostToUse = hosts[0];
+-		if (hostToUse.contains(":")) {
+-			String[] hostAndPort = split(hostToUse, ":");
+-			builder.host(hostAndPort[0]);
+-			builder.port(Integer.parseInt(hostAndPort[1]));
+-		} else {
+-			builder.host(hostToUse);
+-			builder.port(-1);
+-		}
+-		String port = request.getHeader("X-Forwarded-Port");
+-		if (hasText(port)) {
+-			builder.port(Integer.parseInt(port));
+-		}
++		if (!hasText(proto) && hasText(forwardedSsl) && forwardedSsl.equalsIgnoreCase("on")) {
++			builder.scheme("https");
++		}
+
+		return builder;
+ 	}
+ 
+ 	/** 

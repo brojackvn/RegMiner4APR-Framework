@@ -1,0 +1,23 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/fasterxml/jackson/core/JsonLocation.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/fasterxml/jackson/core/JsonLocation.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/fasterxml/jackson/core/JsonLocation.java	2025-12-11 14:57:15.765107406 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/fasterxml/jackson/core/JsonLocation.java	2025-12-11 15:01:12.573293912 +1100
+@@ -151,11 +151,48 @@
++        } else {
++            if (_lineNr > 0) { // yes, require 1-based in case of allegedly binary content
++                sb.append("line: ").append(_lineNr);
++                if (_columnNr > 0) {
++                    sb.append(", column: ");
++                    sb.append(_columnNr);
++                }
++            } else {
++                sb.append("byte offset: #");
++                if (_totalBytes >= 0) {
++                    sb.append(_totalBytes);
++                } else {
++                    sb.append("UNKNOWN");
++                }
++            }
++        }
+         return sb;
+     }
+ 

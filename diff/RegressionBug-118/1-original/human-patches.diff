@@ -1,0 +1,25 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY/gson: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/gson/src/main/java/com/google/gson/internal/bind/JsonAdapterAnnotationTypeAdapterFactory.java ./RegMiner4APR-Regression-Bugs/BFC/gson/src/main/java/com/google/gson/internal/bind/JsonAdapterAnnotationTypeAdapterFactory.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/gson/src/main/java/com/google/gson/internal/bind/JsonAdapterAnnotationTypeAdapterFactory.java	2025-12-19 16:25:03.807283712 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/gson/src/main/java/com/google/gson/internal/bind/JsonAdapterAnnotationTypeAdapterFactory.java	2025-12-19 15:40:15.340679699 +1100
+@@ -51,7 +51,7 @@
+   static TypeAdapter<?> getTypeAdapter(ConstructorConstructor constructorConstructor, Gson gson,
+       TypeToken<?> fieldType, JsonAdapter annotation) {
+     Class<?> value = annotation.value();
+-    final TypeAdapter<?> typeAdapter;
++    TypeAdapter<?> typeAdapter;
+     if (TypeAdapter.class.isAssignableFrom(value)) {
+       Class<TypeAdapter<?>> typeAdapterClass = (Class<TypeAdapter<?>>) value;
+       typeAdapter = constructorConstructor.get(TypeToken.get(typeAdapterClass)).construct();
+@@ -64,7 +64,9 @@
+       throw new IllegalArgumentException(
+           "@JsonAdapter value must be TypeAdapter or TypeAdapterFactory reference.");
+     }
+-
+-    return typeAdapter.nullSafe();
++    if (typeAdapter != null) {
++      typeAdapter = typeAdapter.nullSafe();
++    }
++    return typeAdapter;
+   }
+ }

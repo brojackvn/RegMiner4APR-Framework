@@ -1,0 +1,15 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/jscover/instrument/NodeProcessor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/jscover/instrument/NodeProcessor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/jscover/instrument/NodeProcessor.java	2025-12-26 03:59:31.115488239 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/jscover/instrument/NodeProcessor.java	2025-12-24 19:27:15.164079559 +1100
+@@ -441,6 +441,11 @@
+             LabeledStatement labeledStatement = (LabeledStatement)node;
+             ExpressionStatement newChild = buildInstrumentationStatement(labeledStatement.getLineno());
+             parent.addChildBefore(newChild, node);
++            if (labeledStatement.getStatement().getType() != Token.BLOCK) {
++                Block block = new Block();
++                block.addStatement(labeledStatement.getStatement());
++                labeledStatement.setStatement(block);
++            }
+         } else if (node instanceof IfStatement) {
+             addInstrumentationBefore(node);
+         }

@@ -1,0 +1,19 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java	2025-12-22 03:00:59.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java	2025-12-22 03:00:58.000000000 +1100
+@@ -1126,8 +1126,12 @@
+         main:
+         for (int c = 0; c < numChildren; c++) {
+             objectNode = node.jjtGetChild(c);
+-            if (objectNode instanceof ASTMethodNode && object == null) {
+-                break;
++            if (objectNode instanceof ASTMethodNode) {
++                if (object == null) {
++                    break;
++                } else {
++                    antish = false;
++                }
+             }
+             // attempt to evaluate the property within the object (visit(ASTIdentifierAccess node))
+             object = objectNode.jjtAccept(this, object);
+s

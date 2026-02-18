@@ -1,0 +1,243 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/AbstractWriter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/AbstractWriter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/AbstractWriter.java	2025-12-27 05:29:51.290936387 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/AbstractWriter.java	2025-12-27 05:28:09.354998436 +1100
+@@ -232,7 +232,8 @@
+ 			if (headers != null && headers.length > 0) {
+ 				indexesToWrite = selector.getFieldIndexes(headers);
+ 				if (columnReorderingEnabled) { //column reordering enabled?
+-					outputRow = new Object[indexesToWrite.length];
++					int size = ArgumentUtils.removeAll(indexesToWrite, -1).length;
++					outputRow = new Object[size];
+ 				} else {
+ 					outputRow = new Object[headers.length];
+ 				}
+@@ -257,13 +258,16 @@
+ 				}
+ 				indexesToWrite = selector.getFieldIndexes(new NormalizedString[rowLength]); //generates a dummy header array - only the indexes matter so we are good
+ 				if (columnReorderingEnabled) { //column reordering enabled?
+-					outputRow = new Object[indexesToWrite.length];
++					int size = ArgumentUtils.removeAll(indexesToWrite, -1).length;
++					outputRow = new Object[size];
+ 				} else {
+ 					outputRow = new Object[rowLength];
+ 				}
+ 			} else {
+ 				throw new IllegalStateException("Cannot select fields by name with no headers defined");
+ 			}
+
++			indexesToWrite = ArgumentUtils.removeAll(indexesToWrite, -1);
+ 		} else {
+ 			outputRow = null;
+ 			indexesToWrite = null;
+@@ -488,9 +492,22 @@
+	 *
+	 * @param records the records to transformed by a {@link RowWriterProcessor} and then written to the output
+	 */
++	public final <T extends Record> void processRecords(T[] records) {
++		for (T record : records) {
++			processRecord(record);
++		}
++	}
+
+	/**
+ 	 * Processes the data given for an individual record with the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}, then writes it.
+@@ -498,11 +515,15 @@
+ 		processRecord((Object) record);
+ 	}
+ 
++	public final <T extends Record> void processRecord(T record) {
++		processRecord((Object) (record == null ? null : record.getValues()));
++	}
+ 
+ 	/**
+ 	 * Processes the data given for an individual record with the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}, then writes it.
+@@ -592,7 +613,22 @@
+	 *
+	 * @param allRows the rows to be written to the output
+	 */
++	public final void writeRecordsAndClose(Collection<? extends Record> allRows) {
++		try {
++			writeRecords(allRows);
++		} finally {
++			close();
++		}
++	}
+
+	/**
+	 * Iterates over all records, writes them and closes the output.
+@@ -646,8 +682,21 @@
+	 *
+	 * @param rows the rows to be written to the output
+	 */
++	public final void writeRecords(Collection<? extends Record> rows) {
++		for (Record row : rows) {
++			writeRecord(row);
++		}
++	}
+
+	/**
+	 * Iterates over all records and writes them to the output.
+@@ -699,14 +748,42 @@
+	 *
+	 * @param row the information of a single record to be written to the output
+	 */
++	public final <T extends Record> void writeRecord(T row) {
++		if (row == null) {
++			if (skipEmptyLines) {
++				return;
++			} else {
++				writeEmptyRow();
++				return;
++			}
++		}
++		if (recordCount == 0 && isHeaderWritingEnabled && headers == null) {
++			String[] headers = row.getMetaData().headers();
++			if (headers != null) {
++				this.headers = NormalizedString.toArray(headers);
++			}
++		}
++		writeRow((Object[]) row.getValues());
++	}
+ 
+ 	/**
+ 	 * Writes the data given for an individual record.
+@@ -806,23 +883,29 @@
+ 	 */
+ 	private <T> void fillOutputRow(T[] row) {
+ 		if (columnReorderingEnabled) {
+-			for (int i = 0; i < indexesToWrite.length; i++) {
+-				if (indexesToWrite[i] < row.length) {
+-					outputRow[i] = row[indexesToWrite[i]];
+-				} else {
+-					outputRow[i] = null;
++			if (row.length > indexesToWrite.length) {
++				for (int i = 0; i < indexesToWrite.length; i++) {
++					outputRow[indexesToWrite[i]] = row[indexesToWrite[i]];
++				}
++			} else {
++				for (int i = 0, j = 0; i < indexesToWrite.length && j < outputRow.length; i++) {
++					outputRow[j++] = row[indexesToWrite[i]];
+ 				}
+ 			}
+ 		} else {
+ 			if (row.length > outputRow.length) {
+-				outputRow = row;
+-			} else if (row.length > indexesToWrite.length) {
++				outputRow = Arrays.copyOf(outputRow, row.length);
++			}
++			if (row.length > indexesToWrite.length) {
+ 				for (int i = 0; i < indexesToWrite.length; i++) {
+ 					outputRow[indexesToWrite[i]] = row[indexesToWrite[i]];
+ 				}
+ 			} else {
+ 				for (int i = 0; i < indexesToWrite.length && i < row.length; i++) {
+-					outputRow[indexesToWrite[i]] = row[i];
++					if (indexesToWrite[i] != -1) {
++						outputRow[indexesToWrite[i]] = row[i];
++					}
+ 				}
+ 			}
+ 		}
+@@ -1244,12 +1319,22 @@
+ 	 * @param record the information of a single record to be transformed by a {@link RowWriterProcessor} and then written to a {@code String}.
+	 * @return a formatted {@code String} containing the information transformed from the given record
+	 */
++	public final <T extends Record> String processRecordToString(T record) {
++		return processRecordToString((Object) (record == null ? null : record.getValues()));
++	}
+
+	/**
+	 * Processes the data given for an individual record with the {@link RowWriterProcessor} provided by {@link CommonWriterSettings#getRowWriterProcessor()}, then writes it.
+@@ -1378,11 +1458,29 @@
+	 * @param rows the rows to be written to a {@code List} of {@code String}.
+	 * @return a {@code List} containing the given rows as formatted {@code String}s
+	 */
++	public final List<String> writeRecordsToString(Collection<? extends Record> rows) {
++		try {
++			List<String> out = new ArrayList<String>(rows.size());
++			for (Record row : rows) {
++				out.add(writeRecordToString(row));
++			}
++			return out;
++		} catch (Throwable t) {
++			throw throwExceptionAndClose("Error writing input rows", t);
++		}
++	}
+
+	/**
+ 	 * Writes the data given for an individual record to a {@code String}.
+@@ -1412,12 +1509,24 @@
+ 	 * @param row the information of a single record to be written to a {@code String}.
+	 * @return a formatted {@code String} containing the information of the given record
+	 */
++	public final <T extends Record> String writeRecordToString(T row) {
++		return writeRowToString((Object[]) (row == null ? null : row.getValues()));
++	}
+
+	/**
+	 * Writes the data given for an individual record to a {@code String}.
+@@ -1830,6 +1933,29 @@
+ 	 * @return a {@code List} of formatted {@code String}, each {@code String} representing one successful iteration over at least one
+ 	 * element of the iterators in the map.
+ 	 */
++	public final <K> List<String> writeRecordsToString(Map<K, String> headerMapping, Map<K, ? extends Record> rowData) {
++		List<String> writtenRows = new ArrayList<String>();
++		writeRows(headerMapping, wrapRecordValues(rowData), writtenRows, false);
++		return writtenRows;
++	}
+
+ 	/**
+ 	 * Writes the values of a given map to multiple output records
+ 	 *
+@@ -1849,6 +1975,24 @@
+	 * @param rowData       the map whose values will be used to generate a number of output records
+	 * @param <K>           the key type
+	 */
++	public final <K> void writeRecords(Map<K, String> headerMapping, Map<K, ? extends Record> rowData) {
++		writeRows(headerMapping, wrapRecordValues(rowData), null, false);
++	}
+
+	/**
+ 	 * Writes the values of a given map to a {@code List} of {@code String} formatted to according to the specified output format.
+@@ -1913,6 +2056,18 @@
+ 		return out;
+ 	}
+ 
++	private <K> Map<K, Iterable<String>> wrapRecordValues(Map<K, ? extends Record> rowData) {
++		Map<K, Iterable<String>> out = new LinkedHashMap<K, Iterable<String>>(rowData.size());
++		for (Map.Entry<K, ? extends Record> e : rowData.entrySet()) {
++			if (e.getValue() == null) {
++				out.put(e.getKey(), Collections.<String>emptyList());
++			} else {
++				out.put(e.getKey(), Arrays.asList(e.getValue().getValues()));
++			}
++		}
++		return out;
++	}
+ 
+ 	/**
+ 	 * Writes the values of a given map to multiple output records and closes the output when finished.
+@@ -1966,7 +2121,29 @@
+	 * @param rowData       the map whose values will be used to generate a number of output records
+	 * @param <K>           the key type
+	 */
++	public final <K> void writeRecordsAndClose(Map<K, String> headerMapping, Map<K, ? extends Record> rowData) {
++		try {
++			writeRecords(headerMapping, rowData);
++		} finally {
++			close();
++		}
++	}
+
+	/**
+	 * Writes the values of a given map to multiple output records and closes the output when finished.
+@@ -2000,7 +2177,24 @@
+	 * @param rowData the map whose values will be used to generate a number of output records
+	 * @param <K>     the key type
+	 */
++	public final <K> void writeRecordsAndClose(Map<K, ? extends Record> rowData) {
++		writeRecordsAndClose(null, rowData);
++	}
+ 
+ 	/**
+ 	 * Writes the values of a given map to multiple output records and closes the output when finished.

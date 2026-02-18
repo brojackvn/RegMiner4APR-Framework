@@ -1,0 +1,71 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/parser/CharacterReader.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/parser/CharacterReader.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/parser/CharacterReader.java	2025-12-14 15:53:30.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/parser/CharacterReader.java	2025-12-14 15:53:29.000000000 +1100
+@@ -46,12 +46,18 @@
+ 
+     private boolean readFully; // if the underlying stream has been completely read, no value in further buffering
+     private void bufferUp() {
+-        if (readFully)
++        if (readFully || bufPos < bufSplitPoint)
+             return;
+ 
+-        final int pos = bufPos;
+-        if (pos < bufSplitPoint)
+-            return;
++        final int pos;
++        final int offset;
++        if (bufMark != -1) {
++            pos = bufMark;
++            offset = bufPos - bufMark;
++        } else {
++            pos = bufPos;
++            offset = 0;
++        }
+ 
+         try {
+             final long skipped = reader.skip(pos);
+@@ -70,8 +76,9 @@
+                 Validate.isTrue(skipped == pos); // Previously asserted that there is room in buf to skip, so this will be a WTF
+                 bufLength = read;
+                 readerPos += pos;
+-                bufPos = 0;
+-                bufMark = -1;
++                bufPos = offset;
++                if (bufMark != -1)
++                    bufMark = 0;
+                 bufSplitPoint = bufLength > readAheadLimit ? readAheadLimit : bufLength;
+             }
+         } catch (IOException e) {
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/parser/Token.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/parser/Token.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/parser/Token.java	2025-12-14 15:53:30.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/parser/Token.java	2025-12-14 15:53:29.000000000 +1100
+@@ -252,7 +252,7 @@
+ 
+         @Override
+         public String toString() {
+-            return "</" + name() + ">";
++            return "</" + (tagName != null ? tagName : "(unset)") + ">";
+         }
+     }
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/jsoup/parser/CharacterReaderTest.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/jsoup/parser/CharacterReaderTest.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/jsoup/parser/CharacterReaderTest.java	2025-12-14 15:53:30.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/jsoup/parser/CharacterReaderTest.java	2025-12-14 15:53:29.000000000 +1100
+@@ -5,9 +5,7 @@
+ import java.io.BufferedReader;
+ import java.io.StringReader;
+ 
+-import static org.junit.Assert.assertEquals;
+-import static org.junit.Assert.assertFalse;
+-import static org.junit.Assert.assertTrue;
++import static org.junit.Assert.*;
+ 
+ /**
+  * Test suite for character reader.
+@@ -338,5 +336,4 @@
+         assertTrue(r.isEmpty());
+     }
+ 
+-
+ }

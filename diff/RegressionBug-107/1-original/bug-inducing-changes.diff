@@ -1,0 +1,416 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Element.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Element.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Element.java	2025-12-14 13:54:35.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Element.java	2025-12-14 13:53:55.000000000 +1100
+@@ -364,6 +364,17 @@
+     }
+ 
+     /**
++     * Find the first Element that matches the {@link Selector} CSS query, with this element as the starting context.
++     * <p>This is effectively the same as calling {@code element.select(query).first()}, but is more efficient as query
++     * execution stops on the first hit.</p>
++     * @param cssQuery cssQuery a {@link Selector} CSS-like query
++     * @return the first matching element, or <b>{@code null}</b> if there is no match.
++     */
++    public Element selectFirst(String cssQuery) {
++        return Selector.selectFirst(cssQuery, this);
++    }
++
++    /**
+      * Check if this element matches the given {@link Selector} CSS query.
+      * @param cssQuery a {@link Selector} CSS query
+      * @return if this element matches the query
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/select/Collector.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/select/Collector.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/select/Collector.java	2025-12-14 13:54:35.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/select/Collector.java	2025-12-14 13:53:55.000000000 +1100
+@@ -3,6 +3,9 @@
+ import org.jsoup.nodes.Element;
+ import org.jsoup.nodes.Node;
+ 
++import static org.jsoup.select.NodeFilter.FilterResult.CONTINUE;
++import static org.jsoup.select.NodeFilter.FilterResult.STOP;
++
+ /**
+  * Collects a list of elements that match the supplied criteria.
+  *
+@@ -48,4 +51,39 @@
+             // void
+         }
+     }
++
++    public static Element findFirst(Evaluator eval, Element root) {
++        FirstFinder finder = new FirstFinder(root, eval);
++        NodeTraversor.filter(finder, root);
++        return finder.match;
++    }
++
++    private static class FirstFinder implements NodeFilter {
++        private final Element root;
++        private Element match = null;
++        private final Evaluator eval;
++
++        FirstFinder(Element root, Evaluator eval) {
++            this.root = root;
++            this.eval = eval;
++        }
++
++        @Override
++        public FilterResult head(Node node, int depth) {
++            if (node instanceof Element) {
++                Element el = (Element) node;
++                if (eval.matches(root, el)) {
++                    match = el;
++                    return STOP;
++                }
++            }
++            return CONTINUE;
++        }
++
++        @Override
++        public FilterResult tail(Node node, int depth) {
++            return CONTINUE;
++        }
++    }
++
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/select/CombiningEvaluator.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/select/CombiningEvaluator.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/select/CombiningEvaluator.java	2025-12-14 13:54:35.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/select/CombiningEvaluator.java	2025-12-14 13:53:55.000000000 +1100
+@@ -100,7 +100,7 @@
+ 
+         @Override
+         public String toString() {
+-            return String.format(":or%s", evaluators);
++            return StringUtil.join(evaluators, ", ");
+         }
+     }
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/select/Selector.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/select/Selector.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/select/Selector.java	2025-12-14 13:54:35.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/select/Selector.java	2025-12-14 13:53:55.000000000 +1100
+@@ -9,7 +9,7 @@
+ 
+ /**
+  * CSS-like element selector, that finds elements matching a query.
+- * 
++ *
+  * <h2>Selector syntax</h2>
+  * <p>
+  * A selector is a chain of simple selectors, separated by combinators. Selectors are <b>case insensitive</b> (including against
+@@ -69,32 +69,13 @@
+  * <tr><td><code>:only-of-type</code></td><td> an element that has a parent element and whose parent element has no other element children with the same expanded element name</td><td></td></tr>
+  * <tr><td><code>:empty</code></td><td>elements that have no children at all</td><td></td></tr>
+  * </table>
+- * 
++ *
+  * @author Jonathan Hedley, jonathan@hedley.net
+  * @see Element#select(String)
+  */
+ public class Selector {
+-    private final Evaluator evaluator;
+-    private final Element root;
+-
+-    private Selector(String query, Element root) {
+-        Validate.notNull(query);
+-        query = query.trim();
+-        Validate.notEmpty(query);
+-        Validate.notNull(root);
+-
+-        this.evaluator = QueryParser.parse(query);
+-
+-        this.root = root;
+-    }
+-
+-    private Selector(Evaluator evaluator, Element root) {
+-        Validate.notNull(evaluator);
+-        Validate.notNull(root);
+-
+-        this.evaluator = evaluator;
+-        this.root = root;
+-    }
++    // not instantiable
++    private Selector() {}
+ 
+     /**
+      * Find elements matching selector.
+@@ -105,7 +86,8 @@
+      * @throws Selector.SelectorParseException (unchecked) on an invalid CSS query.
+      */
+     public static Elements select(String query, Element root) {
+-        return new Selector(query, root).select();
++        Validate.notEmpty(query);
++        return select(QueryParser.parse(query), root);
+     }
+ 
+     /**
+@@ -116,7 +98,9 @@
+      * @return matching elements, empty if none
+      */
+     public static Elements select(Evaluator evaluator, Element root) {
+-        return new Selector(evaluator, root).select();
++        Validate.notNull(evaluator);
++        Validate.notNull(root);
++        return Collector.collect(evaluator, root);
+     }
+ 
+     /**
+@@ -146,10 +130,6 @@
+         return new Elements(elements);
+     }
+ 
+-    private Elements select() {
+-        return Collector.collect(evaluator, root);
+-    }
+-
+     // exclude set. package open so that Elements can implement .not() selector.
+     static Elements filterOut(Collection<Element> elements, Collection<Element> outs) {
+         Elements output = new Elements();
+@@ -167,6 +147,17 @@
+         return output;
+     }
+ 
++    /**
++     * Find the first element that matches the query.
++     * @param cssQuery CSS selector
++     * @param root root element to descend into
++     * @return the matching element, or <b>null</b> if none.
++     */
++    public static Element selectFirst(String cssQuery, Element root) {
++        Validate.notEmpty(cssQuery);
++        return Collector.findFirst(QueryParser.parse(cssQuery), root);
++    }
++
+     public static class SelectorParseException extends IllegalStateException {
+         public SelectorParseException(String msg, Object... params) {
+             super(String.format(msg, params));
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/jsoup/select/SelectorTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/jsoup/select/SelectorTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/jsoup/select/SelectorTest.java	2025-12-14 13:54:35.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/jsoup/select/SelectorTest.java	2025-12-14 13:54:04.000000000 +1100
+@@ -1,10 +1,11 @@
+ package org.jsoup.select;
+ 
++import org.jsoup.Jsoup;
+ import org.jsoup.MultiLocaleRule;
+ import org.jsoup.MultiLocaleRule.MultiLocaleTest;
+-import org.jsoup.Jsoup;
+ import org.jsoup.nodes.Document;
+ import org.jsoup.nodes.Element;
++import org.jsoup.parser.Parser;
+ import org.junit.Rule;
+ import org.junit.Test;
+ 
+@@ -18,12 +19,6 @@
+ public class SelectorTest {
+     @Rule public MultiLocaleRule rule = new MultiLocaleRule();
+ 
+-@Test public void trimSelector(){
+-  Document doc=Jsoup.parse("<p><span>Hello");
+-  Elements els=doc.select(" p span ");
+-  assertEquals(1,els.size());
+-  assertEquals("Hello",els.first().text());
+-}
+     @Test public void testByTag() {
+         // should be case insensitive
+         Elements els = Jsoup.parse("<div id=1><div id=2><p>Hello</p></div></div><DIV id=3>").select("DIV");
+@@ -152,6 +147,46 @@
+         assertEquals("2", byContains.last().id());
+     }
+ 
++    @Test public void testWildcardNamespacedXmlTag() {
++        Document doc = Jsoup.parse(
++            "<div><Abc:Def id=1>Hello</Abc:Def></div> <Abc:Def class=bold id=2>There</abc:def>",
++            "", Parser.xmlParser()
++        );
++
++        Elements byTag = doc.select("*|Def");
++        assertEquals(2, byTag.size());
++        assertEquals("1", byTag.first().id());
++        assertEquals("2", byTag.last().id());
++
++        Elements byAttr = doc.select(".bold");
++        assertEquals(1, byAttr.size());
++        assertEquals("2", byAttr.last().id());
++
++        Elements byTagAttr = doc.select("*|Def.bold");
++        assertEquals(1, byTagAttr.size());
++        assertEquals("2", byTagAttr.last().id());
++
++        Elements byContains = doc.select("*|Def:contains(e)");
++        assertEquals(2, byContains.size());
++        assertEquals("1", byContains.first().id());
++        assertEquals("2", byContains.last().id());
++    }
++
++    @Test public void testWildCardNamespacedCaseVariations() {
++        Document doc = Jsoup.parse("<One:Two>One</One:Two><three:four>Two</three:four>", "", Parser.xmlParser());
++        Elements els1 = doc.select("One|Two");
++        Elements els2 = doc.select("one|two");
++        Elements els3 = doc.select("Three|Four");
++        Elements els4 = doc.select("three|Four");
++
++        assertEquals(els1, els2);
++        assertEquals(els3, els4);
++        assertEquals("One", els1.text());
++        assertEquals(1, els1.size());
++        assertEquals("Two", els3.text());
++        assertEquals(1, els2.size());
++    }
++
+     @Test @MultiLocaleTest public void testByAttributeStarting() {
+         Document doc = Jsoup.parse("<div id=1 ATTRIBUTE data-name=jsoup>Hello</div><p data-val=5 id=2>There</p><p id=3>No</p>");
+         Elements withData = doc.select("[^data-]");
+@@ -510,6 +545,11 @@
+         assertEquals("body", els1.first().tagName());
+         assertEquals("0", els1.get(1).id());
+         assertEquals("2", els1.get(2).id());
++
++        Elements els2 = doc.body().select(":has(> span)");
++        assertEquals(2,els2.size()); // p, div
++        assertEquals("p",els2.first().tagName());
++        assertEquals("1", els2.get(1).id());
+     }
+ 
+     @Test public void testNestedHas() {
+@@ -754,4 +794,143 @@
+         assertEquals(1, els.size());
+         assertEquals("One'One", els.text());
+     }
++
++    @Test public void selectFirst() {
++        String html = "<p>One<p>Two<p>Three";
++        Document doc = Jsoup.parse(html);
++        assertEquals("One", doc.selectFirst("p").text());
++    }
++
++    @Test public void selectFirstWithAnd() {
++        String html = "<p>One<p class=foo>Two<p>Three";
++        Document doc = Jsoup.parse(html);
++        assertEquals("Two", doc.selectFirst("p.foo").text());
++    }
++
++    @Test public void selectFirstWithOr() {
++        String html = "<p>One<p>Two<p>Three<div>Four";
++        Document doc = Jsoup.parse(html);
++        assertEquals("One", doc.selectFirst("p, div").text());
++    }
++
++    @Test public void matchText() {
++        String html = "<p>One<br>Two</p>";
++        Document doc = Jsoup.parse(html);
++        String origHtml = doc.html();
++
++        Elements one = doc.select("p:matchText:first-child");
++        assertEquals("One", one.first().text());
++
++        Elements two = doc.select("p:matchText:last-child");
++        assertEquals("Two", two.first().text());
++
++        assertEquals(origHtml, doc.html());
++
++        assertEquals("Two", doc.select("p:matchText + br + *").text());
++    }
++
++    @Test public void splitOnBr() {
++        String html = "<div><p>One<br>Two<br>Three</p></div>";
++        Document doc = Jsoup.parse(html);
++
++        Elements els = doc.select("p:matchText");
++        assertEquals(3, els.size());
++        assertEquals("One", els.get(0).text());
++        assertEquals("Two", els.get(1).text());
++        assertEquals("Three", els.get(2).toString());
++    }
++
++    @Test public void matchTextAttributes() {
++        Document doc = Jsoup.parse("<div><p class=one>One<br>Two<p class=two>Three<br>Four");
++        Elements els = doc.select("p.two:matchText:last-child");
++
++        assertEquals(1, els.size());
++        assertEquals("Four", els.text());
++    }
++
++    @Test public void findBetweenSpan() {
++        Document doc = Jsoup.parse("<p><span>One</span> Two <span>Three</span>");
++        Elements els = doc.select("span ~ p:matchText"); // the Two becomes its own p, sibling of the span
++
++        assertEquals(1, els.size());
++        assertEquals("Two", els.text());
++    }
++
++    @Test public void startsWithBeginsWithSpace() {
++        Document doc = Jsoup.parse("<small><a href=\" mailto:abc@def.net\">(abc@def.net)</a></small>");
++        Elements els = doc.select("a[href^=' mailto']");
++
++        assertEquals(1, els.size());
++    }
++
++    @Test public void endsWithEndsWithSpaces() {
++        Document doc = Jsoup.parse("<small><a href=\" mailto:abc@def.net \">(abc@def.net)</a></small>");
++        Elements els = doc.select("a[href$='.net ']");
++
++        assertEquals(1, els.size());
++    }
++
++    // https://github.com/jhy/jsoup/issues/1257
++    private final String mixedCase =
++        "<html xmlns:n=\"urn:ns\"><n:mixedCase>text</n:mixedCase></html>";
++    private final String lowercase =
++        "<html xmlns:n=\"urn:ns\"><n:lowercase>text</n:lowercase></html>";
++
++    @Test
++    public void html_mixed_case_simple_name() {
++        Document doc = Jsoup.parse(mixedCase, "", Parser.htmlParser());
++        assertEquals(0, doc.select("mixedCase").size());
++    }
++
++    @Test
++    public void html_mixed_case_wildcard_name() {
++        Document doc = Jsoup.parse(mixedCase, "", Parser.htmlParser());
++        assertEquals(1, doc.select("*|mixedCase").size());
++    }
++
++    @Test
++    public void html_lowercase_simple_name() {
++        Document doc = Jsoup.parse(lowercase, "", Parser.htmlParser());
++        assertEquals(0, doc.select("lowercase").size());
++    }
++
++    @Test
++    public void html_lowercase_wildcard_name() {
++        Document doc = Jsoup.parse(lowercase, "", Parser.htmlParser());
++        assertEquals(1, doc.select("*|lowercase").size());
++    }
++
++    @Test
++    public void xml_mixed_case_simple_name() {
++        Document doc = Jsoup.parse(mixedCase, "", Parser.xmlParser());
++        assertEquals(0, doc.select("mixedCase").size());
++    }
++
++    @Test
++    public void xml_mixed_case_wildcard_name() {
++        Document doc = Jsoup.parse(mixedCase, "", Parser.xmlParser());
++        // FIXME: should be 1, to behave in the same way as lowercase_wildcard_name.
++        assertEquals(1, doc.select("*|mixedCase").size());
++    }
++
++    @Test
++    public void xml_lowercase_simple_name() {
++        Document doc = Jsoup.parse(lowercase, "", Parser.xmlParser());
++        assertEquals(0, doc.select("lowercase").size());
++    }
++
++    @Test
++    public void xml_lowercase_wildcard_name() {
++        Document doc = Jsoup.parse(lowercase, "", Parser.xmlParser());
++        assertEquals(1, doc.select("*|lowercase").size());
++    }
++
++    @Test
++    public void trimSelector() {
++        // https://github.com/jhy/jsoup/issues/1274
++        Document doc = Jsoup.parse("<p><span>Hello");
++        Elements els = doc.select(" p span ");
++        assertEquals(1, els.size());
++        assertEquals("Hello", els.first().text());
++    }
+ }

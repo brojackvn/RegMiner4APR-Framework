@@ -1,0 +1,36 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/changes/changes.xml ./RegMiner4APR-Regression-Bugs/BFC/src/changes/changes.xml
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/changes/changes.xml	2025-12-18 15:38:01.177550509 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/changes/changes.xml	2025-12-18 15:32:06.921255689 +1100
+@@ -47,6 +47,7 @@
+ 
+   <release version="3.7" date="tba" description="tba">
+     <action issue="LANG-1346" type="update" dev="pschumacher">Remove deprecation from RandomStringUtils</action>
++    <action issue="LANG-1350" type="update" dev="ggregory" due-to="Brett Kail">ConstructorUtils.invokeConstructor(Class, Object...) regression</action>
+   </release>
+ 
+   <release version="3.6" date="2017-06-08" description="New features and bug fixes. Requires Java 7.">
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/lang3/reflect/MemberUtils.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/lang3/reflect/MemberUtils.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/lang3/reflect/MemberUtils.java	2025-12-18 15:38:01.189550519 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/lang3/reflect/MemberUtils.java	2025-12-18 15:32:06.937255702 +1100
+@@ -255,6 +255,10 @@
+ 
+     private static boolean isMatchingExecutable(final Executable method, final Class<?>[] parameterTypes) {
+         final Class<?>[] methodParameterTypes = method.getParameterTypes();
++        if (ClassUtils.isAssignable(parameterTypes, methodParameterTypes, true)) {
++            return true;
++        }
++
+         if (method.isVarArgs()) {
+             int i;
+             for (i = 0; i < methodParameterTypes.length - 1 && i < parameterTypes.length; i++) {
+@@ -270,7 +274,8 @@
+             }
+             return true;
+         }
+-        return ClassUtils.isAssignable(parameterTypes, methodParameterTypes, true);
++
++        return false;
+     }
+ 
+     /**

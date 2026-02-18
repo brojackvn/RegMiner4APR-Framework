@@ -1,0 +1,25 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/input/WriterCharAppender.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/input/WriterCharAppender.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/input/WriterCharAppender.java	2025-12-29 16:23:02.078369007 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/input/WriterCharAppender.java	2025-12-29 16:18:04.458575683 +1100
+@@ -200,8 +200,8 @@
+ 		try {
+ 			chars[index++] = ch;
+ 		} catch (ArrayIndexOutOfBoundsException e) {
+-			expand();
+-			chars[index] = ch;
++			expandAndRetry();
++			appendAndExpand(ch);
+ 		}
+ 	}
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/univocity/parsers/common/input/WriterCharAppenderTest.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/univocity/parsers/common/input/WriterCharAppenderTest.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/univocity/parsers/common/input/WriterCharAppenderTest.java	2025-12-29 16:23:02.090368998 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/univocity/parsers/common/input/WriterCharAppenderTest.java	2025-12-29 16:18:04.470575675 +1100
+@@ -49,4 +49,4 @@
+ 
+ 		assertEquals(stringWriter.toString(), expectedString);
+ 	}
+-}
+\ No newline at end of file
++}

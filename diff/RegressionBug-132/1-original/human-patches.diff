@@ -1,0 +1,44 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/AbstractParser.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/AbstractParser.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/AbstractParser.java	2025-12-24 04:36:41.902252532 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/AbstractParser.java	2025-12-24 04:32:23.618443731 +1100
+@@ -264,17 +264,17 @@
+ 				stopParsing();
+ 			} catch (Throwable ex) {
+ 				// ignore and throw original error.
+-				if (error instanceof RuntimeException) {
+-					throw (RuntimeException) error;
+-				} else if (error instanceof Error) {
+-					throw (Error) error;
+-				} else {
+-					throw new IllegalStateException(error.getMessage(), error);
+-				}
+ 			}
+-
++			if (error instanceof RuntimeException) {
++				throw (RuntimeException) error;
++			} else if (error instanceof Error) {
++				throw (Error) error;
++			} else {
++				throw new IllegalStateException(error.getMessage(), error);
++			}
++		} else {
++			stopParsing();
+ 		}
+-		stopParsing();
+ 	}
+ 
+ 	/**
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/processor/BeanConversionProcessor.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/processor/BeanConversionProcessor.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/processor/BeanConversionProcessor.java	2025-12-24 04:36:41.906252529 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/processor/BeanConversionProcessor.java	2025-12-24 04:32:23.622443728 +1100
+@@ -228,6 +228,9 @@
+ 			if (mapping.isMappedToField()) {
+ 				int index = ArgumentUtils.indexOf(headers, mapping.getFieldName());
+ 				if (index == -1) {
++					if (headers.length == 0) {
++						throw new IllegalStateException("Could not find field with name '" + mapping.getFieldName() + "' in input. Please enable header extraction in the parser settings in order to match field names.");
++					}
+ 					throw new IllegalStateException("Could not find field with name '" + mapping.getFieldName() + "' in input. Names found: " + Arrays.toString(headers));
+ 				}
+ 				fieldOrder[index] = mapping;

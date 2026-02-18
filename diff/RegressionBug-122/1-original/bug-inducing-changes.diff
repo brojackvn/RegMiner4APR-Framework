@@ -1,0 +1,3163 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/pom.xml ./RegMiner4APR-Regression-Bugs/BIC/pom.xml
+--- ./RegMiner4APR-Regression-Bugs/WORKING/pom.xml	2025-12-21 01:56:15.895330542 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/pom.xml	2025-12-21 01:54:23.215381966 +1100
+@@ -269,7 +269,6 @@
+                         <ruleset>/rulesets/braces.xml</ruleset>
+                         <ruleset>/rulesets/unusedcode.xml</ruleset>
+                         <ruleset>/rulesets/imports.xml</ruleset>
+-                        <ruleset>/rulesets/codesize.xml</ruleset>
+                         <ruleset>/rulesets/coupling.xml</ruleset>
+                         <ruleset>/rulesets/design.xml</ruleset>
+                         <ruleset>/rulesets/strings.xml</ruleset>
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Engine.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Engine.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Engine.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Engine.java	2025-12-21 01:54:23.243381952 +1100
+@@ -24,7 +24,6 @@
+ import org.apache.commons.jexl3.JexlException;
+ import org.apache.commons.jexl3.JexlExpression;
+ import org.apache.commons.jexl3.JexlInfo;
+-import org.apache.commons.jexl3.JexlInfoHandle;
+ import org.apache.commons.jexl3.JexlScript;
+ 
+ import org.apache.commons.jexl3.internal.introspection.SandboxUberspect;
+@@ -214,41 +213,21 @@
+         return new TemplateEngine(this);
+     }
+ 
+-    /**
+-     * Checks whether this engine is in debug mode.
+-     * @return true if debug is on, false otherwise
+-     */
+     @Override
+     public boolean isDebug() {
+         return this.debug;
+     }
+ 
+-    /**
+-     * Checks whether this engine throws JexlException during evaluation.
+-     * @return true if silent, false (default) otherwise
+-     */
+     @Override
+     public boolean isSilent() {
+         return this.silent;
+     }
+ 
+-
+-    /**
+-     * Checks whether this engine behaves in strict or lenient mode.
+-     * Equivalent to !isLenient().
+-     * @return true for strict, false for lenient
+-     */
+     @Override
+     public final boolean isStrict() {
+         return strict;
+     }
+ 
+-    /**
+-     * Sets the class loader used to discover classes in 'new' expressions.
+-     * <p>This method is <em>not</em> thread safe; it should be called as an optional step of the JexlEngine
+-     * initialization code before expression creation &amp; evaluation.</p>
+-     * @param loader the class loader to use
+-     */
+     @Override
+     public void setClassLoader(ClassLoader loader) {
+         uberspect.setClassLoader(loader);
+@@ -264,32 +243,11 @@
+         return new Script(this, text, tree);
+     }
+ 
+-    /**
+-     * Creates an JexlExpression from a String containing valid
+-     * JEXL syntax.  This method parses the expression which
+-     * must contain either a reference or an expression.
+-     * @param expression A String containing valid JEXL syntax
+-     * @return An JexlExpression object which can be evaluated with a JexlContext
+-     * @throws JexlException An exception can be thrown if there is a problem
+-     *      parsing this expression, or if the expression is neither an
+-     *      expression nor a reference.
+-     */
+     @Override
+     public JexlExpression createExpression(String expression) {
+         return createExpression(expression, null);
+     }
+ 
+-    /**
+-     * Creates an JexlExpression from a String containing valid
+-     * JEXL syntax.  This method parses the expression which
+-     * must contain either a reference or an expression.
+-     * @param expression A String containing valid JEXL syntax
+-     * @return An JexlExpression object which can be evaluated with a JexlContext
+-     * @param info An info structure to carry debugging information if needed
+-     * @throws JexlException An exception can be thrown if there is a problem
+-     *      parsing this expression, or if the expression is neither an
+-     *      expression or a reference.
+-     */
+     @Override
+     public JexlExpression createExpression(String expression, JexlInfo info) {
+         // Parse the expression
+@@ -301,45 +259,16 @@
+         return createExpression(tree, expression);
+     }
+ 
+-    /**
+-     * Creates a Script from a String containing valid JEXL syntax.
+-     * This method parses the script which validates the syntax.
+-     *
+-     * @param scriptText A String containing valid JEXL syntax
+-     * @return A {@link Script} which can be executed using a {@link JexlContext}.
+-     * @throws JexlException if there is a problem parsing the script.
+-     */
+     @Override
+     public Script createScript(String scriptText) {
+         return createScript(scriptText, null, null);
+     }
+-
+-    /**
+-     * Creates a Script from a String containing valid JEXL syntax.
+-     * This method parses the script which validates the syntax.
+-     *
+-     * @param scriptText A String containing valid JEXL syntax
+-     * @param names the script parameter names
+-     * @return A {@link Script} which can be executed using a {@link JexlContext}.
+-     * @throws JexlException if there is a problem parsing the script.
+-     */
++    
+     @Override
+     public Script createScript(String scriptText, String... names) {
+         return createScript(scriptText, null, names);
+     }
+ 
+-    /**
+-     * Creates a Script from a String containing valid JEXL syntax.
+-     * This method parses the script which validates the syntax.
+-     * It uses an array of parameter names that will be resolved during parsing;
+-     * a corresponding array of arguments containing values should be used during evaluation.
+-     *
+-     * @param scriptText A String containing valid JEXL syntax
+-     * @param info An info structure to carry debugging information if needed
+-     * @param names the script parameter names
+-     * @return A {@link Script} which can be executed using a {@link JexlContext}.
+-     * @throws JexlException if there is a problem parsing the script.
+-     */
+     @Override
+     public Script createScript(String scriptText, JexlInfo info, String[] names) {
+         if (scriptText == null) {
+@@ -360,17 +289,6 @@
+         return new Script(this, text, tree);
+     }
+ 
+-    /**
+-     * Creates a Script from a {@link File} containing valid JEXL syntax.
+-     * This method parses the script and validates the syntax.
+-     *
+-     * @param scriptFile A {@link File} containing valid JEXL syntax.
+-     *      Must not be null. Must be a readable file.
+-     * @return A {@link Script} which can be executed with a
+-     *      {@link JexlContext}.
+-     * @throws IOException if there is a problem reading the script.
+-     * @throws JexlException if there is a problem parsing the script.
+-     */
+     @Override
+     public Script createScript(File scriptFile) throws IOException {
+         if (scriptFile == null) {
+@@ -387,17 +305,6 @@
+         return createScript(readerToString(reader), info, null);
+     }
+ 
+-    /**
+-     * Creates a Script from a {@link URL} containing valid JEXL syntax.
+-     * This method parses the script and validates the syntax.
+-     *
+-     * @param scriptUrl A {@link URL} containing valid JEXL syntax.
+-     *      Must not be null. Must be a readable file.
+-     * @return A {@link Script} which can be executed with a
+-     *      {@link JexlContext}.
+-     * @throws IOException if there is a problem reading the script.
+-     * @throws JexlException if there is a problem parsing the script.
+-     */
+     @Override
+     public JexlScript createScript(URL scriptUrl) throws IOException {
+         if (scriptUrl == null) {
+@@ -413,36 +320,11 @@
+         return createScript(readerToString(reader), info, null);
+     }
+ 
+-    /**
+-     * Accesses properties of a bean using an expression.
+-     * <p>
+-     * jexl.get(myobject, "foo.bar"); should equate to
+-     * myobject.getFoo().getBar(); (or myobject.getFoo().get("bar"))
+-     * </p>
+-     * <p>
+-     * If the JEXL engine is silent, errors will be logged through its logger as warning.
+-     * </p>
+-     * @param bean the bean to get properties from
+-     * @param expr the property expression
+-     * @return the value of the property
+-     * @throws JexlException if there is an error parsing the expression or during evaluation
+-     */
+     @Override
+     public Object getProperty(Object bean, String expr) {
+         return getProperty(null, bean, expr);
+     }
+ 
+-    /**
+-     * Accesses properties of a bean using an expression.
+-     * <p>
+-     * If the JEXL engine is silent, errors will be logged through its logger as warning.
+-     * </p>
+-     * @param context the evaluation context
+-     * @param bean the bean to get properties from
+-     * @param expr the property expression
+-     * @return the value of the property
+-     * @throws JexlException if there is an error parsing the expression or during evaluation
+-     */
+     @Override
+     public Object getProperty(JexlContext context, Object bean, String expr) {
+         if (context == null) {
+@@ -469,36 +351,11 @@
+         }
+     }
+ 
+-    /**
+-     * Assign properties of a bean using an expression.
+-     * <p>
+-     * jexl.set(myobject, "foo.bar", 10); should equate to
+-     * myobject.getFoo().setBar(10); (or myobject.getFoo().put("bar", 10) )
+-     * </p>
+-     * <p>
+-     * If the JEXL engine is silent, errors will be logged through its logger as warning.
+-     * </p>
+-     * @param bean the bean to set properties in
+-     * @param expr the property expression
+-     * @param value the value of the property
+-     * @throws JexlException if there is an error parsing the expression or during evaluation
+-     */
+     @Override
+     public void setProperty(Object bean, String expr, Object value) {
+         setProperty(null, bean, expr, value);
+     }
+ 
+-    /**
+-     * Assign properties of a bean using an expression.
+-     * <p>
+-     * If the JEXL engine is silent, errors will be logged through its logger as warning.
+-     * </p>
+-     * @param context the evaluation context
+-     * @param bean the bean to set properties in
+-     * @param expr the property expression
+-     * @param value the value of the property
+-     * @throws JexlException if there is an error parsing the expression or during evaluation
+-     */
+     @Override
+     public void setProperty(JexlContext context, Object bean, String expr, Object value) {
+         if (context == null) {
+@@ -525,29 +382,15 @@
+         }
+     }
+ 
+-    /**
+-     * Invokes an object's method by name and arguments.
+-     * @param obj the method's invoker object
+-     * @param meth the method's name
+-     * @param args the method's arguments
+-     * @return the method returned value or null if it failed and engine is silent
+-     * @throws JexlException if method could not be found or failed and engine is not silent
+-     */
+     @Override
+     public Object invokeMethod(Object obj, String meth, Object... args) {
+         JexlException xjexl = null;
+         Object result = null;
+         final JexlInfo info = jexlInfo();
+-        JexlInfoHandle handle = new JexlInfoHandle() {
+-            @Override
+-            public JexlInfo jexlInfo() {
+-                return info;
+-            }
+-        };
+         try {
+-            JexlMethod method = uberspect.getMethod(obj, meth, args, handle);
++            JexlMethod method = uberspect.getMethod(obj, meth, args);
+             if (method == null && arithmetic.narrowArguments(args)) {
+-                method = uberspect.getMethod(obj, meth, args, handle);
++                method = uberspect.getMethod(obj, meth, args);
+             }
+             if (method != null) {
+                 result = method.invoke(obj, args);
+@@ -568,26 +411,11 @@
+         return result;
+     }
+ 
+-    /**
+-     * Creates a new instance of an object using the most appropriate constructor
+-     * based on the arguments.
+-     * @param <T> the type of object
+-     * @param clazz the class to instantiate
+-     * @param args the constructor arguments
+-     * @return the created object instance or null on failure when silent
+-     */
+     @Override
+     public <T> T newInstance(Class<? extends T> clazz, Object... args) {
+         return clazz.cast(doCreateInstance(clazz, args));
+     }
+ 
+-    /**
+-     * Creates a new instance of an object using the most appropriate constructor
+-     * based on the arguments.
+-     * @param clazz the name of the class to instantiate resolved through this engine's class loader
+-     * @param args the constructor arguments
+-     * @return the created object instance or null on failure when silent
+-     */
+     @Override
+     public Object newInstance(String clazz, Object... args) {
+         return doCreateInstance(clazz, args);
+@@ -604,16 +432,10 @@
+         JexlException xjexl = null;
+         Object result = null;
+         final JexlInfo info = jexlInfo();
+-        JexlInfoHandle handle = new JexlInfoHandle() {
+-            @Override
+-            public JexlInfo jexlInfo() {
+-                return info;
+-            }
+-        };
+         try {
+-            JexlMethod ctor = uberspect.getConstructor(clazz, args, handle);
++            JexlMethod ctor = uberspect.getConstructor(clazz, args);
+             if (ctor == null && arithmetic.narrowArguments(args)) {
+-                ctor = uberspect.getConstructor(clazz, args, handle);
++                ctor = uberspect.getConstructor(clazz, args);
+             }
+             if (ctor != null) {
+                 result = ctor.invoke(clazz, args);
+@@ -737,9 +559,6 @@
+         };
+     }
+ 
+-    /**
+-     * Clears the expression cache.
+-     */
+     @Override
+     public void clearCache() {
+         synchronized (parser) {
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java	2025-12-21 01:54:23.243381952 +1100
+@@ -289,7 +289,7 @@
+         // allow namespace to be instantiated as functor with context if possible, not an error otherwise
+         if (namespace instanceof Class<?>) {
+             Object[] args = new Object[]{context};
+-            JexlMethod ctor = uberspect.getConstructor(namespace, args, node);
++            JexlMethod ctor = uberspect.getConstructor(namespace, args);
+             if (ctor != null) {
+                 try {
+                     namespace = ctor.invoke(namespace, args);
+@@ -657,7 +657,7 @@
+             JexlNode statement = node.jjtGetChild(2);
+             // get an iterator for the collection/array etc via the
+             // introspector.
+-            Iterator<?> itemsIterator = uberspect.getIterator(iterableValue, node);
++            Iterator<?> itemsIterator = uberspect.getIterator(iterableValue);
+             if (itemsIterator != null) {
+                 while (itemsIterator.hasNext()) {
+                     if (isCancelled()) {
+@@ -725,11 +725,11 @@
+             // try a contains method (duck type set)
+             try {
+                 Object[] argv = {left};
+-                JexlMethod vm = uberspect.getMethod(right, "contains", argv, node);
++                JexlMethod vm = uberspect.getMethod(right, "contains", argv);
+                 if (vm != null) {
+                     return arithmetic.toBoolean(vm.invoke(right, argv)) ? Boolean.TRUE : Boolean.FALSE;
+                 } else if (arithmetic.narrowArguments(argv)) {
+-                    vm = uberspect.getMethod(right, "contains", argv, node);
++                    vm = uberspect.getMethod(right, "contains", argv);
+                     if (vm != null) {
+                         return arithmetic.toBoolean(vm.invoke(right, argv)) ? Boolean.TRUE : Boolean.FALSE;
+                     }
+@@ -740,7 +740,7 @@
+                 throw new JexlException(node, "=~ error", e);
+             }
+             // try iterative comparison
+-            Iterator<?> it = uberspect.getIterator(right, node);
++            Iterator<?> it = uberspect.getIterator(right);
+             if (it != null) {
+                 while (it.hasNext()) {
+                     Object next = it.next();
+@@ -915,11 +915,11 @@
+                 }
+             }
+             boolean cacheable = cache;
+-            JexlMethod vm = uberspect.getMethod(bean, methodName, argv, node);
++            JexlMethod vm = uberspect.getMethod(bean, methodName, argv);
+             // DG: If we can't find an exact match, narrow the parameters and try again
+             if (vm == null) {
+                 if (arithmetic.narrowArguments(argv)) {
+-                    vm = uberspect.getMethod(bean, methodName, argv, node);
++                    vm = uberspect.getMethod(bean, methodName, argv);
+                 }
+                 if (vm == null) {
+                     Object functor = null;
+@@ -932,7 +932,7 @@
+                             functor = context.get(methodName);
+                         }
+                     } else {
+-                        JexlPropertyGet gfunctor = uberspect.getPropertyGet(bean, methodName, node);
++                        JexlPropertyGet gfunctor = uberspect.getPropertyGet(bean, methodName);
+                         if (gfunctor != null) {
+                             functor = gfunctor.tryInvoke(bean, methodName);
+                         }
+@@ -1022,11 +1022,11 @@
+                     }
+                 }
+             }
+-            JexlMethod ctor = uberspect.getConstructor(cobject, argv, node);
++            JexlMethod ctor = uberspect.getConstructor(cobject, argv);
+             // DG: If we can't find an exact match, narrow the parameters and try again
+             if (ctor == null) {
+                 if (arithmetic.narrowArguments(argv)) {
+-                    ctor = uberspect.getConstructor(cobject, argv, node);
++                    ctor = uberspect.getConstructor(cobject, argv);
+                 }
+                 if (ctor == null) {
+                     xjexl = new JexlException.Method(node, cobject.toString());
+@@ -1111,11 +1111,11 @@
+             // try a contains method (duck type set)
+             try {
+                 Object[] argv = {left};
+-                JexlMethod vm = uberspect.getMethod(right, "contains", argv, node);
++                JexlMethod vm = uberspect.getMethod(right, "contains", argv);
+                 if (vm != null) {
+                     return arithmetic.toBoolean(vm.invoke(right, argv)) ? Boolean.FALSE : Boolean.TRUE;
+                 } else if (arithmetic.narrowArguments(argv)) {
+-                    vm = uberspect.getMethod(right, "contains", argv, node);
++                    vm = uberspect.getMethod(right, "contains", argv);
+                     if (vm != null) {
+                         return arithmetic.toBoolean(vm.invoke(right, argv)) ? Boolean.FALSE : Boolean.TRUE;
+                     }
+@@ -1126,7 +1126,7 @@
+                 throw new JexlException(node, "!~ error", e);
+             }
+             // try iterative comparison
+-            Iterator<?> it = uberspect.getIterator(right, node.jjtGetChild(1));
++            Iterator<?> it = uberspect.getIterator(right);//, node.jjtGetChild(1));
+             if (it != null) {
+                 while (it.hasNext()) {
+                     Object next = it.next();
+@@ -1360,7 +1360,7 @@
+             // check if there is a size method on the object that returns an
+             // integer and if so, just use it
+             Object[] params = new Object[0];
+-            JexlMethod vm = uberspect.getMethod(val, "size", EMPTY_PARAMS, node);
++            JexlMethod vm = uberspect.getMethod(val, "size", EMPTY_PARAMS);
+             if (vm != null && vm.getReturnType() == Integer.TYPE) {
+                 Integer result;
+                 try {
+@@ -1413,7 +1413,7 @@
+                 }
+             }
+         }
+-        JexlPropertyGet vg = uberspect.getPropertyGet(object, attribute, node);
++        JexlPropertyGet vg = uberspect.getPropertyGet(object, attribute);
+         if (vg != null) {
+             try {
+                 Object value = vg.invoke(object);
+@@ -1476,13 +1476,13 @@
+             }
+         }
+         JexlException xjexl = null;
+-        JexlPropertySet vs = uberspect.getPropertySet(object, attribute, value, node);
++        JexlPropertySet vs = uberspect.getPropertySet(object, attribute, value);
+         // if we can't find an exact match, narrow the value argument and try again
+         if (vs == null) {
+             // replace all numbers with the smallest type that will fit
+             Object[] narrow = {value};
+             if (arithmetic.narrowArguments(narrow)) {
+-                vs = uberspect.getPropertySet(object, attribute, narrow[0], node);
++                vs = uberspect.getPropertySet(object, attribute, narrow[0]);
+             }
+         }
+         if (vs != null) {
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/AbstractExecutor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/AbstractExecutor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/AbstractExecutor.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/AbstractExecutor.java	2025-12-21 01:54:23.247381950 +1100
+@@ -20,8 +20,6 @@
+ import org.apache.commons.jexl3.introspection.JexlPropertyGet;
+ import org.apache.commons.jexl3.introspection.JexlPropertySet;
+ 
+-import java.lang.reflect.InvocationTargetException;
+-
+ /**
+  * Abstract class that is used to execute an arbitrary
+  * method that is introspected. This is the superclass
+@@ -29,7 +27,7 @@
+  *
+  * @since 1.0
+  */
+-public abstract class AbstractExecutor {
++abstract class AbstractExecutor {
+     /** A marker for invocation failures in tryInvoke. */
+     public static final Object TRY_FAILED = new Object() {
+         @Override
+@@ -54,6 +52,34 @@
+     }
+ 
+     /**
++     * Coerce an Object  to an Integer.
++     * @param arg the Object to coerce
++     * @return an Integer if it can be converted, null otherwise
++     */
++    static Integer toInteger(Object arg) {
++        if (arg == null) {
++            return null;
++        } else if (arg instanceof Number) {
++            return Integer.valueOf(((Number) arg).intValue());
++        } else {
++            try {
++                return Integer.valueOf(arg.toString());
++            } catch (NumberFormatException xnumber) {
++                return null;
++            }
++        }
++    }
++
++    /**
++     * Coerce an Object to a String.
++     * @param arg the Object to coerce
++     * @return a String if it can be converted, null otherwise
++     */
++    static String toString(Object arg) {
++        return arg == null ? null : arg.toString();
++    }
++
++    /**
+      * Creates an arguments array.
+      * @param args the list of arguments
+      * @return the arguments array
+@@ -61,7 +87,7 @@
+     static Object[] makeArgs(Object... args) {
+         return args;
+     }
+-
++    
+     /** The class this executor applies to. */
+     protected final Class<?> objectClass;
+     /** Method to be executed. */
+@@ -152,7 +178,7 @@
+     public final Class<?> getTargetClass() {
+         return objectClass;
+     }
+-    
++
+     /**
+      * Gets the property targeted by this executor.
+      * @return the target property
+@@ -169,7 +195,6 @@
+         return method.getName();
+     }
+ 
+-
+     /**
+      * Checks whether a tryExecute failed or not.
+      * @param exec the value returned by tryExecute
+@@ -191,46 +216,8 @@
+         protected Get(Class<?> theClass, java.lang.reflect.Method theMethod) {
+             super(theClass, theMethod);
+         }
+-
+-        @Override
+-        public final Object invoke(Object obj) throws Exception {
+-            return execute(obj);
+-        }
+-        
+-        @Override
+-        public final Object tryInvoke(Object obj, Object key) {
+-            return tryExecute(obj, key);
+-        }
+-
+-        /**
+-         * Gets the property value from an object.
+-         *
+-         * @param obj The object to get the property from.
+-         * @return The property value.
+-         * @throws IllegalAccessException Method is inaccessible.
+-         * @throws InvocationTargetException Method body throws an exception.
+-         */
+-        public abstract Object execute(Object obj)
+-                throws IllegalAccessException, InvocationTargetException;
+-
+-        /**
+-         * Tries to reuse this executor, checking that it is compatible with
+-         * the actual set of arguments.
+-         * <p>Compatibility means that:
+-         * <code>o</code> must be of the same class as this executor's
+-         * target class and
+-         * <code>property</code> must be of the same class as this
+-         * executor's target property (for list and map based executors) and have the same
+-         * value (for other types).</p>
+-         * @param obj The object to get the property from.
+-         * @param key The property to get from the object.
+-         * @return The property value or TRY_FAILED if checking failed.
+-         */
+-        public Object tryExecute(Object obj, Object key) {
+-            return TRY_FAILED;
+-        }
+     }
+-    
++
+     /**
+      * Abstract class that is used to execute an arbitrary 'set' method.
+      */
+@@ -243,94 +230,24 @@
+         protected Set(Class<?> theClass, java.lang.reflect.Method theMethod) {
+             super(theClass, theMethod);
+         }
+-
+-        @Override
+-        public final Object invoke(Object obj, Object arg) throws Exception {
+-            return execute(obj, arg);
+-        }
+-
+-        @Override
+-        public final Object tryInvoke(Object obj, Object key, Object value) {
+-            return tryExecute(obj, key, value);
+-        }
+-
+-        /**
+-         * Sets the property value of an object.
+-         *
+-         * @param obj The object to set the property in.
+-         * @param value The value.
+-         * @return The return value.
+-         * @throws IllegalAccessException Method is inaccessible.
+-         * @throws InvocationTargetException Method body throws an exception.
+-         */
+-        public abstract Object execute(Object obj, Object value)
+-                throws IllegalAccessException, InvocationTargetException;
+-
+-        /**
+-         * Tries to reuse this executor, checking that it is compatible with
+-         * the actual set of arguments.
+-         * <p>Compatibility means that:
+-         * <code>o</code> must be of the same class as this executor's
+-         * target class,
+-         * <code>property</code> must be of the same class as this
+-         * executor's target property (for list and map based executors) and have the same
+-         * value (for other types)
+-         * and that <code>arg</code> must be a valid argument for this
+-         * executor underlying method.</p>
+-         * @param obj The object to invoke the method from.
+-         * @param key The property to set in the object.
+-         * @param value The value to use as the property value.
+-         * @return The return value or TRY_FAILED if checking failed.
+-         */
+-        public Object tryExecute(Object obj, Object key, Object value) {
+-            return TRY_FAILED;
+-        }
+-        
+     }
+ 
+-
+-
+     /**
+      * Abstract class that is used to execute an arbitrary method.
+      */
+     public abstract static class Method extends AbstractExecutor implements JexlMethod {
+-        /**
+-         * A helper class to pass the method &amp; parameters.
+-         */
+-        protected static final class Parameter {
+-            /** The method. */
+-            private final java.lang.reflect.Method method;
+-            /** The method key. */
+-            private final MethodKey key;
+-            /** Creates an instance.
+-             * @param m the method
+-             * @param k the method key
+-             */
+-            public Parameter(java.lang.reflect.Method m, MethodKey k) {
+-                method = m;
+-                key = k;
+-            }
+-        }
+         /** The method key discovered from the arguments. */
+         protected final MethodKey key;
++
+         /**
+          * Creates a new instance.
+          * @param c the class this executor applies to
+-         * @param km the method and MethodKey to encapsulate.
++         * @param m the method
++         * @param k the MethodKey
+          */
+-        protected Method(Class<?> c, Parameter km) {
+-            super(c, km.method);
+-            key = km.key;
+-        }
+-
+-        @Override
+-        public final Object invoke(Object obj, Object[] params) throws Exception {
+-            return execute(obj, params);
+-        }
+-
+-        @Override
+-        public final Object tryInvoke(String name, Object obj, Object[] params) {
+-            return tryExecute(name, obj, params);
++        protected Method(Class<?> c, java.lang.reflect.Method m, MethodKey k) {
++            super(c, m);
++            key = k;
+         }
+ 
+         /** {@inheritDoc} */
+@@ -338,36 +255,10 @@
+         public Object getTargetProperty() {
+             return key;
+         }
+-        
++
+         @Override
+         public final Class<?> getReturnType() {
+             return method.getReturnType();
+         }
+-
+-        /**
+-         * Invokes the method to be executed.
+-         *
+-         * @param obj the object to invoke the method upon
+-         * @param args the method arguments
+-         * @return the result of the method invocation
+-         * @throws IllegalAccessException Method is inaccessible.
+-         * @throws InvocationTargetException Method body throws an exception.
+-         */
+-        public abstract Object execute(Object obj, Object[] args)
+-                throws IllegalAccessException, InvocationTargetException;
+-
+-        /**
+-         * Tries to reuse this executor, checking that it is compatible with
+-         * the actual set of arguments.
+-         * @param obj the object to invoke the method upon
+-         * @param name the method name
+-         * @param args the method arguments
+-         * @return the result of the method invocation or TRY_FAILED if checking failed.
+-         */
+-        public Object tryExecute(String name, Object obj, Object[] args){
+-            return TRY_FAILED;
+-        }
+-
+     }
+-
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/BooleanGetExecutor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/BooleanGetExecutor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/BooleanGetExecutor.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/BooleanGetExecutor.java	2025-12-21 01:54:23.247381950 +1100
+@@ -24,33 +24,48 @@
+ public final class BooleanGetExecutor extends AbstractExecutor.Get {
+     /** The property. */
+     private final String property;
++    
+     /**
+-     * Creates an instance by attempting discovery of the get method.
++     * Discovers a BooleanGetExecutor.
++     * <p>The method to be found should be named "is{P,p}property and return a boolean.</p>
++     * 
+      * @param is the introspector
++     * @param clazz the class to find the get method from
++     * @param property the the property name
++     * @return the executor if found, null otherwise
++     */
++    public static BooleanGetExecutor discover(Introspector is, final Class<?> clazz, String property) {
++        java.lang.reflect.Method m = PropertyGetExecutor.discoverGet(is, "is", clazz, property);
++        if (m != null && (m.getReturnType() == Boolean.TYPE || m.getReturnType() == Boolean.class)) {
++            return new BooleanGetExecutor(clazz, m, property);
++        } else {
++            return null;
++        }
++    }
++    
++    /**
++     * Creates an instance by attempting discovery of the get method.
+      * @param clazz the class to introspect
++     * @param method the method held by this executor
+      * @param key the property to get
+      */
+-    public BooleanGetExecutor(Introspector is, Class<?> clazz, String key) {
+-        super(clazz, discover(is, clazz, key));
++    private BooleanGetExecutor(Class<?> clazz, java.lang.reflect.Method method, String key) {
++        super(clazz, method);
+         property = key;
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+     public Object getTargetProperty() {
+         return property;
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+-    public Object execute(Object obj)
+-        throws IllegalAccessException, InvocationTargetException {
++    public Object invoke(Object obj) throws IllegalAccessException, InvocationTargetException {
+         return method == null ? null : method.invoke(obj, (Object[]) null);
+     }
+     
+-    /** {@inheritDoc} */
+     @Override
+-    public Object tryExecute(Object obj, Object key) {
++    public Object tryInvoke(Object obj, Object key) {
+         if (obj != null && method !=  null
+             // ensure method name matches the property name
+             && property.equals(key)
+@@ -65,18 +80,4 @@
+         }
+         return TRY_FAILED;
+     }
+-
+-    /**
+-     * Discovers the method for a {@link BooleanGet}.
+-     * <p>The method to be found should be named "is{P,p}property and return a boolean.</p>
+-     *@param is the introspector
+-     *@param clazz the class to find the get method from
+-     *@param property the the property name
+-     *@return the method if found, null otherwise
+-     */
+-    static java.lang.reflect.Method discover(Introspector is, final Class<?> clazz, String property) {
+-        java.lang.reflect.Method m = PropertyGetExecutor.discoverGet(is, "is", clazz, property);
+-        return (m != null && m.getReturnType() == Boolean.TYPE) ? m : null;
+-    }
+-
+ }
+\ No newline at end of file
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/ClassMap.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/ClassMap.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/ClassMap.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/ClassMap.java	2025-12-21 01:54:23.247381950 +1100
+@@ -77,7 +77,7 @@
+     /**
+      * Keep track of all methods with the same name; this is not modified after creation.
+      */
+-    private final Map<String, List<Method>> byName = new HashMap<String, List<Method>>();
++    private final Map<String, Method[]> byName = new HashMap<String, Method[]>();
+     /** 
+      * Cache of fields.
+      */
+@@ -130,8 +130,7 @@
+      * @return the array of method names
+      */
+     String[] getMethodNames() {
+-        java.util.Set<String> set = byName.keySet();
+-        return set.toArray(new String[set.size()]);
++        return byName.keySet().toArray(new String[byName.size()]);
+     }
+ 
+     /**
+@@ -140,9 +139,9 @@
+      * @return the array of methods (null or non-empty)
+      */
+     Method[] getMethods(final String methodName) {
+-        List<Method> lm = byName.get(methodName);
+-        if (lm != null && !lm.isEmpty()) {
+-            return lm.toArray(new Method[lm.size()]);
++        Method[] lm = byName.get(methodName);
++        if (lm != null && lm.length > 0) {
++            return lm.clone();
+         } else {
+             return null;
+         }
+@@ -173,7 +172,7 @@
+         } else if (cacheEntry == null) {
+             try {
+                 // That one is expensive...
+-                List<Method> methodList = byName.get(methodKey.getMethod());
++                Method[] methodList = byName.get(methodKey.getMethod());
+                 if (methodList != null) {
+                     cacheEntry = methodKey.getMostSpecificMethod(methodList);
+                 }
+@@ -244,7 +243,7 @@
+                         break;
+                     }
+                 }
+-                List<Method> lmn = lm.subList(start, end);
++                Method[] lmn = lm.subList(start, end).toArray(new Method[end - start]);
+                 cache.byName.put(name, lmn);
+                 start = end;
+             }
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection: ConstructorMethod.java
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/DuckGetExecutor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/DuckGetExecutor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/DuckGetExecutor.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/DuckGetExecutor.java	2025-12-21 01:54:23.247381950 +1100
+@@ -34,43 +34,45 @@
+     private final Object property;
+ 
+     /**
+-     * Creates an instance by attempting discovery of the get method.
++     * Attempts to discover a DuckGetExecutor.
+      * @param is the introspector
+-     * @param clazz the class to introspect
++     * @param clazz the class to find the get method from
++     * @param identifier the key to use as an argument to the get method
++     * @return the executor if found, null otherwise
++     */
++    public static DuckGetExecutor discover(Introspector is, Class<?> clazz, Object identifier) {
++        java.lang.reflect.Method method = is.getMethod(clazz, "get", makeArgs(identifier));
++        return method == null? null : new DuckGetExecutor(clazz, method, identifier);
++    }
++
++    /**
++     * Creates an instance.
++     * @param clazz he class the get method applies to
++     * @param method the method held by this executor
+      * @param identifier the property to get
+      */
+-    public DuckGetExecutor(Introspector is, Class<?> clazz, Object identifier) {
+-        super(clazz, discover(is, clazz, identifier));
++    private DuckGetExecutor(Class<?> clazz, java.lang.reflect.Method method, Object identifier) {
++        super(clazz, method);
+         property = identifier;
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+     public Object getTargetProperty() {
+         return property;
+     }
+ 
+-    /**
+-     * Get the property from the object.
+-     * @param obj the object.
+-     * @return object.get(property)
+-     * @throws IllegalAccessException Method is inaccessible.
+-     * @throws InvocationTargetException Method body throws an exception.
+-     */
+     @Override
+-    public Object execute(Object obj)
+-            throws IllegalAccessException, InvocationTargetException {
++    public Object invoke(Object obj) throws IllegalAccessException, InvocationTargetException {
+         Object[] args = {property};
+         return method == null ? null : method.invoke(obj, args);
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+-    public Object tryExecute(Object obj, Object key) {
+-        if (obj != null && method !=  null
+-            // ensure method name matches the property name
+-            && property.equals(key)
+-            && objectClass.equals(obj.getClass())) {
++    public Object tryInvoke(Object obj, Object key) {
++        if (obj != null && method != null
++                // ensure method name matches the property name
++                && property.equals(key)
++                && objectClass.equals(obj.getClass())) {
+             try {
+                 Object[] args = {property};
+                 return method.invoke(obj, args);
+@@ -82,16 +84,4 @@
+         }
+         return TRY_FAILED;
+     }
+-
+-    /**
+-     * Discovers a method for a {@link GetExecutor.DuckGet}.
+-     *@param is the introspector
+-     *@param clazz the class to find the get method from
+-     *@param identifier the key to use as an argument to the get method
+-     *@return the method if found, null otherwise
+-     */
+-    private static java.lang.reflect.Method discover(Introspector is,
+-            final Class<?> clazz, Object identifier) {
+-        return is.getMethod(clazz, "get", makeArgs(identifier));
+-    }
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/DuckSetExecutor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/DuckSetExecutor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/DuckSetExecutor.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/DuckSetExecutor.java	2025-12-21 01:54:23.247381950 +1100
+@@ -34,27 +34,37 @@
+     private final Object property;
+     
+     /**
++     * Discovers a DuckSetExecutor.
++     * 
++     * @param is the introspector
++     * @param clazz the class to find the set method from
++     * @param key the key to use as 1st argument to the set method
++     * @param value the value to use as 2nd argument to the set method
++     * @return the executor if found, null otherwise
++     */
++    public static DuckSetExecutor discover(Introspector is, Class<?> clazz, Object key, Object value) {
++        java.lang.reflect.Method method = is.getMethod(clazz, "set", makeArgs(key, value));
++        return method == null? null : new DuckSetExecutor(clazz, method, key);
++    }
++    
++    /**
+      * Creates an instance.
+-     *@param is the introspector
+-     *@param clazz the class to find the set method from
+-     *@param key the key to use as 1st argument to the set method
+-     *@param value the value to use as 2nd argument to the set method
++     * @param clazz the class the set method applies to
++     * @param method the method called through this executor
++     * @param key the key to use as 1st argument to the set method
+      */
+-    public DuckSetExecutor(Introspector is, Class<?> clazz, Object key, Object value) {
+-        super(clazz, discover(is, clazz, key, value));
++    private DuckSetExecutor(Class<?> clazz, java.lang.reflect.Method method, Object key) {
++        super(clazz, method);
+         property = key;
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+     public Object getTargetProperty() {
+         return property;
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+-    public Object execute(Object obj, Object value)
+-            throws IllegalAccessException, InvocationTargetException {
++    public Object invoke(Object obj, Object value) throws IllegalAccessException, InvocationTargetException {
+         Object[] pargs = {property, value};
+         if (method != null) {
+             method.invoke(obj, pargs);
+@@ -62,9 +72,8 @@
+         return value;
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+-    public Object tryExecute(Object obj, Object key, Object value) {
++    public Object tryInvoke(Object obj, Object key, Object value) {
+         if (obj != null && method !=  null
+             // ensure method name matches the property name
+             && property.equals(key)
+@@ -81,17 +90,4 @@
+         }
+         return TRY_FAILED;
+     }
+-
+-    /**
+-     * Discovers the method for a {@link DuckSet}.
+-     *@param is the introspector
+-     *@param clazz the class to find the set method from
+-     *@param key the key to use as 1st argument to the set method
+-     *@param value the value to use as 2nd argument to the set method
+-     *@return the method if found, null otherwise
+-     */
+-    private static java.lang.reflect.Method discover(Introspector is,
+-            Class<?> clazz, Object key, Object value) {
+-        return is.getMethod(clazz, "set", makeArgs(key, value));
+-    }
+ }
+\ No newline at end of file
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection: FieldGetExecutor.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection: FieldSetExecutor.java
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection: IndexedType.java
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/Introspector.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/Introspector.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/Introspector.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/Introspector.java	2025-12-21 01:54:23.247381950 +1100
+@@ -23,9 +23,9 @@
+ import java.lang.reflect.Method;
+ import java.lang.reflect.Modifier;
+ 
++import java.util.ArrayList;
+ import java.util.HashMap;
+ import java.util.Iterator;
+-import java.util.LinkedList;
+ import java.util.List;
+ import java.util.Map;
+ 
+@@ -251,14 +251,14 @@
+                     // add it to list of known loaded classes
+                     constructibleClasses.put(cname, clazz);
+                 }
+-                List<Constructor<?>> l = new LinkedList<Constructor<?>>();
++                List<Constructor<?>> l = new ArrayList<Constructor<?>>();
+                 for (Constructor<?> ictor : clazz.getConstructors()) {
+                     if (Modifier.isPublic(ictor.getModifiers()) && Permissions.allow(ictor)) {
+                         l.add(ictor);
+                     }
+                 }
+                 // try to find one
+-                ctor = key.getMostSpecificConstructor(l);
++                ctor = key.getMostSpecificConstructor(l.toArray(new Constructor<?>[l.size()]));
+                 if (ctor != null) {
+                     constructorsMap.put(key, ctor);
+                 } else {
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/ListGetExecutor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/ListGetExecutor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/ListGetExecutor.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/ListGetExecutor.java	2025-12-21 01:54:23.247381950 +1100
+@@ -14,8 +14,8 @@
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
+-
+ package org.apache.commons.jexl3.internal.introspection;
++
+ import java.util.List;
+ import java.lang.reflect.Array;
+ 
+@@ -34,29 +34,44 @@
+     private final Integer property;
+ 
+     /**
+-     * Creates an instance checking for the List interface or Array capability.
++     * Attempts to discover a ListGetExecutor.
++     * 
+      * @param is the introspector
+-     * @param clazz the class to introspect
+-     * @param key the key to use in obj.get(key)
++     * @param clazz the class to find the get method from
++     * @param identifier the key to use as an argument to the get method
++     * @return the executor if found, null otherwise
+      */
+-    public ListGetExecutor(Introspector is, Class<?> clazz, Integer key) {
+-        super(clazz, discover(clazz));
+-        property = key;
++    public static ListGetExecutor discover(Introspector is, Class<?> clazz, Object identifier) {
++        java.lang.reflect.Method method = null;
++        Integer index = toInteger(identifier);
++        if (index != null) {
++            if (clazz.isArray()) {
++                method = ARRAY_GET;
++            } else if (List.class.isAssignableFrom(clazz)) {
++                method = LIST_GET;
++            }
++        }
++        return method == null ? null : new ListGetExecutor(clazz, method, index);
++    }
++
++    /**
++     * Creates an instance.
++     * @param clazz he class the get method applies to
++     * @param method the method held by this executor
++     * @param identifier the property to get
++     */
++    private ListGetExecutor(Class<?> clazz, java.lang.reflect.Method method, Integer identifier) {
++        super(clazz, method);
++        property = identifier;
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+     public Object getTargetProperty() {
+         return property;
+     }
+-    
+-    /**
+-     * Get the property from the obj or array.
+-     * @param obj the List/array.
+-     * @return obj.get(key)
+-     */
++
+     @Override
+-    public Object execute(final Object obj) {
++    public Object invoke(final Object obj) {
+         if (method == ARRAY_GET) {
+             return java.lang.reflect.Array.get(obj, property.intValue());
+         } else {
+@@ -64,35 +79,18 @@
+         }
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+-    public Object tryExecute(final Object obj, Object key) {
++    public Object tryInvoke(final Object obj, Object key) {
++        Integer index = toInteger(key);
+         if (obj != null && method != null
+             && objectClass.equals(obj.getClass())
+-            && key instanceof Integer) {
++            && index != null) {
+             if (method == ARRAY_GET) {
+-                return java.lang.reflect.Array.get(obj, ((Integer) key).intValue());
++                return java.lang.reflect.Array.get(obj, index.intValue());
+             } else {
+-                return ((List<?>) obj).get(((Integer) key).intValue());
++                return ((List<?>) obj).get(index.intValue());
+             }
+         }
+         return TRY_FAILED;
+     }
+-
+-
+-    /**
+-     * Finds the method to perform the get on a obj of array.
+-     * @param clazz the class to introspect
+-     * @return a marker method, obj.get or array.get
+-     */
+-    static java.lang.reflect.Method discover(Class<?> clazz) {
+-        //return discoverList(false, clazz, property);
+-        if (clazz.isArray()) {
+-            return ARRAY_GET;
+-        }
+-        if (List.class.isAssignableFrom(clazz)) {
+-            return LIST_GET;
+-        }
+-        return null;
+-    }
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/ListSetExecutor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/ListSetExecutor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/ListSetExecutor.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/ListSetExecutor.java	2025-12-21 01:54:23.247381950 +1100
+@@ -14,8 +14,8 @@
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
+-
+ package org.apache.commons.jexl3.internal.introspection;
++
+ import java.util.List;
+ import java.lang.reflect.Array;
+ 
+@@ -24,7 +24,7 @@
+  * @since 2.0
+  */
+ public final class ListSetExecutor extends AbstractExecutor.Set {
+-        /** The java.lang.reflect.Array.get method used as an active marker in ListGet. */
++    /** The java.lang.reflect.Array.get method used as an active marker in ListGet. */
+     private static final java.lang.reflect.Method ARRAY_SET =
+             initMarker(Array.class, "set", Object.class, Integer.TYPE, Object.class);
+     /** The java.util.obj.set method used as an active marker in ListSet. */
+@@ -34,26 +34,52 @@
+     private final Integer property;
+ 
+     /**
+-     * Creates an instance checking for the List interface or Array capability.
++     * Attempts to discover a ListSetExecutor.
++     * 
+      * @param is the introspector
+-     * @param clazz the class that might implement the map interface
+-     * @param key the key to use in obj.set(key,value)
+-     * @param value the value to use in obj.set(key,value)
++     * @param clazz the class to find the get method from
++     * @param identifier the key to use as an argument to the get method
++     * @param value the value to use as argument in list.put(key,value)
++     * @return the executor if found, null otherwise
++     */
++    public static ListSetExecutor discover(Introspector is, Class<?> clazz, Object identifier, Object value) {
++        Integer index = toInteger(identifier);
++        java.lang.reflect.Method method = null;
++        if (index != null) {
++            if (clazz.isArray()) {
++                // we could verify if the call can be performed but it does not change
++                // the fact we would fail...
++                // Class<?> formal = clazz.getComponentType();
++                // Class<?> actual = value == null? Object.class : value.getClass();
++                // if (IntrospectionUtils.isMethodInvocationConvertible(formal, actual, false)) {
++                method = ARRAY_SET;
++                // }
++            } else if (List.class.isAssignableFrom(clazz)) {
++                method = LIST_SET;
++            }
++        }
++        return method == null ? null : new ListSetExecutor(clazz, method, index);
++    }
++
++    /**
++     * Creates an instance.
++     * 
++     * @param clazz the class the set method applies to
++     * @param method the method called through this executor
++     * @param key the key to use as 1st argument to the set method
+      */
+-    public ListSetExecutor(Introspector is, Class<?> clazz, Integer key, Object value) {
+-        super(clazz, discover(clazz));
++    private ListSetExecutor(Class<?> clazz, java.lang.reflect.Method method, Integer key) {
++        super(clazz, method);
+         property = key;
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+     public Object getTargetProperty() {
+         return property;
+     }
+-    
+-    /** {@inheritDoc} */
++
+     @Override
+-    public Object execute(final Object obj, Object value) {
++    public Object invoke(final Object obj, Object value) {
+         if (method == ARRAY_SET) {
+             java.lang.reflect.Array.set(obj, property.intValue(), value);
+         } else {
+@@ -64,43 +90,21 @@
+         return value;
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+-    public Object tryExecute(final Object obj, Object key, Object value) {
++    public Object tryInvoke(final Object obj, Object key, Object value) {
++        Integer index = toInteger(key);
+         if (obj != null && method != null
+-            && objectClass.equals(obj.getClass())
+-            && key instanceof Integer) {
++                && objectClass.equals(obj.getClass())
++                && index != null) {
+             if (method == ARRAY_SET) {
+-                Array.set(obj, ((Integer) key).intValue(), value);
++                Array.set(obj, index.intValue(), value);
+             } else {
+                 @SuppressWarnings("unchecked")  // LSE should only be created for array or list types
+                 final List<Object> list = (List<Object>) obj;
+-                list.set(((Integer) key).intValue(), value);
++                list.set(index.intValue(), value);
+             }
+             return value;
+         }
+         return TRY_FAILED;
+     }
+-
+-
+-    /**
+-     * Finds the method to perform 'set' on a obj of array.
+-     * @param clazz the class to introspect
+-     * @return a marker method, obj.set or array.set
+-     */
+-    static java.lang.reflect.Method discover(Class<?> clazz) {
+-        if (clazz.isArray()) {
+-            // we could verify if the call can be performed but it does not change
+-            // the fact we would fail...
+-            // Class<?> formal = clazz.getComponentType();
+-            // Class<?> actual = value == null? Object.class : value.getClass();
+-            // if (IntrospectionUtils.isMethodInvocationConvertible(formal, actual, false)) {
+-                return ARRAY_SET;
+-            // }
+-        }
+-        if (List.class.isAssignableFrom(clazz)) {
+-            return LIST_SET;
+-        }
+-        return null;
+-    }
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/MapGetExecutor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/MapGetExecutor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/MapGetExecutor.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/MapGetExecutor.java	2025-12-21 01:54:23.247381950 +1100
+@@ -19,9 +19,9 @@
+ 
+ import java.util.Map;
+ 
+- /**
++/**
+  * Specialized executor to get a property from a Map.
+-  * @since 2.0
++ * @since 2.0
+  */
+ public final class MapGetExecutor extends AbstractExecutor.Get {
+     /** The java.util.map.get method used as an active marker in MapGet. */
+@@ -31,53 +31,54 @@
+     private final Object property;
+ 
+     /**
+-     * Creates an instance checking for the Map interface.
++     * Attempts to discover a MapGetExecutor.
++     * 
+      * @param is the introspector
+-     * @param clazz the class that might implement the map interface
+-     * @param key the key to use in map.get(key)
++     * @param clazz the class to find the get method from
++     * @param identifier the key to use as an argument to the get method
++     * @return the executor if found, null otherwise
+      */
+-    public MapGetExecutor(Introspector is, Class<?> clazz, Object key) {
+-        super(clazz, discover(clazz));
++    public static MapGetExecutor discover(Introspector is, Class<?> clazz, Object identifier) {
++        if (Map.class.isAssignableFrom(clazz)) {
++            return new MapGetExecutor(clazz, MAP_GET, identifier);
++        } else {
++            return null;
++        }
++    }
++
++    /**
++     * Creates an instance.
++     * @param clazz he class the get method applies to
++     * @param method the method held by this executor
++     * @param key the property to get
++     */
++    private MapGetExecutor(Class<?> clazz, java.lang.reflect.Method method, Object key) {
++        super(clazz, method);
+         property = key;
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+     public Object getTargetProperty() {
+         return property;
+     }
+-    
+-    /**
+-     * Get the property from the map.
+-     * @param obj the map.
+-     * @return map.get(property)
+-     */
++
++
+     @Override
+-    public Object execute(final Object obj) {
++    public Object invoke(final Object obj) {
+         @SuppressWarnings("unchecked") // ctor only allows Map instances - see discover() method
+-        final Map<Object,?> map = (Map<Object, ?>) obj;
++        final Map<Object, ?> map = (Map<Object, ?>) obj;
+         return map.get(property);
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+-    public Object tryExecute(final Object obj, Object key) {
+-        if (obj != null &&  method != null
+-            && objectClass.equals(obj.getClass())
+-            && (key == null || property.getClass().equals(key.getClass()))) {
++    public Object tryInvoke(final Object obj, Object key) {
++        if (obj != null && method != null
++                && objectClass.equals(obj.getClass())
++                && (key == null || property.getClass().equals(key.getClass()))) {
+             @SuppressWarnings("unchecked") // ctor only allows Map instances - see discover() method
+-            final Map<Object,?> map = (Map<Object, ?>) obj;
++            final Map<Object, ?> map = (Map<Object, ?>) obj;
+             return map.get(key);
+         }
+         return TRY_FAILED;
+     }
+-
+-    /**
+-     * Finds the method to perform 'get' on a map.
+-     * @param clazz the class to introspect
+-     * @return a marker method, map.get
+-     */
+-    static java.lang.reflect.Method discover(Class<?> clazz) {
+-        return (Map.class.isAssignableFrom(clazz))? MAP_GET : null;
+-    }
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/MapSetExecutor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/MapSetExecutor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/MapSetExecutor.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/MapSetExecutor.java	2025-12-21 01:54:23.247381950 +1100
+@@ -30,36 +30,48 @@
+     private final Object property;
+ 
+     /**
+-     * Creates an instance checking for the Map interface.
+-     *@param is the introspector
+-     *@param clazz the class that might implement the map interface
+-     *@param key the key to use as argument in map.put(key,value)
+-     *@param value the value to use as argument in map.put(key,value)
+-    */
+-    public MapSetExecutor(Introspector is, Class<?> clazz, Object key, Object value) {
+-        super(clazz, discover(clazz));
++     * Attempts to discover a MapSetExecutor.
++     * 
++     * @param is the introspector
++     * @param clazz the class to find the set method from
++     * @param identifier the key to use as an argument to the get method
++     * @param value the value to use as argument in map.put(key,value)
++     * @return the executor if found, null otherwise
++     */
++    public static MapSetExecutor discover(Introspector is, Class<?> clazz, Object identifier, Object value) {
++        if (Map.class.isAssignableFrom(clazz)) {
++            return new MapSetExecutor(clazz, MAP_SET, identifier);
++        } else {
++            return null;
++        }
++    }
++    
++    /**
++     * Creates an instance.
++     * @param clazz the class the set method applies to
++     * @param method the method called through this executor
++     * @param key the key to use as 1st argument to the set method
++     */
++    private MapSetExecutor(Class<?> clazz, java.lang.reflect.Method method, Object key) {
++        super(clazz, method);
+         property = key;
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+     public Object getTargetProperty() {
+         return property;
+     }
+     
+-    /** {@inheritDoc} */
+     @Override
+-    public Object execute(final Object obj, Object value)
+-    throws IllegalAccessException, InvocationTargetException {
++    public Object invoke(final Object obj, Object value) throws IllegalAccessException, InvocationTargetException {
+         @SuppressWarnings("unchecked") // ctor only allows Map instances - see discover() method
+         final Map<Object,Object> map = ((Map<Object, Object>) obj);
+         map.put(property, value);
+         return value;
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+-    public Object tryExecute(final Object obj, Object key, Object value) {
++    public Object tryInvoke(final Object obj, Object key, Object value) {
+         if (obj != null && method != null
+             && objectClass.equals(obj.getClass())
+             && (key == null || property.getClass().equals(key.getClass()))) {
+@@ -70,13 +82,4 @@
+         }
+         return TRY_FAILED;
+     }
+-
+-    /**
+-     * Finds the method to perform 'set' on a map.
+-     * @param clazz the class to introspect
+-     * @return a marker method, map.get
+-     */
+-    static java.lang.reflect.Method discover(Class<?> clazz) {
+-        return (Map.class.isAssignableFrom(clazz))? MAP_SET : null;
+-    }
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/MethodExecutor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/MethodExecutor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/MethodExecutor.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/MethodExecutor.java	2025-12-21 01:54:23.247381950 +1100
+@@ -26,29 +26,51 @@
+ public final class MethodExecutor extends AbstractExecutor.Method {
+     /** Whether this method handles varargs. */
+     private final boolean isVarArgs;
++    
++    
+     /**
+-     * Creates a new instance.
++     * Discovers a {@link MethodExecutor}.
++     * <p>
++     * If the object is an array, an attempt will be made to find the
++     * method in a List (see {@link ArrayListWrapper})
++     * </p>
++     * <p>
++     * If the object is a class, an attempt will be made to find the
++     * method as a static method of that class.
++     * </p>
+      * @param is the introspector used to discover the method
+-     * @param obj the object to find the method in
+-     * @param name the method name
++     * @param obj the object to introspect
++     * @param method the name of the method to find
+      * @param args the method arguments
++     * @return a filled up parameter (may contain a null method)
+      */
+-    public MethodExecutor(Introspector is, Object obj, String name, Object[] args) {
+-        super(obj.getClass(), discover(is, obj, name, args));
+-        isVarArgs = method != null && isVarArgMethod(method);
++    public static MethodExecutor discover(Introspector is, Object obj, String method, Object[] args) {
++        final Class<?> clazz = obj.getClass();
++        final MethodKey key = new MethodKey(method, args);
++        java.lang.reflect.Method m = is.getMethod(clazz, key);
++        if (m == null && clazz.isArray()) {
++            // check for support via our array->list wrapper
++            m = is.getMethod(ArrayListWrapper.class, key);
++        }
++        if (m == null && obj instanceof Class<?>) {
++            m = is.getMethod((Class<?>) obj, key);
++        }
++        return m == null? null : new MethodExecutor(clazz, m, key);
+     }
+ 
+     /**
+-     * Invokes the method to be executed.
+-     * @param o the object to invoke the method upon
+-     * @param args the method arguments
+-     * @return the result of the method invocation
+-     * @throws IllegalAccessException Method is inaccessible.
+-     * @throws InvocationTargetException Method body throws an exception.
++     * Creates a new instance.
++     * @param c the class this executor applies to
++     * @param m the method
++     * @param k the MethodKey
+      */
++    private MethodExecutor(Class<?> c, java.lang.reflect.Method m, MethodKey k) {
++        super(c, m, k);
++        isVarArgs = method != null && isVarArgMethod(method);
++    }
++
+     @Override
+-    public Object execute(Object o, Object[] args)
+-        throws IllegalAccessException, InvocationTargetException  {
++    public Object invoke(Object o, Object[] args) throws IllegalAccessException, InvocationTargetException  {
+         if (isVarArgs) {
+             Class<?>[] formal = method.getParameterTypes();
+             int index = formal.length - 1;
+@@ -64,15 +86,14 @@
+         }
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+-    public Object tryExecute(String name, Object obj, Object[] args) {
++    public Object tryInvoke(String name, Object obj, Object[] args) {
+         MethodKey tkey = new MethodKey(name, args);
+         // let's assume that invocation will fly if the declaring class is the
+         // same and arguments have the same type
+         if (objectClass.equals(obj.getClass()) && tkey.equals(key)) {
+             try {
+-                return execute(obj, args);
++                return invoke(obj, args);
+             } catch (InvocationTargetException xinvoke) {
+                 return TRY_FAILED; // fail
+             } catch (IllegalAccessException xill) {
+@@ -84,37 +105,6 @@
+ 
+ 
+     /**
+-     * Discovers a method for a {@link MethodExecutor}.
+-     * <p>
+-     * If the object is an array, an attempt will be made to find the
+-     * method in a List (see {@link ArrayListWrapper})
+-     * </p>
+-     * <p>
+-     * If the object is a class, an attempt will be made to find the
+-     * method as a static method of that class.
+-     * </p>
+-     * @param is the introspector used to discover the method
+-     * @param obj the object to introspect
+-     * @param method the name of the method to find
+-     * @param args the method arguments
+-     * @return a filled up parameter (may contain a null method)
+-     */
+-    private static Parameter discover(Introspector is,
+-            Object obj, String method, Object[] args) {
+-        final Class<?> clazz = obj.getClass();
+-        final MethodKey key = new MethodKey(method, args);
+-        java.lang.reflect.Method m = is.getMethod(clazz, key);
+-        if (m == null && clazz.isArray()) {
+-            // check for support via our array->list wrapper
+-            m = is.getMethod(ArrayListWrapper.class, key);
+-        }
+-        if (m == null && obj instanceof Class<?>) {
+-            m = is.getMethod((Class<?>) obj, key);
+-        }
+-        return new Parameter(m, key);
+-    }
+-
+-    /**
+      * Reassembles arguments if the method is a vararg method.
+      * @param type   The vararg class type (aka component type
+      *               of the expected array arg)
+@@ -125,7 +115,7 @@
+      * @return The actual parameters adjusted for the varargs in order
+      * to fit the method declaration.
+      */
+-    protected Object[] handleVarArg(Class<?> type, int index, Object[] actual) {
++    private Object[] handleVarArg(Class<?> type, int index, Object[] actual) {
+         final int size = actual.length - index;
+         // if no values are being passed into the vararg, size == 0
+         if (size == 1) {
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/MethodKey.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/MethodKey.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/MethodKey.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/MethodKey.java	2025-12-21 01:54:23.247381950 +1100
+@@ -23,7 +23,6 @@
+ import java.util.HashMap;
+ import java.util.Iterator;
+ import java.util.LinkedList;
+-import java.util.List;
+ import java.util.Map;
+ 
+ /**
+@@ -224,7 +223,7 @@
+      * @return the most specific method.
+      * @throws MethodKey.AmbiguousException if there is more than one.
+      */
+-    public Method getMostSpecificMethod(List<Method> methods) {
++    public Method getMostSpecificMethod(Method[] methods) {
+         return METHODS.getMostSpecific(methods, params);
+     }
+ 
+@@ -234,7 +233,7 @@
+      * @return the most specific constructor.
+      * @throws MethodKey.AmbiguousException if there is more than one.
+      */
+-    public Constructor<?> getMostSpecificConstructor(List<Constructor<?>> methods) {
++    public Constructor<?> getMostSpecificConstructor(Constructor<?>[] methods) {
+         return CONSTRUCTORS.getMostSpecific(methods, params);
+     }
+ 
+@@ -445,7 +444,7 @@
+          * @return the most specific method.
+          * @throws MethodKey.AmbiguousException if there is more than one.
+          */
+-        private T getMostSpecific(List<T> methods, Class<?>[] classes) {
++        private T getMostSpecific(T[] methods, Class<?>[] classes) {
+             LinkedList<T> applicables = getApplicables(methods, classes);
+ 
+             if (applicables.isEmpty()) {
+@@ -583,11 +582,9 @@
+          *         formal and actual arguments matches, and argument types are assignable
+          *         to formal types through a method invocation conversion).
+          */
+-        private LinkedList<T> getApplicables(List<T> methods, Class<?>[] classes) {
++        private LinkedList<T> getApplicables(T[] methods, Class<?>[] classes) {
+             LinkedList<T> list = new LinkedList<T>();
+-
+-            for (Iterator<T> imethod = methods.iterator(); imethod.hasNext();) {
+-                T method = imethod.next();
++            for (T method : methods) {
+                 if (isApplicable(method, classes)) {
+                     list.add(method);
+                 }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/PropertyGetExecutor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/PropertyGetExecutor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/PropertyGetExecutor.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/PropertyGetExecutor.java	2025-12-21 01:54:23.247381950 +1100
+@@ -29,34 +29,45 @@
+     private final String property;
+     
+     /**
+-     * Creates an instance by attempting discovery of the get method.
++     * Discovers a PropertyGetExecutor.
++     * <p>The method to be found should be named "get{P,p}property.</p>
++     * 
+      * @param is the introspector
+-     * @param clazz the class to introspect
++     * @param clazz the class to find the get method from
++     * @param property the property name to find
++     * @return the executor if found, null otherwise
++     */
++    public static PropertyGetExecutor discover(Introspector is, Class<?> clazz, String property) {
++        java.lang.reflect.Method method = discoverGet(is, "get", clazz, property);
++        return method == null? null : new PropertyGetExecutor(clazz, method, property);
++    }
++    
++    /**
++     * Creates an instance.
++     * @param clazz he class the get method applies to
++     * @param method the method held by this executor
+      * @param identifier the property to get
+      */
+-    public PropertyGetExecutor(Introspector is, Class<?> clazz, String identifier) {
+-        super(clazz, discover(is, clazz, identifier));
++    private PropertyGetExecutor(Class<?> clazz, java.lang.reflect.Method method, String identifier) {
++        super(clazz, method);
+         property = identifier;
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+     public Object getTargetProperty() {
+         return property;
+     }
+     
+-    /** {@inheritDoc} */
+     @Override
+-    public Object execute(Object o)
++    public Object invoke(Object o)
+         throws IllegalAccessException, InvocationTargetException {
+         return method == null ? null : method.invoke(o, (Object[]) null);
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+-    public Object tryExecute(Object o, Object identifier) {
++    public Object tryInvoke(Object o, Object identifier) {
+         if (o != null && method !=  null
+-            && property.equals(identifier)
++            && property.equals(toString(identifier))
+             && objectClass.equals(o.getClass())) {
+             try {
+                 return method.invoke(o, (Object[]) null);
+@@ -70,20 +81,6 @@
+     }
+ 
+     /**
+-     * Discovers the method for a {@link PropertyGet}.
+-     * <p>The method to be found should be named "get{P,p}property.</p>
+-     *@param is the introspector
+-     *@param clazz the class to find the get method from
+-     *@param property the property name to find
+-     *@return the method if found, null otherwise
+-     */
+-    static java.lang.reflect.Method discover(Introspector is,
+-            final Class<?> clazz, String property) {
+-        return discoverGet(is, "get", clazz, property);
+-    }
+-
+-
+-    /**
+      * Base method for boolean & object property get.
+      * @param is the introspector
+      * @param which "is" or "get" for boolean or object
+@@ -91,8 +88,7 @@
+      * @param property The property being addressed.
+      * @return The {get,is}{p,P}roperty method if one exists, null otherwise.
+      */
+-    static java.lang.reflect.Method discoverGet(Introspector is,
+-            String which, Class<?> clazz, String property) {
++    static java.lang.reflect.Method discoverGet(Introspector is, String which, Class<?> clazz, String property) {
+         //  this is gross and linear, but it keeps it straightforward.
+         java.lang.reflect.Method method = null;
+         final int start = which.length(); // "get" or "is" so 3 or 2 for char case switch
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/PropertySetExecutor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/PropertySetExecutor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/PropertySetExecutor.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/PropertySetExecutor.java	2025-12-21 01:54:23.247381950 +1100
+@@ -27,30 +27,41 @@
+     private static final int SET_START_INDEX = 3;
+     /** The property. */
+     private final String property;
+-
++    
+     /**
+-     * Creates an instance by attempting discovery of the set method.
++     * Discovers a PropertySetExecutor.
++     * <p>The method to be found should be named "set{P,p}property.</p>
++     * 
+      * @param is the introspector
+-     * @param clazz the class to introspect
+-     * @param identifier the property to set
+-     * @param arg the value to set into the property
++     * @param clazz the class to find the get method from
++     * @param property the property name to find
++     * @param arg the value to assign to the property
++     * @return the executor if found, null otherwise
+      */
+-    public PropertySetExecutor(Introspector is, Class<?> clazz, String identifier, Object arg) {
+-        super(clazz, discover(is, clazz, identifier, arg));
+-        property = identifier;
++    public static PropertySetExecutor discover(Introspector is, Class<?> clazz, String property, Object arg) {
++        java.lang.reflect.Method method = discoverSet(is, clazz, property, arg);
++        return method == null? null : new PropertySetExecutor(clazz, method, property);
++    }
++    
++    /**
++     * Creates an instance.
++     * @param clazz the class the set method applies to
++     * @param method the method called through this executor
++     * @param key the key to use as 1st argument to the set method
++     */
++    private PropertySetExecutor(Class<?> clazz, java.lang.reflect.Method method, String key) {
++        super(clazz, method);
++        property = key;
+ 
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+     public Object getTargetProperty() {
+         return property;
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+-    public Object execute(Object o, Object arg)
+-            throws IllegalAccessException, InvocationTargetException {
++    public Object invoke(Object o, Object arg) throws IllegalAccessException, InvocationTargetException {
+         Object[] pargs = {arg};
+         if (method != null) {
+             method.invoke(o, pargs);
+@@ -58,18 +69,17 @@
+         return arg;
+     }
+ 
+-    /** {@inheritDoc} */
+     @Override
+-    public Object tryExecute(Object o, Object identifier, Object arg) {
++    public Object tryInvoke(Object o, Object identifier, Object arg) {
+         if (o != null && method != null
+             // ensure method name matches the property name
+-            && property.equals(identifier)
++            && property.equals(toString(identifier))
+             // object class should be same as executor's method declaring class
+             && objectClass.equals(o.getClass())
+             // we are guaranteed the method has one parameter since it is a set(x)
+             && (arg == null || method.getParameterTypes()[0].equals(arg.getClass()))) {
+             try {
+-                return execute(o, arg);
++                return invoke(o, arg);
+             } catch (InvocationTargetException xinvoke) {
+                 return TRY_FAILED; // fail
+             } catch (IllegalAccessException xill) {
+@@ -83,14 +93,14 @@
+     /**
+      * Discovers the method for a {@link PropertySet}.
+      * <p>The method to be found should be named "set{P,p}property.</p>
+-     *@param is the introspector
+-     *@param clazz the class to find the get method from
+-     *@param property the name of the property to set
+-     *@param arg the value to assign to the property
+-     *@return the method if found, null otherwise
++     * 
++     * @param is the introspector
++     * @param clazz the class to find the get method from
++     * @param property the name of the property to set
++     * @param arg the value to assign to the property
++     * @return the method if found, null otherwise
+      */
+-    private static java.lang.reflect.Method discover(Introspector is,
+-            final Class<?> clazz, String property, Object arg) {
++    private static java.lang.reflect.Method discoverSet(Introspector is, Class<?> clazz, String property, Object arg) {
+         // first, we introspect for the set<identifier> setter method
+         Object[] params = {arg};
+         StringBuilder sb = new StringBuilder("set");
+@@ -104,7 +114,6 @@
+             sb.setCharAt(SET_START_INDEX, Character.toLowerCase(c));
+             method = is.getMethod(clazz, sb.toString(), params);
+         }
+-
+         return method;
+     }
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/SandboxUberspect.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/SandboxUberspect.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/SandboxUberspect.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/SandboxUberspect.java	2025-12-21 01:54:23.247381950 +1100
+@@ -17,7 +17,6 @@
+ package org.apache.commons.jexl3.internal.introspection;
+ 
+ import java.util.Iterator;
+-import org.apache.commons.jexl3.JexlInfoHandle;
+ import org.apache.commons.jexl3.introspection.JexlMethod;
+ import org.apache.commons.jexl3.introspection.JexlPropertyGet;
+ import org.apache.commons.jexl3.introspection.JexlPropertySet;
+@@ -54,7 +53,7 @@
+      * {@inheritDoc}
+      */
+     @Override
+-    public JexlMethod getConstructor(Object ctorHandle, Object[] args, JexlInfoHandle info) {
++    public JexlMethod getConstructor(Object ctorHandle, Object[] args) {
+         final String className;
+         if (ctorHandle instanceof Class<?>) {
+             Class<?> clazz = (Class<?>) ctorHandle;
+@@ -65,7 +64,7 @@
+             return null;
+         }
+         if (sandbox.execute(className, "") != null) {
+-            return uberspect.getConstructor(className, args, info);
++            return uberspect.getConstructor(className, args);
+         }
+         return null;
+     }
+@@ -74,11 +73,11 @@
+      * {@inheritDoc}
+      */
+     @Override
+-    public JexlMethod getMethod(Object obj, String method, Object[] args, JexlInfoHandle info) {
++    public JexlMethod getMethod(Object obj, String method, Object[] args) {
+         if (obj != null && method != null) {
+             String actual = sandbox.execute(obj.getClass().getName(), method);
+             if (actual != null) {
+-                return uberspect.getMethod(obj, actual, args, info);
++                return uberspect.getMethod(obj, actual, args);
+             }
+         }
+         return null;
+@@ -88,11 +87,11 @@
+      * {@inheritDoc}
+      */
+     @Override
+-    public JexlPropertyGet getPropertyGet(Object obj, Object identifier, JexlInfoHandle info) {
++    public JexlPropertyGet getPropertyGet(Object obj, Object identifier) {
+         if (obj != null && identifier != null) {
+             String actual = sandbox.read(obj.getClass().getName(), identifier.toString());
+             if (actual != null) {
+-                return uberspect.getPropertyGet(obj, actual, info);
++                return uberspect.getPropertyGet(obj, actual);
+             }
+         }
+         return null;
+@@ -102,11 +101,11 @@
+      * {@inheritDoc}
+      */
+     @Override
+-    public JexlPropertySet getPropertySet(final Object obj, final Object identifier, Object arg, JexlInfoHandle info) {
++    public JexlPropertySet getPropertySet(final Object obj, final Object identifier, Object arg) {
+         if (obj != null && identifier != null) {
+             String actual = sandbox.write(obj.getClass().getName(), identifier.toString());
+             if (actual != null) {
+-                return uberspect.getPropertySet(obj, actual, arg, info);
++                return uberspect.getPropertySet(obj, actual, arg);
+             }
+         }
+         return null;
+@@ -119,7 +118,7 @@
+     }
+ 
+     @Override
+-    public Iterator<?> getIterator(Object obj, JexlInfoHandle info) {
+-        return uberspect.getIterator(obj, info);
++    public Iterator<?> getIterator(Object obj) {
++        return uberspect.getIterator(obj);
+     }
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/Uberspect.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/Uberspect.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/Uberspect.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/Uberspect.java	2025-12-21 01:54:23.243381952 +1100
+@@ -16,26 +16,19 @@
+  */
+ package org.apache.commons.jexl3.internal.introspection;
+ 
+-import java.beans.IntrospectionException;
+ import java.lang.ref.SoftReference;
+-import java.lang.reflect.Constructor;
+ import java.lang.reflect.Field;
+-import java.lang.reflect.Modifier;
+-import java.lang.reflect.InvocationTargetException;
+ 
+ import java.lang.reflect.Method;
+-import java.util.Arrays;
+ import java.util.Enumeration;
+ import java.util.Iterator;
+ import java.util.Map;
+ 
+-import org.apache.commons.jexl3.JexlInfo;
+-import org.apache.commons.jexl3.JexlException;
+-import org.apache.commons.jexl3.JexlInfoHandle;
+ import org.apache.commons.jexl3.introspection.JexlMethod;
+ import org.apache.commons.jexl3.introspection.JexlPropertyGet;
+ import org.apache.commons.jexl3.introspection.JexlPropertySet;
+ import org.apache.commons.jexl3.introspection.JexlUberspect;
++
+ import org.apache.commons.logging.Log;
+ 
+ /**
+@@ -50,39 +43,20 @@
+      * Publicly exposed special failure object returned by tryInvoke.
+      */
+     public static final Object TRY_FAILED = AbstractExecutor.TRY_FAILED;
+-/** The logger to use for all warnings & errors. */
++    /** The logger to use for all warnings & errors. */
+     protected final Log rlog;
+     /** The soft reference to the introspector currently in use. */
+     private volatile SoftReference<Introspector> ref;
+ 
+     /**
+-     * Coerce an Object  to an Integer.
+-     * @param arg the Object to coerce
+-     * @return an Integer if it can be converted, null otherwise
+-     */
+-    protected Integer toInteger(Object arg) {
+-        if (arg == null) {
+-            return null;
+-        }
+-        if (arg instanceof Number) {
+-            return Integer.valueOf(((Number) arg).intValue());
+-        }
+-        try {
+-            return Integer.valueOf(arg.toString());
+-        } catch (NumberFormatException xnumber) {
+-            return null;
+-        }
+-    }
+-
+-    /**
+-     * Coerce an Object to a String.
+-     * @param arg the Object to coerce
+-     * @return a String if it can be converted, null otherwise
++     * Creates a new Uberspect.
++     * @param runtimeLogger the logger used for all logging needs
+      */
+-    protected String toString(Object arg) {
+-        return arg == null ? null : arg.toString();
++    public Uberspect(Log runtimeLogger) {
++        rlog = runtimeLogger;
++        ref = new SoftReference<Introspector>(null);
+     }
+-
++    
+     /**
+      * Gets the current introspector base.
+      * <p>If the reference has been collected, this method will recreate the underlying introspector.</p>
+@@ -93,7 +67,7 @@
+         Introspector intro = ref.get();
+         if (intro == null) {
+             // double checked locking is ok (fixed by Java 5 memory model).
+-            synchronized(this) {
++            synchronized (this) {
+                 intro = ref.get();
+                 if (intro == null) {
+                     intro = new Introspector(rlog);
+@@ -118,7 +92,7 @@
+     public final Class<?> getClassByName(String className) {
+         return base().getClassByName(className);
+     }
+-    
++
+     /**
+      * Gets the field named by <code>key</code> for the class <code>c</code>.
+      *
+@@ -168,7 +142,6 @@
+         return base().getMethod(c, key);
+     }
+ 
+-
+     /**
+      * Gets the accessible methods names known for a given class.
+      * @param c the class
+@@ -177,7 +150,7 @@
+     public final String[] getMethodNames(Class<?> c) {
+         return base().getMethodNames(c);
+     }
+-            
++
+     /**
+      * Gets all the methods with a given name from this map.
+      * @param c the class
+@@ -187,158 +160,113 @@
+     public final Method[] getMethods(Class<?> c, final String methodName) {
+         return base().getMethods(c, methodName);
+     }
+-    /**
+-     * Creates a new UberspectImpl.
+-     * @param runtimeLogger the logger used for all logging needs
+-     */
+-    public Uberspect(Log runtimeLogger) {
+-        rlog = runtimeLogger;
+-        ref = new SoftReference<Introspector>(null);
+-    }
+-
+-    /**
+-     * Resets this Uberspect class loader.
+-     * @param cloader the class loader to use
+-     */
+-    public void setLoader(ClassLoader cloader) {
+-        base().setLoader(cloader);
+-    }
+-
+ 
+-    /**
+-     * Returns a general constructor.
+-     * @param ctorHandle the object
+-     * @param args contructor arguments
+-     * @return a {@link java.lang.reflect.Constructor}
+-     *  or null if no unambiguous contructor could be found through introspection.
+-     */
+-    protected final Constructor<?> getConstructor(Object ctorHandle, Object[] args) {
+-        String className = null;
+-        Class<?> clazz = null;
+-        if (ctorHandle instanceof Class<?>) {
+-            clazz = (Class<?>) ctorHandle;
+-            className = clazz.getName();
+-        } else if (ctorHandle != null) {
+-            className = ctorHandle.toString();
+-        } else {
+-            return null;
+-        }
+-        return base().getConstructor(clazz, new MethodKey(className, args));
+-    }
+-
+-    /**
+-     * Returns a general method.
+-     * @param obj the object
+-     * @param name the method name
+-     * @param args method arguments
+-     * @return a {@link AbstractExecutor.Method}.
+-     */
+-    protected final AbstractExecutor.Method getMethodExecutor(Object obj, String name, Object[] args) {
+-        AbstractExecutor.Method me = new MethodExecutor(base(), obj, name, args);
+-        return me.isAlive() ? me : null;
++    @Override
++    public JexlMethod getMethod(Object obj, String method, Object[] args) {
++        return MethodExecutor.discover(base(), obj, method, args);
+     }
+ 
+-    /**
+-     * Return a property getter.
+-     * @param obj the object to base the property from.
+-     * @param identifier property name
+-     * @return a {@link AbstractExecutor.Get}.
+-     */
+-    protected final AbstractExecutor.Get getGetExecutor(Object obj, Object identifier) {
++    @Override
++    public JexlPropertyGet getPropertyGet(Object obj, Object identifier) {
+         final Class<?> claz = obj.getClass();
+-        final String property = toString(identifier);
++        final String property = AbstractExecutor.toString(identifier);
+         final Introspector is = base();
+-        AbstractExecutor.Get executor;
++        JexlPropertyGet executor;
+         // first try for a getFoo() type of property (also getfoo() )
+         if (property != null) {
+-            executor = new PropertyGetExecutor(is, claz, property);
+-            if (executor.isAlive()) {
++            executor = PropertyGetExecutor.discover(is, claz, property);
++            if (executor != null) {
+                 return executor;
+             }
+-        //}
+-        // look for boolean isFoo()
+-        //if (property != null) {
+-            executor = new BooleanGetExecutor(is, claz, property);
+-            if (executor.isAlive()) {
++            // look for boolean isFoo()
++            executor = BooleanGetExecutor.discover(is, claz, property);
++            if (executor != null) {
+                 return executor;
+             }
+         }
+         // let's see if we are a map...
+-        executor = new MapGetExecutor(is, claz, identifier);
+-        if (executor.isAlive()) {
++        executor = MapGetExecutor.discover(is, claz, identifier);
++        if (executor != null) {
+             return executor;
+         }
+-        // let's see if we can convert the identifier to an int,
+-        // if obj is an array or a list, we can still do something
+-        Integer index = toInteger(identifier);
+-        if (index != null) {
+-            executor = new ListGetExecutor(is, claz, index);
+-            if (executor.isAlive()) {
++        // let's see if this is a list or array
++        executor = ListGetExecutor.discover(is, claz, identifier);
++        if (executor != null) {
++            return executor;
++        }
++        // if that didn't work, look for get(foo)
++        executor = DuckGetExecutor.discover(is, claz, identifier);
++        if (executor != null) {
++            return executor;
++        }
++        // last, look for get("foo") if we did not try yet
++        if (property != null && !(identifier instanceof String)) {
++            // if that didn't work, look for set("foo")
++            executor = DuckGetExecutor.discover(is, claz, property);
++            if (executor != null) {
+                 return executor;
+             }
+         }
+-        // if that didn't work, look for set("foo")
+-        executor = new DuckGetExecutor(is, claz, identifier);
+-        if (executor.isAlive()) {
++        // a field may be?
++        executor = FieldGetExecutor.discover(is, claz, property);
++        if (executor != null) {
+             return executor;
+         }
+-        // if that didn't work, look for set("foo")
+-        executor = new DuckGetExecutor(is, claz, property);
+-        if (executor.isAlive()) {
++        // or an indexed property?
++        executor = IndexedType.discover(is, obj, property);
++        if (executor != null) {
+             return executor;
+         }
+         return null;
+     }
+ 
+-    /**
+-     * Return a property setter.
+-     * @param obj the object to base the property from.
+-     * @param identifier property name (or identifier)
+-     * @param arg value to set
+-     * @return a {@link AbstractExecutor.Set}.
+-     */
+-    public final AbstractExecutor.Set getSetExecutor(final Object obj, final Object identifier, Object arg) {
++    @Override
++    public JexlPropertySet getPropertySet(final Object obj, final Object identifier, Object arg) {
+         final Class<?> claz = obj.getClass();
+-        final String property = toString(identifier);
++        final String property = AbstractExecutor.toString(identifier);
+         final Introspector is = base();
+-        AbstractExecutor.Set executor;
++        JexlPropertySet executor;
+         // first try for a setFoo() type of property (also setfoo() )
+         if (property != null) {
+-            executor = new PropertySetExecutor(is, claz, property, arg);
+-            if (executor.isAlive()) {
++            executor = PropertySetExecutor.discover(is, claz, property, arg);
++            if (executor != null) {
+                 return executor;
+             }
+         }
+         // let's see if we are a map...
+-        executor = new MapSetExecutor(is, claz, identifier, arg);
+-        if (executor.isAlive()) {
++        executor = MapSetExecutor.discover(is, claz, identifier, arg);
++        if (executor != null) {
+             return executor;
+         }
+         // let's see if we can convert the identifier to an int,
+         // if obj is an array or a list, we can still do something
+-        Integer index = toInteger(identifier);
+-        if (index != null) {
+-            executor = new ListSetExecutor(is, claz, index, arg);
+-            if (executor.isAlive()) {
+-                return executor;
+-            }
++        executor = ListSetExecutor.discover(is, claz, identifier, arg);
++        if (executor != null) {
++            return executor;
+         }
+         // if that didn't work, look for set(foo)
+-        executor = new DuckSetExecutor(is, claz, identifier, arg);
+-        if (executor.isAlive()) {
++        executor = DuckSetExecutor.discover(is, claz, identifier, arg);
++        if (executor != null) {
+             return executor;
+         }
+-        // if that didn't work, look for set("foo")
+-        executor = new DuckSetExecutor(is, claz, property, arg);
+-        if (executor.isAlive()) {
++        // last, look for set("foo") if we did not try yet
++        if (property != null && !(identifier instanceof String)) {
++            executor = DuckSetExecutor.discover(is, claz, property, arg);
++            if (executor != null) {
++                return executor;
++            }
++        }
++        // a field may be?
++        executor = FieldSetExecutor.discover(is, claz, property, arg);
++        if (executor != null) {
+             return executor;
+         }
+         return null;
+     }
+-    
++
+     @Override
+     @SuppressWarnings("unchecked")
+-    public Iterator<?> getIterator(Object obj, JexlInfoHandle info) {
++    public Iterator<?> getIterator(Object obj) {
+         if (obj instanceof Iterator<?>) {
+             return ((Iterator<?>) obj);
+         }
+@@ -358,417 +286,20 @@
+             // look for an iterator() method to support the JDK5 Iterable
+             // interface or any user tools/DTOs that want to work in
+             // foreach without implementing the Collection interface
+-            AbstractExecutor.Method it = getMethodExecutor(obj, "iterator", null);
++            JexlMethod it = getMethod(obj, "iterator", null);
+             if (it != null && Iterator.class.isAssignableFrom(it.getReturnType())) {
+-                return (Iterator<Object>) it.execute(obj, null);
++                return (Iterator<Object>) it.invoke(obj, (Object[]) null);
+             }
+         } catch (Exception xany) {
+-            throw new JexlException(info.jexlInfo(), "unable to generate iterator()", xany);
+-        }
+-        return null;
+-    }
+-    
+-    @Override
+-    public JexlMethod getMethod(Object obj, String method, Object[] args, JexlInfoHandle info) {
+-        return getMethodExecutor(obj, method, args);
+-    }
+-
+-    @Override
+-    public JexlMethod getConstructor(Object ctorHandle, Object[] args, JexlInfoHandle info) {
+-        final Constructor<?> ctor = getConstructor(ctorHandle, args);
+-        if (ctor != null) {
+-            return new ConstructorMethod(ctor);
+-        } else {
+-            return null;
+-        }
+-    }
+-
+-    @Override
+-    public JexlPropertyGet getPropertyGet(Object obj, Object identifier, JexlInfoHandle info) {
+-        JexlPropertyGet get = getGetExecutor(obj, identifier);
+-        if (get == null && obj != null && identifier != null) {
+-            get = getIndexedGet(obj, identifier.toString());
+-            if (get == null) {
+-                Field field = getField(obj, identifier.toString(), info.jexlInfo());
+-                if (field != null) {
+-                    return new FieldPropertyGet(field);
+-                }
+-            }
+-        }
+-        return get;
+-    }
+-
+-    @Override
+-    public JexlPropertySet getPropertySet(final Object obj, final Object identifier, Object arg, JexlInfoHandle info) {
+-        JexlPropertySet set = getSetExecutor(obj, identifier, arg);
+-        if (set == null && obj != null && identifier != null) {
+-            Field field = getField(obj, identifier.toString(), info.jexlInfo());
+-            if (field != null
+-                    && !Modifier.isFinal(field.getModifiers())
+-                    && (arg == null || MethodKey.isInvocationConvertible(field.getType(), arg.getClass(), false))) {
+-                return new FieldPropertySet(field);
+-            }
+-        }
+-        return set;
+-    }
+-
+-    /**
+-     * Returns a class field.
+-     * @param obj the object
+-     * @param name the field name
+-     * @param info debug info
+-     * @return a {@link Field}.
+-     */
+-    protected Field getField(Object obj, String name, JexlInfo info) {
+-        final Class<?> clazz = obj instanceof Class<?> ? (Class<?>) obj : obj.getClass();
+-        return getField(clazz, name);
+-    }
+-
+-    /**
+-     * Attempts to find an indexed-property getter in an object.
+-     * The code attempts to find the list of methods getXXX() and setXXX().
+-     * Note that this is not equivalent to the strict bean definition of indexed properties; the type of the key
+-     * is not necessarily an int and the set/get arrays are not resolved.
+-     * @param object the object
+-     * @param name the container name
+-     * @return a JexlPropertyGet is successfull, null otherwise
+-     */
+-    protected JexlPropertyGet getIndexedGet(Object object, String name) {
+-        if (object != null && name != null) {
+-            String base = name.substring(0, 1).toUpperCase() + name.substring(1);
+-            final String container = name;
+-            final Class<?> clazz = object.getClass();
+-            final Method[] getters = getMethods(object.getClass(), "get" + base);
+-            final Method[] setters = getMethods(object.getClass(), "set" + base);
+-            if (getters != null) {
+-                return new IndexedType(container, clazz, getters, setters);
++            if (rlog != null && rlog.isDebugEnabled()) {
++                rlog.info("unable to solve iterator()", xany);
+             }
+         }
+         return null;
+     }
+ 
+-    /**
+-     * Abstract an indexed property container.
+-     * This stores the container name and owning class as well as the list of available getter and setter methods.
+-     * It implements JexlPropertyGet since such a container can only be accessed from its owning instance (not set).
+-     */
+-    protected static final class IndexedType implements JexlPropertyGet {
+-        /** The container name. */
+-        private final String container;
+-        /** The owning class. */
+-        private final Class<?> clazz;
+-        /** The array of getter methods. */
+-        private final Method[] getters;
+-        /** The array of setter methods. */
+-        private final Method[] setters;
+-
+-        /**
+-         * Creates a new indexed type.
+-         * @param name the container name
+-         * @param c the owning class
+-         * @param gets the array of getter methods
+-         * @param sets the array of setter methods
+-         */
+-        protected IndexedType(String name, Class<?> c, Method[] gets, Method[] sets) {
+-            this.container = name;
+-            this.clazz = c;
+-            this.getters = gets;
+-            this.setters = sets;
+-        }
+-
+-        @Override
+-        public Object invoke(Object obj) throws Exception {
+-            if (obj != null && clazz.equals(obj.getClass())) {
+-                return new IndexedContainer(this, obj);
+-            } else {
+-                throw new IntrospectionException("property resolution error");
+-            }
+-        }
+-
+-        @Override
+-        public Object tryInvoke(Object obj, Object key) {
+-            if (obj != null && key != null && clazz.equals(obj.getClass()) && container.equals(key.toString())) {
+-                return new IndexedContainer(this, obj);
+-            } else {
+-                return TRY_FAILED;
+-            }
+-        }
+-
+-        @Override
+-        public boolean tryFailed(Object rval) {
+-            return rval == TRY_FAILED;
+-        }
+-
+-        @Override
+-        public boolean isCacheable() {
+-            return true;
+-        }
+-
+-        /**
+-         * Gets the value of a property from a container.
+-         * @param object the instance owning the container (not null)
+-         * @param key the property key (not null)
+-         * @return the property value
+-         * @throws Exception if invocation failed; IntrospectionException if a property getter could not be found
+-         */
+-        public Object invokeGet(Object object, Object key) throws Exception {
+-            if (getters != null) {
+-                final Object[] args = {key};
+-                final Method jm;
+-                if (getters.length == 1) {
+-                    jm = getters[0];
+-                } else {
+-                    jm = new MethodKey(getters[0].getName(), args).getMostSpecificMethod(Arrays.asList(getters));
+-                }
+-                if (jm != null) {
+-                    return jm.invoke(object, args);
+-                }
+-            }
+-            throw new IntrospectionException("property get error: "
+-                    + object.getClass().toString() + "@" + key.toString());
+-        }
+-
+-        /**
+-         * Sets the value of a property in a container.
+-         * @param object the instance owning the container (not null)
+-         * @param key the property key (not null)
+-         * @param value the property value (not null)
+-         * @return the result of the method invocation (frequently null)
+-         * @throws Exception if invocation failed; IntrospectionException if a property setter could not be found
+-         */
+-        public Object invokeSet(Object object, Object key, Object value) throws Exception {
+-            if (setters != null) {
+-                final Object[] args = {key, value};
+-                final Method jm;
+-                if (setters.length == 1) {
+-                    jm = setters[0];
+-                } else {
+-                    jm = new MethodKey(setters[0].getName(), args).getMostSpecificMethod(Arrays.asList(setters));
+-                }
+-                if (jm != null) {
+-                    return jm.invoke(object, args);
+-                }
+-            }
+-            throw new IntrospectionException("property set error: "
+-                    + object.getClass().toString() + "@" + key.toString());
+-        }
+-    }
+-
+-    /**
+-     * A generic indexed property container, exposes get(key) and set(key, value) and solves method call dynamically
+-     * based on arguments.
+-     * <p>Must remain public for introspection purpose.</p>
+-     */
+-    public static final class IndexedContainer {
+-        /** The instance owning the container. */
+-        private final Object object;
+-        /** The container type instance. */
+-        private final IndexedType type;
+-
+-        /**
+-         * Creates a new duck container.
+-         * @param theType the container type
+-         * @param theObject the instance owning the container
+-         */
+-        private IndexedContainer(IndexedType theType, Object theObject) {
+-            this.type = theType;
+-            this.object = theObject;
+-        }
+-
+-        /**
+-         * Gets a property from a container.
+-         * @param key the property key
+-         * @return the property value
+-         * @throws Exception if inner invocation fails
+-         */
+-        public Object get(Object key) throws Exception {
+-            return type.invokeGet(object, key);
+-        }
+-
+-        /**
+-         * Sets a property in a container.
+-         * @param key the property key
+-         * @param value the property value
+-         * @return the invocation result (frequently null)
+-         * @throws Exception if inner invocation fails
+-         */
+-        public Object set(Object key, Object value) throws Exception {
+-            return type.invokeSet(object, key, value);
+-        }
+-    }
+-
+-    /**
+-     * A JexlMethod that wraps constructor.
+-     */
+-    protected final class ConstructorMethod implements JexlMethod {
+-        /** The wrapped constructor. */
+-        private final Constructor<?> ctor;
+-
+-        /**
+-         * Creates a constructor method.
+-         * @param theCtor the constructor to wrap
+-         */
+-        protected ConstructorMethod(Constructor<?> theCtor) {
+-            this.ctor = theCtor;
+-        }
+-
+-        @Override
+-        public Object invoke(Object obj, Object[] params) throws Exception {
+-            Class<?> clazz = null;
+-            if (obj instanceof Class<?>) {
+-                clazz = (Class<?>) obj;
+-            } else if (obj != null) {
+-                clazz = getClassByName(obj.toString());
+-            } else {
+-                clazz = ctor.getDeclaringClass();
+-            }
+-            if (clazz.equals(ctor.getDeclaringClass())) {
+-                return ctor.newInstance(params);
+-            } else {
+-                throw new IntrospectionException("constructor resolution error");
+-            }
+-        }
+-
+-        @Override
+-        public Object tryInvoke(String name, Object obj, Object[] params) {
+-            Class<?> clazz = null;
+-            if (obj instanceof Class<?>) {
+-                clazz = (Class<?>) obj;
+-            } else if (obj != null) {
+-                clazz = getClassByName(obj.toString());
+-            } else {
+-                clazz = ctor.getDeclaringClass();
+-            }
+-            if (clazz.equals(ctor.getDeclaringClass())
+-                    && (name == null || name.equals(clazz.getName()))) {
+-                try {
+-                    return ctor.newInstance(params);
+-                } catch (InstantiationException xinstance) {
+-                    return TRY_FAILED;
+-                } catch (IllegalAccessException xaccess) {
+-                    return TRY_FAILED;
+-                } catch (IllegalArgumentException xargument) {
+-                    return TRY_FAILED;
+-                } catch (InvocationTargetException xinvoke) {
+-                    return TRY_FAILED;
+-                }
+-            }
+-            return TRY_FAILED;
+-        }
+-
+-        @Override
+-        public boolean tryFailed(Object rval) {
+-            return rval == TRY_FAILED;
+-        }
+-
+-        @Override
+-        public boolean isCacheable() {
+-            return true;
+-        }
+-
+-        @Override
+-        public Class<?> getReturnType() {
+-            return ctor.getDeclaringClass();
+-        }
+-    }
+-
+-    /**
+-     * A JexlPropertyGet for public fields.
+-     */
+-    protected static final class FieldPropertyGet implements JexlPropertyGet {
+-        /**
+-         * The public field.
+-         */
+-        private final Field field;
+-
+-        /**
+-         * Creates a new instance of FieldPropertyGet.
+-         * @param theField the class public field
+-         */
+-        protected FieldPropertyGet(Field theField) {
+-            field = theField;
+-        }
+-
+-        @Override
+-        public Object invoke(Object obj) throws Exception {
+-            return field.get(obj);
+-        }
+-
+-        @Override
+-        public Object tryInvoke(Object obj, Object key) {
+-            if (obj.getClass().equals(field.getDeclaringClass()) && key.equals(field.getName())) {
+-                try {
+-                    return field.get(obj);
+-                } catch (IllegalAccessException xill) {
+-                    return TRY_FAILED;
+-                }
+-            }
+-            return TRY_FAILED;
+-        }
+-
+-        @Override
+-        public boolean tryFailed(Object rval) {
+-            return rval == TRY_FAILED;
+-        }
+-
+-        @Override
+-        public boolean isCacheable() {
+-            return true;
+-        }
+-    }
+-
+-    /**
+-     * A JexlPropertySet for public fields.
+-     */
+-    protected static final class FieldPropertySet implements JexlPropertySet {
+-        /**
+-         * The public field.
+-         */
+-        private final Field field;
+-
+-        /**
+-         * Creates a new instance of FieldPropertySet.
+-         * @param theField the class public field
+-         */
+-        protected FieldPropertySet(Field theField) {
+-            field = theField;
+-        }
+-
+-        @Override
+-        public Object invoke(Object obj, Object arg) throws Exception {
+-            field.set(obj, arg);
+-            return arg;
+-        }
+-
+-        @Override
+-        public Object tryInvoke(Object obj, Object key, Object value) {
+-            if (obj.getClass().equals(field.getDeclaringClass())
+-                    && key.equals(field.getName())
+-                    && (value == null || MethodKey.isInvocationConvertible(field.getType(), value.getClass(), false))) {
+-                try {
+-                    field.set(obj, value);
+-                    return value;
+-                } catch (IllegalAccessException xill) {
+-                    return TRY_FAILED;
+-                }
+-            }
+-            return TRY_FAILED;
+-        }
+-
+-        /**
+-         * {@inheritDoc}
+-         */
+-        @Override
+-        public boolean tryFailed(Object rval) {
+-            return rval == TRY_FAILED;
+-        }
+-
+-        /**
+-         * {@inheritDoc}
+-         */
+-        @Override
+-        public boolean isCacheable() {
+-            return true;
+-        }
++    @Override
++    public JexlMethod getConstructor(Object ctorHandle, Object[] args) {
++        return ConstructorMethod.discover(base(), ctorHandle, args);
+     }
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/TemplateEngine.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/TemplateEngine.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/TemplateEngine.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/TemplateEngine.java	2025-12-21 01:54:23.243381952 +1100
+@@ -1121,7 +1121,7 @@
+                 } else if (arg != null) {
+                     Object[] value = {arg};
+                     JexlUberspect uber = getEngine().getUberspect();
+-                    JexlMethod method = uber.getMethod(writer, "print", value, null);
++                    JexlMethod method = uber.getMethod(writer, "print", value);
+                     if (method != null) {
+                         method.invoke(writer, value);
+                     } else {
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/introspection/JexlUberspect.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/introspection/JexlUberspect.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/introspection/JexlUberspect.java	2025-12-21 01:56:15.923330529 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/introspection/JexlUberspect.java	2025-12-21 01:54:23.247381950 +1100
+@@ -18,7 +18,6 @@
+ package org.apache.commons.jexl3.introspection;
+ 
+ import java.util.Iterator;
+-import org.apache.commons.jexl3.JexlInfoHandle;
+ 
+ /**
+  * 'Federated' introspection/reflection interface to allow the introspection
+@@ -37,30 +36,28 @@
+      * Returns a class constructor.
+      * @param ctorHandle a class or class name
+      * @param args constructor arguments
+-     * @param info contextual information
+      * @return a {@link JexlMethod}
+      * @since 3.0
+      */
+-    JexlMethod getConstructor(Object ctorHandle, Object[] args, JexlInfoHandle info);
++    JexlMethod getConstructor(Object ctorHandle, Object[] args);
++    
+     /**
+      * Returns a JexlMethod.
+      * @param obj the object
+      * @param method the method name
+      * @param args method arguments
+-     * @param info contextual information
+      * @return a {@link JexlMethod}
+      */
+-    JexlMethod getMethod(Object obj, String method, Object[] args, JexlInfoHandle info);
++    JexlMethod getMethod(Object obj, String method, Object[] args);
+ 
+     /**
+      * Property getter.
+      * <p>Returns JexlPropertyGet appropos for ${bar.woogie}.
+      * @param obj the object to get the property from
+      * @param identifier property name
+-     * @param info contextual information
+      * @return a {@link JexlPropertyGet}
+      */
+-    JexlPropertyGet getPropertyGet(Object obj, Object identifier, JexlInfoHandle info);
++    JexlPropertyGet getPropertyGet(Object obj, Object identifier);
+ 
+     /**
+      * Property setter.
+@@ -68,17 +65,15 @@
+      * @param obj the object to get the property from.
+      * @param identifier property name
+      * @param arg value to set
+-     * @param info contextual information
+      * @return a {@link JexlPropertySet}.
+      */
+-    JexlPropertySet getPropertySet(Object obj, Object identifier, Object arg, JexlInfoHandle info);
++    JexlPropertySet getPropertySet(Object obj, Object identifier, Object arg);
+ 
+     /**
+      * Gets an iterator from an object.
+-     * @param obj to get the iterator for
+-     * @param info contextual information
++     * @param obj to get the iterator from
+      * @return an iterator over obj
+      */
+-    Iterator<?> getIterator(Object obj, JexlInfoHandle info);
++    Iterator<?> getIterator(Object obj);
+ 
+ }
+\ No newline at end of file
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/JexlEvalContext.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/JexlEvalContext.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/JexlEvalContext.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/JexlEvalContext.java	2025-12-21 01:54:23.243381952 +1100
+@@ -34,9 +34,7 @@
+     /** Whether the engine should be strict. */
+     private Boolean strict = null;
+     /** Whether the arithmetic should be strict. */
+-    private Boolean astrict = null;
+-    /** The namespaces vars the engine should use. */
+-    private Map<String, Object> namespaces = null;
++    private Boolean mathStrict = null;
+     /** The math scale the arithmetic should use. */
+     private int mathScale = Integer.MIN_VALUE;
+     /** The math context the arithmetic should use. */
+@@ -87,7 +85,6 @@
+     public void clearOptions() {
+         silent = null;
+         strict = null;
+-        namespaces = null;
+         mathScale = -1;
+         mathContext = null;
+     }
+@@ -112,7 +109,7 @@
+      */
+     public void setStrict(boolean se, boolean sa) {
+         this.strict = se ? Boolean.TRUE : Boolean.FALSE;
+-        this.astrict = sa ? Boolean.TRUE : Boolean.FALSE;
++        this.mathStrict = sa ? Boolean.TRUE : Boolean.FALSE;
+     }
+ 
+     /**
+@@ -138,15 +135,15 @@
+      * @param s true means strict error reporting, false allows mentioned conditions to be evaluated as 0
+      */
+     public void setStrictArithmetic(boolean s) {
+-        this.astrict = s ? Boolean.TRUE : Boolean.FALSE;
++        this.mathStrict = s ? Boolean.TRUE : Boolean.FALSE;
+     }
+ 
+     @Override
+     public Boolean isStrictArithmetic() {
+-        if (astrict == null) {
++        if (mathStrict == null) {
+             return null;
+         } else {
+-            return astrict.booleanValue() ? Boolean.TRUE : Boolean.FALSE;
++            return mathStrict.booleanValue() ? Boolean.TRUE : Boolean.FALSE;
+         }
+     }
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/JexlException.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/JexlException.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/JexlException.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/JexlException.java	2025-12-21 01:54:23.243381952 +1100
+@@ -17,12 +17,13 @@
+ package org.apache.commons.jexl3;
+ 
+ import org.apache.commons.jexl3.internal.Debugger;
+-import java.lang.reflect.InvocationTargetException;
+-import java.lang.reflect.UndeclaredThrowableException;
+ import org.apache.commons.jexl3.parser.JexlNode;
+ import org.apache.commons.jexl3.parser.ParseException;
+ import org.apache.commons.jexl3.parser.TokenMgrError;
+ 
++import java.lang.reflect.InvocationTargetException;
++import java.lang.reflect.UndeclaredThrowableException;
++
+ /**
+  * Wraps any error that might occur during interpretation of a script or expression.
+  * @since 2.0
+@@ -35,9 +36,9 @@
+     /** A marker to use in NPEs stating a null operand error. */
+     public static final String NULL_OPERAND = "jexl.null";
+     /** Minimum number of characters around exception location. */
+-    private static final int MIN_EXCHARLOC = 5;
++    private static final int MIN_EXCHARLOC = 10;
+     /** Maximum number of characters around exception location. */
+-    private static final int MAX_EXCHARLOC = 10;
++    private static final int MAX_EXCHARLOC = 15;
+ 
+     /**
+      * Creates a new JexlException.
+Only in ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3: JexlInfoHandle.java
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/ObjectContext.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/ObjectContext.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/ObjectContext.java	2025-12-21 01:56:15.919330531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/ObjectContext.java	2025-12-21 01:54:23.243381952 +1100
+@@ -49,6 +49,6 @@
+ 
+     @Override
+     public boolean has(String name) {
+-        return jexl.getUberspect().getPropertyGet(object, name, null) != null;
++        return jexl.getUberspect().getPropertyGet(object, name) != null;
+     }
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/JexlNode.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/JexlNode.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/JexlNode.java	2025-12-21 01:56:15.923330529 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/JexlNode.java	2025-12-21 01:54:23.247381950 +1100
+@@ -17,14 +17,13 @@
+ package org.apache.commons.jexl3.parser;
+ 
+ import org.apache.commons.jexl3.JexlInfo;
+-import org.apache.commons.jexl3.JexlInfoHandle;
+ 
+ /**
+  * Base class for parser nodes - holds an 'image' of the token for later use.
+  *
+  * @since 2.0
+  */
+-public abstract class JexlNode extends SimpleNode implements JexlInfoHandle {
++public abstract class JexlNode extends SimpleNode {
+     /** A marker interface for literals.
+      * @param <T> the literal type
+      */
+@@ -42,7 +41,10 @@
+         super(p, id);
+     }
+ 
+-    /** {@inheritDoc} */
++    /**
++     * Gets the associated JexlInfo instance.
++     * @return the info
++     */
+     public JexlInfo jexlInfo() {
+         JexlNode node = this;
+         while (node != null) {
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/jexl3/internal/introspection/DiscoveryTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/jexl3/internal/introspection/DiscoveryTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/jexl3/internal/introspection/DiscoveryTest.java	2025-12-21 01:56:15.927330527 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/jexl3/internal/introspection/DiscoveryTest.java	2025-12-21 01:54:23.255381947 +1100
+@@ -16,25 +16,16 @@
+  */
+ package org.apache.commons.jexl3.internal.introspection;
+ 
+-import org.apache.commons.jexl3.internal.introspection.Uberspect;
++
++import org.apache.commons.jexl3.JexlTestCase;
++import org.apache.commons.jexl3.internal.Engine;
++import org.apache.commons.jexl3.introspection.JexlPropertyGet;
++
+ import java.util.ArrayList;
+ import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
+-
+-
+-import org.apache.commons.jexl3.internal.Engine;
+-import org.apache.commons.jexl3.JexlTestCase;
+-
+-import org.apache.commons.jexl3.internal.introspection.AbstractExecutor;
+-import org.apache.commons.jexl3.internal.introspection.PropertyGetExecutor;
+-import org.apache.commons.jexl3.internal.introspection.PropertySetExecutor;
+-import org.apache.commons.jexl3.internal.introspection.DuckGetExecutor;
+-import org.apache.commons.jexl3.internal.introspection.DuckSetExecutor;
+-import org.apache.commons.jexl3.internal.introspection.ListGetExecutor;
+-import org.apache.commons.jexl3.internal.introspection.MapGetExecutor;
+-import org.apache.commons.jexl3.internal.introspection.MapSetExecutor;
+-import org.apache.commons.jexl3.internal.introspection.ListSetExecutor;
++import org.apache.commons.jexl3.introspection.JexlPropertySet;
+ 
+ /**
+  * Tests for checking introspection discovery.
+@@ -105,27 +96,27 @@
+         Uberspect uber = Engine.getUberspect(null);
+         Bean bean = new Bean("JEXL", "LXEJ");
+ 
+-        AbstractExecutor.Get get = uber.getGetExecutor(bean, "value");
+-        AbstractExecutor.Set set  = uber.getSetExecutor(bean, "value", "foo");
++        JexlPropertyGet get = uber.getPropertyGet(bean, "value");
++        JexlPropertySet set  = uber.getPropertySet(bean, "value", "foo");
+         assertTrue("bean property getter", get instanceof PropertyGetExecutor);
+         assertTrue("bean property setter", set instanceof PropertySetExecutor);
+         // introspector and uberspect should return same result
+-        assertEquals(get, uber.getPropertyGet(bean, "value", null));
+-        assertEquals(set, uber.getPropertySet(bean, "value", "foo", null));
++        assertEquals(get, uber.getPropertyGet(bean, "value"));
++        assertEquals(set, uber.getPropertySet(bean, "value", "foo"));
+         // different property should return different setter/getter
+-        assertFalse(get.equals(uber.getGetExecutor(bean, "eulav")));
+-        assertFalse(set.equals(uber.getSetExecutor(bean, "eulav", "foo")));
++        assertFalse(get.equals(uber.getPropertyGet(bean, "eulav")));
++        assertFalse(set.equals(uber.getPropertySet(bean, "eulav", "foo")));
+         // setter returns argument
+-        Object bar = set.execute(bean, "bar");
++        Object bar = set.invoke(bean, "bar");
+         assertEquals("bar", bar);
+         // getter should return last value
+-        assertEquals("bar", get.execute(bean));
++        assertEquals("bar", get.invoke(bean));
+         // tryExecute should succeed on same property
+-        Object quux = set.tryExecute(bean, "value", "quux");
++        Object quux = set.tryInvoke(bean, "value", "quux");
+         assertEquals("quux", quux);
+-        assertEquals("quux", get.execute(bean));
++        assertEquals("quux", get.invoke(bean));
+         // tryExecute should fail on different property
+-        assertEquals(AbstractExecutor.TRY_FAILED, set.tryExecute(bean, "eulav", "nope"));
++        assertEquals(AbstractExecutor.TRY_FAILED, set.tryInvoke(bean, "eulav", "nope"));
+ 
+     }
+ 
+@@ -133,27 +124,27 @@
+         Uberspect uber = Engine.getUberspect(null);
+         Duck duck = new Duck("JEXL", "LXEJ");
+ 
+-        AbstractExecutor.Get get = uber.getGetExecutor(duck, "value");
+-        AbstractExecutor.Set set  = uber.getSetExecutor(duck, "value", "foo");
++        JexlPropertyGet get = uber.getPropertyGet(duck, "value");
++        JexlPropertySet set  = uber.getPropertySet(duck, "value", "foo");
+         assertTrue("duck property getter", get instanceof DuckGetExecutor);
+         assertTrue("duck property setter", set instanceof DuckSetExecutor);
+         // introspector and uberspect should return same result
+-        assertEquals(get, uber.getPropertyGet(duck, "value", null));
+-        assertEquals(set, uber.getPropertySet(duck, "value", "foo", null));
++        assertEquals(get, uber.getPropertyGet(duck, "value"));
++        assertEquals(set, uber.getPropertySet(duck, "value", "foo"));
+         // different property should return different setter/getter
+-        assertFalse(get.equals(uber.getGetExecutor(duck, "eulav")));
+-        assertFalse(set.equals(uber.getSetExecutor(duck, "eulav", "foo")));
++        assertFalse(get.equals(uber.getPropertyGet(duck, "eulav")));
++        assertFalse(set.equals(uber.getPropertySet(duck, "eulav", "foo")));
+         // setter returns argument
+-        Object bar = set.execute(duck, "bar");
++        Object bar = set.invoke(duck, "bar");
+         assertEquals("bar", bar);
+         // getter should return last value
+-        assertEquals("bar", get.execute(duck));
++        assertEquals("bar", get.invoke(duck));
+         // tryExecute should succeed on same property
+-        Object quux = set.tryExecute(duck, "value", "quux");
++        Object quux = set.tryInvoke(duck, "value", "quux");
+         assertEquals("quux", quux);
+-        assertEquals("quux", get.execute(duck));
++        assertEquals("quux", get.invoke(duck));
+         // tryExecute should fail on different property
+-        assertEquals(AbstractExecutor.TRY_FAILED, set.tryExecute(duck, "eulav", "nope"));
++        assertEquals(AbstractExecutor.TRY_FAILED, set.tryInvoke(duck, "eulav", "nope"));
+     }
+ 
+     public void testListIntrospection() throws Exception {
+@@ -162,28 +153,28 @@
+         list.add("LIST");
+         list.add("TSIL");
+ 
+-        AbstractExecutor.Get get = uber.getGetExecutor(list, Integer.valueOf(1));
+-        AbstractExecutor.Set set  = uber.getSetExecutor(list, Integer.valueOf(1), "foo");
++        JexlPropertyGet get = uber.getPropertyGet(list, Integer.valueOf(1));
++        JexlPropertySet set  = uber.getPropertySet(list, Integer.valueOf(1), "foo");
+         assertTrue("list property getter", get instanceof ListGetExecutor);
+         assertTrue("list property setter", set instanceof ListSetExecutor);
+         // introspector and uberspect should return same result
+-        assertEquals(get, uber.getPropertyGet(list, Integer.valueOf(1), null));
+-        assertEquals(set, uber.getPropertySet(list, Integer.valueOf(1), "foo", null));
++        assertEquals(get, uber.getPropertyGet(list, Integer.valueOf(1)));
++        assertEquals(set, uber.getPropertySet(list, Integer.valueOf(1), "foo"));
+         // different property should return different setter/getter
+-        assertFalse(get.equals(uber.getGetExecutor(list, Integer.valueOf(0))));
+-        assertFalse(get.equals(uber.getSetExecutor(list, Integer.valueOf(0), "foo")));
++        assertFalse(get.equals(uber.getPropertyGet(list, Integer.valueOf(0))));
++        assertFalse(get.equals(uber.getPropertySet(list, Integer.valueOf(0), "foo")));
+         // setter returns argument
+-        Object bar = set.execute(list, "bar");
++        Object bar = set.invoke(list, "bar");
+         assertEquals("bar", bar);
+         // getter should return last value
+-        assertEquals("bar", get.execute(list));
++        assertEquals("bar", get.invoke(list));
+         // tryExecute should succeed on integer property
+-        Object quux = set.tryExecute(list, Integer.valueOf(1), "quux");
++        Object quux = set.tryInvoke(list, Integer.valueOf(1), "quux");
+         assertEquals("quux", quux);
+         // getter should return last value
+-        assertEquals("quux", get.execute(list));
++        assertEquals("quux", get.invoke(list));
+         // tryExecute should fail on non-integer property class
+-        assertEquals(AbstractExecutor.TRY_FAILED, set.tryExecute(list, "eulav", "nope"));
++        assertEquals(AbstractExecutor.TRY_FAILED, set.tryInvoke(list, "eulav", "nope"));
+     }
+ 
+     public void testMapIntrospection() throws Exception {
+@@ -192,28 +183,28 @@
+         map.put("value", "MAP");
+         map.put("eulav", "PAM");
+ 
+-        AbstractExecutor.Get get = uber.getGetExecutor(map, "value");
+-        AbstractExecutor.Set set  = uber.getSetExecutor(map, "value", "foo");
++        JexlPropertyGet get = uber.getPropertyGet(map, "value");
++        JexlPropertySet set  = uber.getPropertySet(map, "value", "foo");
+         assertTrue("map property getter", get instanceof MapGetExecutor);
+         assertTrue("map property setter", set instanceof MapSetExecutor);
+         // introspector and uberspect should return same result
+-        assertEquals(get, uber.getPropertyGet(map, "value", null));
+-        assertEquals(set, uber.getPropertySet(map, "value", "foo", null));
++        assertEquals(get, uber.getPropertyGet(map, "value"));
++        assertEquals(set, uber.getPropertySet(map, "value", "foo"));
+         // different property should return different setter/getter
+-        assertFalse(get.equals(uber.getGetExecutor(map, "eulav")));
+-        assertFalse(get.equals(uber.getSetExecutor(map, "eulav", "foo")));
++        assertFalse(get.equals(uber.getPropertyGet(map, "eulav")));
++        assertFalse(get.equals(uber.getPropertySet(map, "eulav", "foo")));
+         // setter returns argument
+-        Object bar = set.execute(map, "bar");
++        Object bar = set.invoke(map, "bar");
+         assertEquals("bar", bar);
+         // getter should return last value
+-        assertEquals("bar", get.execute(map));
++        assertEquals("bar", get.invoke(map));
+         // tryExecute should succeed on same property class
+-        Object quux = set.tryExecute(map, "value", "quux");
++        Object quux = set.tryInvoke(map, "value", "quux");
+         assertEquals("quux", quux);
+         // getter should return last value
+-        assertEquals("quux", get.execute(map));
++        assertEquals("quux", get.invoke(map));
+         // tryExecute should fail on different property class
+-        assertEquals(AbstractExecutor.TRY_FAILED, set.tryExecute(map, Integer.valueOf(1), "nope"));
++        assertEquals(AbstractExecutor.TRY_FAILED, set.tryInvoke(map, Integer.valueOf(1), "nope"));
+     }
+ 
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/jexl3/MethodTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/jexl3/MethodTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/jexl3/MethodTest.java	2025-12-21 01:56:15.927330527 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/jexl3/MethodTest.java	2025-12-21 01:54:23.255381947 +1100
+@@ -82,7 +82,6 @@
+             } else {
+                 return "";
+             }
+-            
+         }
+     }
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/jexl3/PublicFieldsTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/jexl3/PublicFieldsTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/jexl3/PublicFieldsTest.java	2025-12-21 01:56:15.927330527 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/jexl3/PublicFieldsTest.java	2025-12-21 01:54:23.251381948 +1100
+@@ -19,6 +19,7 @@
+ import org.junit.Assert;
+ import org.junit.Before;
+ import org.junit.Test;
++
+ /**
+  * Tests public field set/get.
+  */
+@@ -120,7 +121,7 @@
+             fail("should have thrown");
+         } catch(JexlException xjexl) {}
+     }
+-    
++
+     public static enum Gender { MALE, FEMALE };
+ 
+     @Test public void testGetEnum() throws Exception {

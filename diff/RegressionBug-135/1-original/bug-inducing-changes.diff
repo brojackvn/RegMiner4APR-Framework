@@ -1,0 +1,57 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/build.xml ./RegMiner4APR-Regression-Bugs/BIC/build.xml
+--- ./RegMiner4APR-Regression-Bugs/WORKING/build.xml	2025-12-26 03:59:31.071488265 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/build.xml	2025-12-24 19:27:15.128079575 +1100
+@@ -183,7 +183,7 @@
+ 	</target>
+ 
+ 	<target name="coverage-check">
+-		<cobertura-check totallinerate="89" totalbranchrate="90"/>
++		<cobertura-check totallinerate="90" totalbranchrate="90"/>
+ 	</target>
+ 
+ 	<target name="coverage-check-all">
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/History.md ./RegMiner4APR-Regression-Bugs/BIC/History.md
+--- ./RegMiner4APR-Regression-Bugs/WORKING/History.md	2025-12-26 03:59:31.071488265 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/History.md	2025-12-24 19:27:15.124079577 +1100
+@@ -1,3 +1,7 @@
++1.0.15 / 2014-??-??
++==================
++  * Fix instrumentation for label without braces (https://github.com/tntim96/JSCover/issues/165)
++
+ 1.0.14 / 2014-08-29
+ ==================
+   * Fix instrumentation for some cases without braces (https://github.com/tntim96/JSCover/issues/160)
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/jscover/instrument/NodeProcessor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/jscover/instrument/NodeProcessor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/jscover/instrument/NodeProcessor.java	2025-12-26 03:59:31.115488239 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/jscover/instrument/NodeProcessor.java	2025-12-24 19:27:15.164079559 +1100
+@@ -441,6 +441,11 @@
+             LabeledStatement labeledStatement = (LabeledStatement)node;
+             ExpressionStatement newChild = buildInstrumentationStatement(labeledStatement.getLineno());
+             parent.addChildBefore(newChild, node);
++            if (labeledStatement.getStatement().getType() != Token.BLOCK) {
++                Block block = new Block();
++                block.addStatement(labeledStatement.getStatement());
++                labeledStatement.setStatement(block);
++            }
+         } else if (node instanceof IfStatement) {
+             addInstrumentationBefore(node);
+         }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/jscover/instrument/InstrumenterTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/jscover/instrument/InstrumenterTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/jscover/instrument/InstrumenterTest.java	2025-12-26 03:59:31.159488213 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/jscover/instrument/InstrumenterTest.java	2025-12-26 03:57:19.551566331 +1100
+@@ -647,6 +647,7 @@
+     }
+ 
+     @Test
++    @Ignore
+     public void shouldInstrumentLoopWithBreakLabel() {
+         String source = "label2: {\n" +
+                 "  f();\n" +
+@@ -696,7 +697,6 @@
+     }
+ 
+     @Test
+-    @Ignore
+     public void shouldInstrumentLabelWithoutBraces() {
+         String source = "outloop:\n" +
+                 "    for (var j = 0; j < 10; j++) {\n" +

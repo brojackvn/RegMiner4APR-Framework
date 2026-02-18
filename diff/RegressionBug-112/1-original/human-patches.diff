@@ -1,0 +1,25 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/beanutils/locale/BaseLocaleConverter.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/beanutils/locale/BaseLocaleConverter.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/beanutils/locale/BaseLocaleConverter.java	2025-12-15 04:34:17.954483045 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/beanutils/locale/BaseLocaleConverter.java	2025-12-15 04:34:07.006472992 +1100
+@@ -281,6 +281,10 @@
+             T temp = (T) result;
+             return temp;
+         }
++
++        if (result == null) {
++            return null;
++        }
+         if (type.isInstance(result)) {
+             return type.cast(result);
+         }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/apache/commons/beanutils/bugs/Jira458TestCase.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/apache/commons/beanutils/bugs/Jira458TestCase.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/apache/commons/beanutils/bugs/Jira458TestCase.java	2025-12-15 04:35:52.850570262 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/apache/commons/beanutils/bugs/Jira458TestCase.java	2025-12-15 04:34:07.026473010 +1100
+@@ -54,4 +54,4 @@
+     public void testConversionWithNullDefaultEmptyString() {
+         checkConversionWithNullDefault("");
+     }
+-}
+\ No newline at end of file
++}

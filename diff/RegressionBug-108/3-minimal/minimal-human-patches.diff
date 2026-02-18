@@ -1,0 +1,29 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/parser/HtmlTreeBuilder.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/parser/HtmlTreeBuilder.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/parser/HtmlTreeBuilder.java	2025-12-14 14:09:41.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/parser/HtmlTreeBuilder.java	2025-12-14 14:09:40.000000000 +1100
+@@ -464,13 +464,13 @@
+     }
+ 
+     private boolean inSpecificScope(String[] targetNames, String[] baseTypes, String[] extraTypes) {
+-        int depth = stack.size() -1;
+-        if (depth > MaxScopeSearchDepth) {
+-            depth = MaxScopeSearchDepth;
+-        }
+-        for (int pos = depth; pos >= 0; pos--) {
+-            Element el = stack.get(pos);
+-            String elName = el.nodeName();
++        final int bottom = stack.size() -1;
++        final int top = bottom > MaxScopeSearchDepth ? bottom - MaxScopeSearchDepth : 0;
++        for (int pos = bottom; pos >= top; pos--) {
++            final String elName = stack.get(pos).nodeName();
+             if (inSorted(elName, targetNames))
+                 return true;
+             if (inSorted(elName, baseTypes))
+@@ -478,7 +478,7 @@
+             if (extraTypes != null && inSorted(elName, extraTypes))
+                 return false;
+         }
+-        Validate.fail("Should not be reachable");
+         return false;
+     }
+ 

@@ -1,0 +1,3222 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Debugger.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Debugger.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Debugger.java	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Debugger.java	2025-12-22 03:01:26.000000000 +1100
+@@ -71,7 +71,15 @@
+ import org.apache.commons.jexl3.parser.ASTReferenceExpression;
+ import org.apache.commons.jexl3.parser.ASTReturnStatement;
+ import org.apache.commons.jexl3.parser.ASTSWNode;
++import org.apache.commons.jexl3.parser.ASTSetAddNode;
++import org.apache.commons.jexl3.parser.ASTSetAndNode;
++import org.apache.commons.jexl3.parser.ASTSetDivNode;
+ import org.apache.commons.jexl3.parser.ASTSetLiteral;
++import org.apache.commons.jexl3.parser.ASTSetModNode;
++import org.apache.commons.jexl3.parser.ASTSetMultNode;
++import org.apache.commons.jexl3.parser.ASTSetOrNode;
++import org.apache.commons.jexl3.parser.ASTSetSubNode;
++import org.apache.commons.jexl3.parser.ASTSetXorNode;
+ import org.apache.commons.jexl3.parser.ASTSizeFunction;
+ import org.apache.commons.jexl3.parser.ASTSizeMethod;
+ import org.apache.commons.jexl3.parser.ASTStringLiteral;
+@@ -874,4 +882,44 @@
+         }
+         return data;
+     }
++
++    @Override
++    protected Object visit(ASTSetAddNode node, Object data) {
++        return infixChildren(node, " += ", false, data);
++    }
++
++    @Override
++    protected Object visit(ASTSetSubNode node, Object data) {
++        return infixChildren(node, " -= ", false, data);
++    }
++
++    @Override
++    protected Object visit(ASTSetMultNode node, Object data) {
++        return infixChildren(node, " *= ", false, data);
++    }
++
++    @Override
++    protected Object visit(ASTSetDivNode node, Object data) {
++        return infixChildren(node, " /= ", false, data);
++    }
++
++    @Override
++    protected Object visit(ASTSetModNode node, Object data) {
++        return infixChildren(node, " %= ", false, data);
++    }
++
++    @Override
++    protected Object visit(ASTSetAndNode node, Object data) {
++        return infixChildren(node, " &= ", false, data);
++    }
++
++    @Override
++    protected Object visit(ASTSetOrNode node, Object data) {
++        return infixChildren(node, " |= ", false, data);
++    }
++
++    @Override
++    protected Object visit(ASTSetXorNode node, Object data) {
++        return infixChildren(node, " ^= ", false, data);
++    }
+ }
+\ No newline at end of file
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/IntegerRange.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/IntegerRange.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/IntegerRange.java	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/IntegerRange.java	2025-12-22 03:01:26.000000000 +1100
+@@ -30,7 +30,6 @@
+     /** The upper boundary. */
+     protected final int max;
+ 
+-
+     /**
+      * Creates a range, ascending or descending depending on boundaries order.
+      * @param from the lower inclusive boundary
+@@ -50,13 +49,8 @@
+      * @param to  the higher inclusive boundary
+      */
+     public IntegerRange(int from, int to) {
+-        if (from > to) {
+-            max = from;
+-            min = to;
+-        } else {
+-            min = from;
+-            max = to;
+-        }
++        min = from;
++        max = to;
+     }
+ 
+     /**
+@@ -202,6 +196,11 @@
+      * Ascending integer range.
+      */
+     public static class Ascending extends IntegerRange {
++        /**
++         * Constructor.
++         * @param from lower boundary
++         * @param to upper boundary
++         */
+         protected Ascending(int from, int to) {
+             super(from, to);
+         }
+@@ -216,6 +215,11 @@
+      * Descending integer range.
+      */
+     public static class Descending extends IntegerRange {
++        /**
++         * Constructor.
++         * @param from upper boundary
++         * @param to lower boundary
++         */
+         protected Descending(int from, int to) {
+             super(from, to);
+         }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java	2025-12-22 03:01:26.000000000 +1100
+@@ -17,7 +17,7 @@
+ package org.apache.commons.jexl3.internal;
+ 
+ import org.apache.commons.jexl3.JexlArithmetic;
+-import static org.apache.commons.jexl3.JexlArithmetic.Operator;
++import org.apache.commons.jexl3.JexlOperator;
+ import org.apache.commons.jexl3.JexlContext;
+ import org.apache.commons.jexl3.JexlEngine;
+ import org.apache.commons.jexl3.JexlException;
+@@ -77,7 +77,15 @@
+ import org.apache.commons.jexl3.parser.ASTReferenceExpression;
+ import org.apache.commons.jexl3.parser.ASTReturnStatement;
+ import org.apache.commons.jexl3.parser.ASTSWNode;
++import org.apache.commons.jexl3.parser.ASTSetAddNode;
++import org.apache.commons.jexl3.parser.ASTSetAndNode;
++import org.apache.commons.jexl3.parser.ASTSetDivNode;
+ import org.apache.commons.jexl3.parser.ASTSetLiteral;
++import org.apache.commons.jexl3.parser.ASTSetModNode;
++import org.apache.commons.jexl3.parser.ASTSetMultNode;
++import org.apache.commons.jexl3.parser.ASTSetOrNode;
++import org.apache.commons.jexl3.parser.ASTSetSubNode;
++import org.apache.commons.jexl3.parser.ASTSetXorNode;
+ import org.apache.commons.jexl3.parser.ASTSizeFunction;
+ import org.apache.commons.jexl3.parser.ASTSizeMethod;
+ import org.apache.commons.jexl3.parser.ASTStringLiteral;
+@@ -90,16 +98,10 @@
+ import org.apache.commons.jexl3.parser.JexlNode;
+ import org.apache.commons.jexl3.parser.Node;
+ import org.apache.commons.jexl3.parser.ParserVisitor;
+-
+-import org.apache.log4j.Logger;
+-
+-import java.lang.reflect.Array;
+-import java.lang.reflect.InvocationTargetException;
+-
+-import java.util.Collection;
+ import java.util.HashMap;
+ import java.util.Iterator;
+ import java.util.Map;
++import org.apache.log4j.Logger;
+ 
+ /**
+  * An interpreter of JEXL syntax.
+@@ -115,8 +117,8 @@
+     protected final JexlUberspect uberspect;
+     /** The arithmetic handler. */
+     protected final JexlArithmetic arithmetic;
+-    /** The overloaded arithmetic operators. */
+-    protected final JexlArithmetic.Uberspect operators;
++    /** The operators evaluation delegate. */
++    protected final Operators operators;
+     /** The map of symboled functions. */
+     protected final Map<String, Object> functions;
+     /** The map of symboled functions. */
+@@ -125,7 +127,7 @@
+     protected final JexlContext context;
+     /** The context to store/retrieve variables. */
+     protected final JexlContext.NamespaceResolver ns;
+-    /** Strict interpreter flag (may temporarily change during when calling size and empty as functions). */
++    /** Strict interpreter flag (may temporarily change when calling size and empty as functions). */
+     protected boolean strictEngine;
+     /** Strict interpreter flag. */
+     protected final boolean strictArithmetic;
+@@ -170,10 +172,10 @@
+         }
+         this.functions = jexl.functions;
+         this.strictArithmetic = this.arithmetic.isStrict();
+-        this.operators = uberspect.getArithmetic(arithmetic);
+         this.cache = jexl.cache != null;
+         this.frame = eFrame;
+         this.functors = null;
++        this.operators = new Operators(this);
+     }
+ 
+     /**
+@@ -222,7 +224,6 @@
+ 
+     /** Java7 AutoCloseable interface defined?. */
+     private static final Class<?> AUTOCLOSEABLE;
+-
+     static {
+         Class<?> c;
+         try {
+@@ -310,7 +311,7 @@
+      * @param cause    the cause of error (if any)
+      * @throws JexlException if isStrict
+      */
+-    protected void operatorError(JexlNode node, JexlArithmetic.Operator operator, Throwable cause) {
++    protected void operatorError(JexlNode node, JexlOperator operator, Throwable cause) {
+         if (cause != null) {
+             if (strictEngine) {
+                 throw new JexlException.Operator(node, operator.getOperatorSymbol(), cause);
+@@ -400,136 +401,12 @@
+         }
+     }
+ 
+-    /**
+-     * Attempts to call a monadic operator.
+-     * <p>
+-     * This takes care of finding and caching the operator method when appropriate
+-     * @param node     the syntactic node
+-     * @param operator the operator
+-     * @param arg      the argument
+-     * @return the result of the operator evaluation or TRY_FAILED
+-     */
+-    protected Object callOperator(JexlNode node, Operator operator, Object arg) {
+-        if (operators != null && operators.overloads(operator)) {
+-            if (cache) {
+-                Object cached = node.jjtGetValue();
+-                if (cached instanceof JexlMethod) {
+-                    JexlMethod me = (JexlMethod) cached;
+-                    Object eval = me.tryInvoke(operator.getMethodName(), arithmetic, arg);
+-                    if (!me.tryFailed(eval)) {
+-                        return eval;
+-                    }
+-                }
+-            }
+-            try {
+-                JexlMethod emptym = operators.getOperator(operator, arg);
+-                if (emptym != null) {
+-                    Object result = emptym.invoke(arithmetic, arg);
+-                    if (cache) {
+-                        node.jjtSetValue(emptym);
+-                    }
+-                    return result;
+-                }
+-            } catch (Exception xany) {
+-                operatorError(node, operator, xany);
+-            }
+-        }
+-        return JexlEngine.TRY_FAILED;
+-    }
+-
+-    /**
+-     * Attempts to call a diadic operator.
+-     * <p>
+-     * This takes care of finding and caching the operator method when appropriate
+-     * @param node     the syntactic node
+-     * @param operator the operator
+-     * @param lhs      the left hand side argument
+-     * @param rhs      the right hand side argument
+-     * @return the result of the operator evaluation or TRY_FAILED
+-     */
+-    protected Object callOperator(JexlNode node, Operator operator, Object lhs, Object rhs) {
+-        if (operators != null && operators.overloads(operator)) {
+-            if (cache) {
+-                Object cached = node.jjtGetValue();
+-                if (cached instanceof JexlMethod) {
+-                    JexlMethod me = (JexlMethod) cached;
+-                    Object eval = me.tryInvoke(operator.getMethodName(), arithmetic, lhs, rhs);
+-                    if (!me.tryFailed(eval)) {
+-                        return eval;
+-                    }
+-                }
+-            }
+-            try {
+-                JexlMethod emptym = operators.getOperator(operator, lhs, rhs);
+-                if (emptym != null) {
+-                    Object result = emptym.invoke(arithmetic, lhs, rhs);
+-                    if (cache) {
+-                        node.jjtSetValue(emptym);
+-                    }
+-                    return result;
+-                }
+-            } catch (Exception xany) {
+-                operatorError(node, operator, xany);
+-            }
+-        }
+-        return JexlEngine.TRY_FAILED;
+-    }
+-
+-    @Override
+-    protected Object visit(ASTAndNode node, Object data) {
+-        /**
+-         * The pattern for exception mgmt is to let the child*.jjtAccept out of the try/catch loop so that if one fails,
+-         * the ex will traverse up to the interpreter. In cases where this is not convenient/possible, JexlException
+-         * must be caught explicitly and rethrown.
+-         */
+-        Object left = node.jjtGetChild(0).jjtAccept(this, data);
+-        try {
+-            boolean leftValue = arithmetic.toBoolean(left);
+-            if (!leftValue) {
+-                return Boolean.FALSE;
+-            }
+-        } catch (RuntimeException xrt) {
+-            throw new JexlException(node.jjtGetChild(0), "boolean coercion error", xrt);
+-        }
+-        Object right = node.jjtGetChild(1).jjtAccept(this, data);
+-        try {
+-            boolean rightValue = arithmetic.toBoolean(right);
+-            if (!rightValue) {
+-                return Boolean.FALSE;
+-            }
+-        } catch (ArithmeticException xrt) {
+-            throw new JexlException(node.jjtGetChild(1), "boolean coercion error", xrt);
+-        }
+-        return Boolean.TRUE;
+-    }
+-
+-    @Override
+-    protected Object visit(ASTArrayLiteral node, Object data) {
+-        int childCount = node.jjtGetNumChildren();
+-        JexlArithmetic.ArrayBuilder ab = arithmetic.arrayBuilder(childCount);
+-        if (ab != null) {
+-            boolean extended = false;
+-            for (int i = 0; i < childCount; i++) {
+-                JexlNode child = node.jjtGetChild(i);
+-                if (child instanceof ASTExtendedLiteral) {
+-                    extended = true;
+-                } else {
+-                    Object entry = node.jjtGetChild(i).jjtAccept(this, data);
+-                    ab.add(entry);
+-                }
+-            }
+-            return ab.create(extended);
+-        } else {
+-            return null;
+-        }
+-    }
+-
+     @Override
+     protected Object visit(ASTAddNode node, Object data) {
+         Object left = node.jjtGetChild(0).jjtAccept(this, data);
+         Object right = node.jjtGetChild(1).jjtAccept(this, data);
+         try {
+-            Object result = callOperator(node, Operator.ADD, left, right);
++            Object result = operators.tryOverload(node, JexlOperator.ADD, left, right);
+             return result != JexlEngine.TRY_FAILED ? result : arithmetic.add(left, right);
+         } catch (ArithmeticException xrt) {
+             throw new JexlException(node, "+ error", xrt);
+@@ -541,7 +418,7 @@
+         Object left = node.jjtGetChild(0).jjtAccept(this, data);
+         Object right = node.jjtGetChild(1).jjtAccept(this, data);
+         try {
+-            Object result = callOperator(node, Operator.SUBTRACT, left, right);
++            Object result = operators.tryOverload(node, JexlOperator.SUBTRACT, left, right);
+             return result != JexlEngine.TRY_FAILED ? result : arithmetic.subtract(left, right);
+         } catch (ArithmeticException xrt) {
+             throw new JexlException(node, "- error", xrt);
+@@ -549,75 +426,83 @@
+     }
+ 
+     @Override
+-    protected Object visit(ASTBitwiseAndNode node, Object data) {
++    protected Object visit(ASTMulNode node, Object data) {
+         Object left = node.jjtGetChild(0).jjtAccept(this, data);
+         Object right = node.jjtGetChild(1).jjtAccept(this, data);
+         try {
+-            Object result = callOperator(node, Operator.AND, left, right);
+-            return result != JexlEngine.TRY_FAILED ? result : arithmetic.bitwiseAnd(left, right);
++            Object result = operators.tryOverload(node, JexlOperator.MULTIPLY, left, right);
++            return result != JexlEngine.TRY_FAILED ? result : arithmetic.multiply(left, right);
+         } catch (ArithmeticException xrt) {
+-            throw new JexlException(node, "& error", xrt);
++            JexlNode xnode = findNullOperand(xrt, node, left, right);
++            throw new JexlException(xnode, "* error", xrt);
+         }
+     }
+ 
+     @Override
+-    protected Object visit(ASTBitwiseComplNode node, Object data) {
+-        Object arg = node.jjtGetChild(0).jjtAccept(this, data);
++    protected Object visit(ASTDivNode node, Object data) {
++        Object left = node.jjtGetChild(0).jjtAccept(this, data);
++        Object right = node.jjtGetChild(1).jjtAccept(this, data);
+         try {
+-            Object result = callOperator(node, Operator.COMPLEMENT, arg);
+-            return result != JexlEngine.TRY_FAILED ? result : arithmetic.bitwiseComplement(arg);
++            Object result = operators.tryOverload(node, JexlOperator.DIVIDE, left, right);
++            return result != JexlEngine.TRY_FAILED ? result : arithmetic.divide(left, right);
+         } catch (ArithmeticException xrt) {
+-            throw new JexlException(node, "~ error", xrt);
++            if (!strictArithmetic) {
++                return 0.0d;
++            }
++            JexlNode xnode = findNullOperand(xrt, node, left, right);
++            throw new JexlException(xnode, "/ error", xrt);
+         }
+     }
+ 
+     @Override
+-    protected Object visit(ASTBitwiseOrNode node, Object data) {
++    protected Object visit(ASTModNode node, Object data) {
+         Object left = node.jjtGetChild(0).jjtAccept(this, data);
+         Object right = node.jjtGetChild(1).jjtAccept(this, data);
+         try {
+-            Object result = callOperator(node, Operator.OR, left, right);
+-            return result != JexlEngine.TRY_FAILED ? result : arithmetic.bitwiseOr(left, right);
++            Object result = operators.tryOverload(node, JexlOperator.MOD, left, right);
++            return result != JexlEngine.TRY_FAILED ? result : arithmetic.mod(left, right);
+         } catch (ArithmeticException xrt) {
+-            throw new JexlException(node, "| error", xrt);
++            if (!strictArithmetic) {
++                return 0.0d;
++            }
++            JexlNode xnode = findNullOperand(xrt, node, left, right);
++            throw new JexlException(xnode, "% error", xrt);
+         }
+     }
+ 
+     @Override
+-    protected Object visit(ASTBitwiseXorNode node, Object data) {
++    protected Object visit(ASTBitwiseAndNode node, Object data) {
+         Object left = node.jjtGetChild(0).jjtAccept(this, data);
+         Object right = node.jjtGetChild(1).jjtAccept(this, data);
+         try {
+-            Object result = callOperator(node, Operator.XOR, left, right);
+-            return result != JexlEngine.TRY_FAILED ? result : arithmetic.bitwiseXor(left, right);
++            Object result = operators.tryOverload(node, JexlOperator.AND, left, right);
++            return result != JexlEngine.TRY_FAILED ? result : arithmetic.and(left, right);
+         } catch (ArithmeticException xrt) {
+-            throw new JexlException(node, "^ error", xrt);
++            throw new JexlException(node, "& error", xrt);
+         }
+     }
+ 
+     @Override
+-    protected Object visit(ASTBlock node, Object data) {
+-        int numChildren = node.jjtGetNumChildren();
+-        Object result = null;
+-        for (int i = 0; i < numChildren; i++) {
+-            result = node.jjtGetChild(i).jjtAccept(this, data);
++    protected Object visit(ASTBitwiseOrNode node, Object data) {
++        Object left = node.jjtGetChild(0).jjtAccept(this, data);
++        Object right = node.jjtGetChild(1).jjtAccept(this, data);
++        try {
++            Object result = operators.tryOverload(node, JexlOperator.OR, left, right);
++            return result != JexlEngine.TRY_FAILED ? result : arithmetic.or(left, right);
++        } catch (ArithmeticException xrt) {
++            throw new JexlException(node, "| error", xrt);
+         }
+-        return result;
+     }
+ 
+     @Override
+-    protected Object visit(ASTDivNode node, Object data) {
++    protected Object visit(ASTBitwiseXorNode node, Object data) {
+         Object left = node.jjtGetChild(0).jjtAccept(this, data);
+         Object right = node.jjtGetChild(1).jjtAccept(this, data);
+         try {
+-            Object result = callOperator(node, Operator.DIVIDE, left, right);
+-            return result != JexlEngine.TRY_FAILED ? result : arithmetic.divide(left, right);
++            Object result = operators.tryOverload(node, JexlOperator.XOR, left, right);
++            return result != JexlEngine.TRY_FAILED ? result : arithmetic.xor(left, right);
+         } catch (ArithmeticException xrt) {
+-            if (!strictArithmetic) {
+-                return 0.0d;
+-            }
+-            JexlNode xnode = findNullOperand(xrt, node, left, right);
+-            throw new JexlException(xnode, "divide error", xrt);
++            throw new JexlException(node, "^ error", xrt);
+         }
+     }
+ 
+@@ -626,7 +511,7 @@
+         Object left = node.jjtGetChild(0).jjtAccept(this, data);
+         Object right = node.jjtGetChild(1).jjtAccept(this, data);
+         try {
+-            Object result = callOperator(node, Operator.EQ, left, right);
++            Object result = operators.tryOverload(node, JexlOperator.EQ, left, right);
+             return result != JexlEngine.TRY_FAILED
+                    ? result
+                    : arithmetic.equals(left, right) ? Boolean.TRUE : Boolean.FALSE;
+@@ -636,60 +521,18 @@
+     }
+ 
+     @Override
+-    protected Object visit(ASTFalseNode node, Object data) {
+-        return Boolean.FALSE;
+-    }
+-
+-    @Override
+-    protected Object visit(ASTContinue node, Object data) {
+-        throw new JexlException.Continue(node);
+-    }
+-
+-    @Override
+-    protected Object visit(ASTBreak node, Object data) {
+-        throw new JexlException.Break(node);
+-    }
+-
+-    @Override
+-    protected Object visit(ASTForeachStatement node, Object data) {
+-        Object result = null;
+-        /* first objectNode is the loop variable */
+-        ASTReference loopReference = (ASTReference) node.jjtGetChild(0);
+-        ASTIdentifier loopVariable = (ASTIdentifier) loopReference.jjtGetChild(0);
+-        int symbol = loopVariable.getSymbol();
+-        /* second objectNode is the variable to iterate */
+-        Object iterableValue = node.jjtGetChild(1).jjtAccept(this, data);
+-        // make sure there is a value to iterate on and a statement to execute
+-        if (iterableValue != null && node.jjtGetNumChildren() >= 3) {
+-            /* third objectNode is the statement to execute */
+-            JexlNode statement = node.jjtGetChild(2);
+-            // get an iterator for the collection/array etc via the
+-            // introspector.
+-            Iterator<?> itemsIterator = uberspect.getIterator(iterableValue);
+-            if (itemsIterator != null) {
+-                while (itemsIterator.hasNext()) {
+-                    if (isCancelled()) {
+-                        throw new JexlException.Cancel(node);
+-                    }
+-                    // set loopVariable to value of iterator
+-                    Object value = itemsIterator.next();
+-                    if (symbol < 0) {
+-                        context.set(loopVariable.getName(), value);
+-                    } else {
+-                        frame.set(symbol, value);
+-                    }
+-                    try {
+-                        // execute statement
+-                        result = statement.jjtAccept(this, data);
+-                    } catch (JexlException.Break stmtBreak) {
+-                        break;
+-                    } catch (JexlException.Continue stmtContinue) {
+-                        //continue;
+-                    }
+-                }
+-            }
++    protected Object visit(ASTNENode node, Object data) {
++        Object left = node.jjtGetChild(0).jjtAccept(this, data);
++        Object right = node.jjtGetChild(1).jjtAccept(this, data);
++        try {
++            Object result = operators.tryOverload(node, JexlOperator.EQ, left, right);
++            return result != JexlEngine.TRY_FAILED
++                   ? arithmetic.toBoolean(result) ? Boolean.FALSE : Boolean.TRUE
++                   : arithmetic.equals(left, right) ? Boolean.FALSE : Boolean.TRUE;
++        } catch (ArithmeticException xrt) {
++            JexlNode xnode = findNullOperand(xrt, node, left, right);
++            throw new JexlException(xnode, "!= error", xrt);
+         }
+-        return result;
+     }
+ 
+     @Override
+@@ -697,7 +540,7 @@
+         Object left = node.jjtGetChild(0).jjtAccept(this, data);
+         Object right = node.jjtGetChild(1).jjtAccept(this, data);
+         try {
+-            Object result = callOperator(node, Operator.GTE, left, right);
++            Object result = operators.tryOverload(node, JexlOperator.GTE, left, right);
+             return result != JexlEngine.TRY_FAILED
+                    ? result
+                    : arithmetic.greaterThanOrEqual(left, right) ? Boolean.TRUE : Boolean.FALSE;
+@@ -711,7 +554,7 @@
+         Object left = node.jjtGetChild(0).jjtAccept(this, data);
+         Object right = node.jjtGetChild(1).jjtAccept(this, data);
+         try {
+-            Object result = callOperator(node, Operator.GT, left, right);
++            Object result = operators.tryOverload(node, JexlOperator.GT, left, right);
+             return result != JexlEngine.TRY_FAILED
+                    ? result
+                    : arithmetic.greaterThan(left, right) ? Boolean.TRUE : Boolean.FALSE;
+@@ -720,191 +563,128 @@
+         }
+     }
+ 
+-    /**
+-     * The 'startsWith' operator implementation.
+-     * @param node     the node
+-     * @param operator the calling operator, $= or $!
+-     * @param left     the left operand
+-     * @param right    the right operand
+-     * @return true if left starts with right, false otherwise
+-     */
+-    protected boolean startsWith(JexlNode node, String operator, Object left, Object right) {
++    @Override
++    protected Object visit(ASTLENode node, Object data) {
++        Object left = node.jjtGetChild(0).jjtAccept(this, data);
++        Object right = node.jjtGetChild(1).jjtAccept(this, data);
+         try {
+-            // try operator overload
+-            Object result = callOperator(node, Operator.STARTSWITH, left, right);
+-            if (result instanceof Boolean) {
+-                return (Boolean) result;
+-            }
+-            // use arithmetic / pattern matching ?
+-            Boolean matched = arithmetic.startsWith(left, right);
+-            if (matched != null) {
+-                return matched;
+-            }
+-            // try a startsWith method (duck type)
+-            try {
+-                Object[] argv = {right};
+-                JexlMethod vm = uberspect.getMethod(left, "startsWith", argv);
+-                if (vm != null && vm.getReturnType() == Boolean.TYPE) {
+-                    return (Boolean) vm.invoke(left, argv);
+-                }
+-                if (arithmetic.narrowArguments(argv)) {
+-                    vm = uberspect.getMethod(left, "startsWith", argv);
+-                    if (vm != null && vm.getReturnType() == Boolean.TYPE) {
+-                        return (Boolean) vm.invoke(left, argv);
+-                    }
+-                }
+-            } catch (InvocationTargetException e) {
+-                throw new JexlException(node, operator + " invocation error", e.getCause());
+-            } catch (Exception e) {
+-                throw new JexlException(node, operator + " error", e);
+-            }
+-            // defaults to equal
+-            return arithmetic.equals(left, right) ? Boolean.TRUE : Boolean.FALSE;
++            Object result = operators.tryOverload(node, JexlOperator.LTE, left, right);
++            return result != JexlEngine.TRY_FAILED
++                   ? result
++                   : arithmetic.lessThanOrEqual(left, right) ? Boolean.TRUE : Boolean.FALSE;
+         } catch (ArithmeticException xrt) {
+-            throw new JexlException(node, operator + " error", xrt);
++            throw new JexlException(node, "<= error", xrt);
+         }
+     }
+ 
+     @Override
+-    protected Object visit(ASTSWNode node, Object data) {
++    protected Object visit(ASTLTNode node, Object data) {
+         Object left = node.jjtGetChild(0).jjtAccept(this, data);
+         Object right = node.jjtGetChild(1).jjtAccept(this, data);
+-        return startsWith(node, "^=", left, right) ? Boolean.TRUE : Boolean.FALSE;
++        try {
++            Object result = operators.tryOverload(node, JexlOperator.LT, left, right);
++            return result != JexlEngine.TRY_FAILED
++                   ? result
++                   : arithmetic.lessThan(left, right) ? Boolean.TRUE : Boolean.FALSE;
++        } catch (ArithmeticException xrt) {
++            throw new JexlException(node, "< error", xrt);
++        }
+     }
+ 
+     @Override
+-    protected Object visit(ASTNSWNode node, Object data) {
++    protected Object visit(ASTSWNode node, Object data) {
+         Object left = node.jjtGetChild(0).jjtAccept(this, data);
+         Object right = node.jjtGetChild(1).jjtAccept(this, data);
+-        return startsWith(node, "^!", left, right) ? Boolean.FALSE : Boolean.TRUE;
++        return operators.startsWith(node, "^=", left, right) ? Boolean.TRUE : Boolean.FALSE;
+     }
+ 
+-    /**
+-     * The 'endsWith' operator implementation.
+-     * @param node     the node
+-     * @param operator the calling operator, ^= or ^!
+-     * @param left     the left operand
+-     * @param right    the right operand
+-     * @return true if left ends with right, false otherwise
+-     */
+-    protected boolean endsWith(JexlNode node, String operator, Object left, Object right) {
+-        try {
+-            // try operator overload
+-            Object result = callOperator(node, Operator.ENDSWITH, left, right);
+-            if (result instanceof Boolean) {
+-                return (Boolean) result;
+-            }
+-            // use arithmetic / pattern matching ?
+-            Boolean matched = arithmetic.endsWith(left, right);
+-            if (matched != null) {
+-                return matched;
+-            }
+-            // try a endsWith method (duck type)
+-            try {
+-                Object[] argv = {right};
+-                JexlMethod vm = uberspect.getMethod(left, "endsWith", argv);
+-                if (vm != null && vm.getReturnType() == Boolean.TYPE) {
+-                    return (Boolean) vm.invoke(left, argv);
+-                }
+-                if (arithmetic.narrowArguments(argv)) {
+-                    vm = uberspect.getMethod(left, "endsWith", argv);
+-                    if (vm != null && vm.getReturnType() == Boolean.TYPE) {
+-                        return (Boolean) vm.invoke(left, argv);
+-                    }
+-                }
+-            } catch (InvocationTargetException e) {
+-                throw new JexlException(node, operator + " invocation error", e.getCause());
+-            } catch (Exception e) {
+-                throw new JexlException(node, operator + " error", e);
+-            }
+-            // defaults to equal
+-            return arithmetic.equals(left, right) ? Boolean.TRUE : Boolean.FALSE;
+-        } catch (ArithmeticException xrt) {
+-            throw new JexlException(node, operator + " error", xrt);
+-        }
++    @Override
++    protected Object visit(ASTNSWNode node, Object data) {
++        Object left = node.jjtGetChild(0).jjtAccept(this, data);
++        Object right = node.jjtGetChild(1).jjtAccept(this, data);
++        return operators.startsWith(node, "^!", left, right) ? Boolean.FALSE : Boolean.TRUE;
+     }
+ 
+     @Override
+     protected Object visit(ASTEWNode node, Object data) {
+         Object left = node.jjtGetChild(0).jjtAccept(this, data);
+         Object right = node.jjtGetChild(1).jjtAccept(this, data);
+-        return endsWith(node, "$=", left, right) ? Boolean.TRUE : Boolean.FALSE;
++        return operators.endsWith(node, "$=", left, right) ? Boolean.TRUE : Boolean.FALSE;
+     }
+ 
+     @Override
+     protected Object visit(ASTNEWNode node, Object data) {
+         Object left = node.jjtGetChild(0).jjtAccept(this, data);
+         Object right = node.jjtGetChild(1).jjtAccept(this, data);
+-        return endsWith(node, "$!", left, right) ? Boolean.FALSE : Boolean.TRUE;
+-    }
+-
+-    /**
+-     * The 'match'/'in' operator implementation.
+-     * @param node  the node
+-     * @param op    the calling operator, =~ or !=
+-     * @param left  the left operand
+-     * @param right the right operand
+-     * @return true if left matches right, false otherwise
+-     */
+-    protected boolean contains(JexlNode node, String op, Object left, Object right) {
+-        try {
+-            // try operator overload
+-            Object result = callOperator(node, Operator.CONTAINS, left, right);
+-            if (result instanceof Boolean) {
+-                return (Boolean) result;
+-            }
+-            // use arithmetic / pattern matching ?
+-            Boolean matched = arithmetic.contains(left, right);
+-            if (matched != null) {
+-                return matched;
+-            }
+-            // try a contains method (duck type set)
+-            try {
+-                Object[] argv = {left};
+-                JexlMethod vm = uberspect.getMethod(right, "contains", argv);
+-                if (vm != null && vm.getReturnType() == Boolean.TYPE) {
+-                    return (Boolean) vm.invoke(right, argv);
+-                } else if (arithmetic.narrowArguments(argv)) {
+-                    vm = uberspect.getMethod(right, "contains", argv);
+-                    if (vm != null && vm.getReturnType() == Boolean.TYPE) {
+-                        return (Boolean) vm.invoke(right, argv);
+-                    }
+-                }
+-            } catch (InvocationTargetException e) {
+-                throw new JexlException(node, op + " invocation error", e.getCause());
+-            } catch (Exception e) {
+-                throw new JexlException(node, op + " error", e);
+-            }
+-            // try iterative comparison
+-            Iterator<?> it = uberspect.getIterator(right);
+-            if (it != null) {
+-                while (it.hasNext()) {
+-                    Object next = it.next();
+-                    if (next == left || (next != null && next.equals(left))) {
+-                        return true;
+-                    }
+-                }
+-                return false;
+-            }
+-            // defaults to equal
+-            return arithmetic.equals(left, right);
+-        } catch (ArithmeticException xrt) {
+-            throw new JexlException(node, op + " error", xrt);
+-        }
++        return operators.endsWith(node, "$!", left, right) ? Boolean.FALSE : Boolean.TRUE;
+     }
+ 
+     @Override
+     protected Object visit(ASTERNode node, Object data) {
+         Object left = node.jjtGetChild(0).jjtAccept(this, data);
+         Object right = node.jjtGetChild(1).jjtAccept(this, data);
+-        return contains(node, "=~", left, right) ? Boolean.TRUE : Boolean.FALSE;
++        return operators.contains(node, "=~", right, left) ? Boolean.TRUE : Boolean.FALSE;
+     }
+ 
+     @Override
+     protected Object visit(ASTNRNode node, Object data) {
+         Object left = node.jjtGetChild(0).jjtAccept(this, data);
+         Object right = node.jjtGetChild(1).jjtAccept(this, data);
+-        return contains(node, "!~", left, right) ? Boolean.FALSE : Boolean.TRUE;
++        return operators.contains(node, "!~", right, left) ? Boolean.FALSE : Boolean.TRUE;
++    }
++
++    @Override
++    protected Object visit(ASTRangeNode node, Object data) {
++        Object left = node.jjtGetChild(0).jjtAccept(this, data);
++        Object right = node.jjtGetChild(1).jjtAccept(this, data);
++        try {
++            return arithmetic.createRange(left, right);
++        } catch (ArithmeticException xrt) {
++            JexlNode xnode = findNullOperand(xrt, node, left, right);
++            throw new JexlException(xnode, ".. error", xrt);
++        }
++    }
++
++    @Override
++    protected Object visit(ASTUnaryMinusNode node, Object data) {
++        JexlNode valNode = node.jjtGetChild(0);
++        Object val = valNode.jjtAccept(this, data);
++        try {
++            Object result = operators.tryOverload(node, JexlOperator.NEGATE, val);
++            if (result != JexlEngine.TRY_FAILED) {
++                return result;
++            }
++            Object number = arithmetic.negate(val);
++            // attempt to recoerce to literal class
++            if (valNode instanceof ASTNumberLiteral && number instanceof Number) {
++                number = arithmetic.narrowNumber((Number) number, ((ASTNumberLiteral) valNode).getLiteralClass());
++            }
++            return number;
++        } catch (ArithmeticException xrt) {
++            throw new JexlException(valNode, "- error", xrt);
++        }
++    }
++
++    @Override
++    protected Object visit(ASTBitwiseComplNode node, Object data) {
++        Object arg = node.jjtGetChild(0).jjtAccept(this, data);
++        try {
++            Object result = operators.tryOverload(node, JexlOperator.COMPLEMENT, arg);
++            return result != JexlEngine.TRY_FAILED ? result : arithmetic.complement(arg);
++        } catch (ArithmeticException xrt) {
++            throw new JexlException(node, "~ error", xrt);
++        }
++    }
++
++    @Override
++    protected Object visit(ASTNotNode node, Object data) {
++        Object val = node.jjtGetChild(0).jjtAccept(this, data);
++        try {
++            Object result = operators.tryOverload(node, JexlOperator.NOT, val);
++            return result != JexlEngine.TRY_FAILED ? result : arithmetic.not(val);
++        } catch (ArithmeticException xrt) {
++            throw new JexlException(node, "! error", xrt);
++        }
+     }
+ 
+     @Override
+@@ -933,155 +713,122 @@
+     }
+ 
+     @Override
+-    protected Object visit(ASTNumberLiteral node, Object data) {
+-        if (data != null && node.isInteger()) {
+-            return getAttribute(data, node.getLiteral(), node);
+-        }
+-        return node.getLiteral();
+-    }
+-
+-    @Override
+-    protected Object visit(ASTLENode node, Object data) {
+-        Object left = node.jjtGetChild(0).jjtAccept(this, data);
+-        Object right = node.jjtGetChild(1).jjtAccept(this, data);
+-        try {
+-            Object result = callOperator(node, Operator.LTE, left, right);
+-            return result != JexlEngine.TRY_FAILED
+-                   ? result
+-                   : arithmetic.lessThanOrEqual(left, right) ? Boolean.TRUE : Boolean.FALSE;
+-        } catch (ArithmeticException xrt) {
+-            throw new JexlException(node, "<= error", xrt);
++    protected Object visit(ASTBlock node, Object data) {
++        int numChildren = node.jjtGetNumChildren();
++        Object result = null;
++        for (int i = 0; i < numChildren; i++) {
++            result = node.jjtGetChild(i).jjtAccept(this, data);
+         }
++        return result;
+     }
+ 
+     @Override
+-    protected Object visit(ASTLTNode node, Object data) {
+-        Object left = node.jjtGetChild(0).jjtAccept(this, data);
+-        Object right = node.jjtGetChild(1).jjtAccept(this, data);
+-        try {
+-            Object result = callOperator(node, Operator.LT, left, right);
+-            return result != JexlEngine.TRY_FAILED
+-                   ? result
+-                   : arithmetic.lessThan(left, right) ? Boolean.TRUE : Boolean.FALSE;
+-        } catch (ArithmeticException xrt) {
+-            throw new JexlException(node, "< error", xrt);
+-        }
++    protected Object visit(ASTReturnStatement node, Object data) {
++        Object val = node.jjtGetChild(0).jjtAccept(this, data);
++        throw new JexlException.Return(node, null, val);
+     }
+ 
+     @Override
+-    protected Object visit(ASTMapEntry node, Object data) {
+-        Object key = node.jjtGetChild(0).jjtAccept(this, data);
+-        Object value = node.jjtGetChild(1).jjtAccept(this, data);
+-        return new Object[]{key, value};
++    protected Object visit(ASTContinue node, Object data) {
++        throw new JexlException.Continue(node);
+     }
+ 
+     @Override
+-    protected Object visit(ASTExtendedLiteral node, Object data) {
+-        return node;
++    protected Object visit(ASTBreak node, Object data) {
++        throw new JexlException.Break(node);
+     }
+ 
+     @Override
+-    protected Object visit(ASTSetLiteral node, Object data) {
+-        int childCount = node.jjtGetNumChildren();
+-        JexlArithmetic.SetBuilder mb = arithmetic.setBuilder(childCount);
+-        if (mb != null) {
+-            for (int i = 0; i < childCount; i++) {
+-                Object entry = node.jjtGetChild(i).jjtAccept(this, data);
+-                mb.add(entry);
++    protected Object visit(ASTForeachStatement node, Object data) {
++        Object result = null;
++        /* first objectNode is the loop variable */
++        ASTReference loopReference = (ASTReference) node.jjtGetChild(0);
++        ASTIdentifier loopVariable = (ASTIdentifier) loopReference.jjtGetChild(0);
++        int symbol = loopVariable.getSymbol();
++        /* second objectNode is the variable to iterate */
++        Object iterableValue = node.jjtGetChild(1).jjtAccept(this, data);
++        // make sure there is a value to iterate on and a statement to execute
++        if (iterableValue != null && node.jjtGetNumChildren() >= 3) {
++            /* third objectNode is the statement to execute */
++            JexlNode statement = node.jjtGetChild(2);
++            // get an iterator for the collection/array etc via the
++            // introspector.
++            Iterator<?> itemsIterator = uberspect.getIterator(iterableValue);
++            if (itemsIterator != null) {
++                while (itemsIterator.hasNext()) {
++                    if (isCancelled()) {
++                        throw new JexlException.Cancel(node);
++                    }
++                    // set loopVariable to value of iterator
++                    Object value = itemsIterator.next();
++                    if (symbol < 0) {
++                        context.set(loopVariable.getName(), value);
++                    } else {
++                        frame.set(symbol, value);
++                    }
++                    try {
++                        // execute statement
++                        result = statement.jjtAccept(this, data);
++                    } catch (JexlException.Break stmtBreak) {
++                        break;
++                    } catch (JexlException.Continue stmtContinue) {
++                        //continue;
++                    }
++                }
+             }
+-            return mb.create();
+-        } else {
+-            return null;
+         }
++        return result;
+     }
+ 
+     @Override
+-    protected Object visit(ASTMapLiteral node, Object data) {
+-        int childCount = node.jjtGetNumChildren();
+-        JexlArithmetic.MapBuilder mb = arithmetic.mapBuilder(childCount);
+-        if (mb != null) {
+-            for (int i = 0; i < childCount; i++) {
+-                Object[] entry = (Object[]) (node.jjtGetChild(i)).jjtAccept(this, data);
+-                mb.put(entry[0], entry[1]);
++    protected Object visit(ASTWhileStatement node, Object data) {
++        Object result = null;
++        /* first objectNode is the expression */
++        Node expressionNode = node.jjtGetChild(0);
++        while (arithmetic.toBoolean(expressionNode.jjtAccept(this, data))) {
++            if (isCancelled()) {
++                throw new JexlException.Cancel(node);
+             }
+-            return mb.create();
+-        } else {
+-            return null;
+-        }
+-    }
+-
+-    @Override
+-    protected Object visit(ASTRangeNode node, Object data) {
+-        Object left = node.jjtGetChild(0).jjtAccept(this, data);
+-        Object right = node.jjtGetChild(1).jjtAccept(this, data);
+-        try {
+-            return arithmetic.createRange(left, right);
+-        } catch (ArithmeticException xrt) {
+-            JexlNode xnode = findNullOperand(xrt, node, left, right);
+-            throw new JexlException(xnode, ".. error", xrt);
+-        }
+-    }
+-
+-    @Override
+-    protected Object visit(ASTModNode node, Object data) {
+-        Object left = node.jjtGetChild(0).jjtAccept(this, data);
+-        Object right = node.jjtGetChild(1).jjtAccept(this, data);
+-        try {
+-            Object result = callOperator(node, Operator.MOD, left, right);
+-            return result != JexlEngine.TRY_FAILED ? result : arithmetic.mod(left, right);
+-        } catch (ArithmeticException xrt) {
+-            if (!strictArithmetic) {
+-                return 0.0d;
++            if (node.jjtGetNumChildren() > 1) {
++                try {
++                    // execute statement
++                    result = node.jjtGetChild(1).jjtAccept(this, data);
++                } catch (JexlException.Break stmtBreak) {
++                    break;
++                } catch (JexlException.Continue stmtContinue) {
++                    //continue;
++                }
+             }
+-            JexlNode xnode = findNullOperand(xrt, node, left, right);
+-            throw new JexlException(xnode, "% error", xrt);
+         }
++        return result;
+     }
+ 
+     @Override
+-    protected Object visit(ASTMulNode node, Object data) {
++    protected Object visit(ASTAndNode node, Object data) {
++        /**
++         * The pattern for exception mgmt is to let the child*.jjtAccept out of the try/catch loop so that if one fails,
++         * the ex will traverse up to the interpreter. In cases where this is not convenient/possible, JexlException
++         * must be caught explicitly and rethrown.
++         */
+         Object left = node.jjtGetChild(0).jjtAccept(this, data);
+-        Object right = node.jjtGetChild(1).jjtAccept(this, data);
+         try {
+-            Object result = callOperator(node, Operator.MULTIPLY, left, right);
+-            return result != JexlEngine.TRY_FAILED ? result : arithmetic.multiply(left, right);
+-        } catch (ArithmeticException xrt) {
+-            JexlNode xnode = findNullOperand(xrt, node, left, right);
+-            throw new JexlException(xnode, "* error", xrt);
++            boolean leftValue = arithmetic.toBoolean(left);
++            if (!leftValue) {
++                return Boolean.FALSE;
++            }
++        } catch (RuntimeException xrt) {
++            throw new JexlException(node.jjtGetChild(0), "boolean coercion error", xrt);
+         }
+-    }
+-
+-    @Override
+-    protected Object visit(ASTNENode node, Object data) {
+-        Object left = node.jjtGetChild(0).jjtAccept(this, data);
+         Object right = node.jjtGetChild(1).jjtAccept(this, data);
+         try {
+-            Object result = callOperator(node, Operator.EQ, left, right);
+-            return result != JexlEngine.TRY_FAILED
+-                   ? arithmetic.toBoolean(result) ? Boolean.FALSE : Boolean.TRUE
+-                   : arithmetic.equals(left, right) ? Boolean.FALSE : Boolean.TRUE;
+-        } catch (ArithmeticException xrt) {
+-            JexlNode xnode = findNullOperand(xrt, node, left, right);
+-            throw new JexlException(xnode, "!= error", xrt);
+-        }
+-    }
+-
+-    @Override
+-    protected Object visit(ASTNotNode node, Object data) {
+-        Object val = node.jjtGetChild(0).jjtAccept(this, data);
+-        try {
+-            Object result = callOperator(node, Operator.NOT, val);
+-            return result != JexlEngine.TRY_FAILED
+-                   ? result
+-                   : arithmetic.toBoolean(val) ? Boolean.FALSE : Boolean.TRUE;
++            boolean rightValue = arithmetic.toBoolean(right);
++            if (!rightValue) {
++                return Boolean.FALSE;
++            }
+         } catch (ArithmeticException xrt) {
+-            throw new JexlException(node, "arithmetic error", xrt);
++            throw new JexlException(node.jjtGetChild(1), "boolean coercion error", xrt);
+         }
+-    }
+-
+-    @Override
+-    protected Object visit(ASTNullLiteral node, Object data) {
+-        return null;
++        return Boolean.TRUE;
+     }
+ 
+     @Override
+@@ -1108,14 +855,26 @@
+     }
+ 
+     @Override
+-    protected Object visit(ASTReferenceExpression node, Object data) {
+-        return node.jjtGetChild(0).jjtAccept(this, data);
++    protected Object visit(ASTNullLiteral node, Object data) {
++        return null;
+     }
+ 
+     @Override
+-    protected Object visit(ASTReturnStatement node, Object data) {
+-        Object val = node.jjtGetChild(0).jjtAccept(this, data);
+-        throw new JexlException.Return(node, null, val);
++    protected Object visit(ASTTrueNode node, Object data) {
++        return Boolean.TRUE;
++    }
++
++    @Override
++    protected Object visit(ASTFalseNode node, Object data) {
++        return Boolean.FALSE;
++    }
++
++    @Override
++    protected Object visit(ASTNumberLiteral node, Object data) {
++        if (data != null && node.isInteger()) {
++            return getAttribute(data, node.getLiteral(), node);
++        }
++        return node.getLiteral();
+     }
+ 
+     @Override
+@@ -1127,68 +886,83 @@
+     }
+ 
+     @Override
+-    protected Object visit(ASTTernaryNode node, Object data) {
+-        Object condition = node.jjtGetChild(0).jjtAccept(this, data);
+-        if (node.jjtGetNumChildren() == 3) {
+-            if (condition != null && arithmetic.toBoolean(condition)) {
+-                return node.jjtGetChild(1).jjtAccept(this, data);
+-            } else {
+-                return node.jjtGetChild(2).jjtAccept(this, data);
++    protected Object visit(ASTArrayLiteral node, Object data) {
++        int childCount = node.jjtGetNumChildren();
++        JexlArithmetic.ArrayBuilder ab = arithmetic.arrayBuilder(childCount);
++        if (ab != null) {
++            boolean extended = false;
++            for (int i = 0; i < childCount; i++) {
++                JexlNode child = node.jjtGetChild(i);
++                if (child instanceof ASTExtendedLiteral) {
++                    extended = true;
++                } else {
++                    Object entry = node.jjtGetChild(i).jjtAccept(this, data);
++                    ab.add(entry);
++                }
+             }
+-        }
+-        if (condition != null && arithmetic.toBoolean(condition)) {
+-            return condition;
++            return ab.create(extended);
+         } else {
+-            return node.jjtGetChild(1).jjtAccept(this, data);
++            return null;
+         }
+     }
+ 
+     @Override
+-    protected Object visit(ASTTrueNode node, Object data) {
+-        return Boolean.TRUE;
++    protected Object visit(ASTExtendedLiteral node, Object data) {
++        return node;
+     }
+ 
+     @Override
+-    protected Object visit(ASTUnaryMinusNode node, Object data) {
+-        JexlNode valNode = node.jjtGetChild(0);
+-        Object val = valNode.jjtAccept(this, data);
+-        try {
+-            Object result = callOperator(node, Operator.NEGATE, val);
+-            if (result != JexlEngine.TRY_FAILED) {
+-                return result;
+-            }
+-            Object number = result != JexlEngine.TRY_FAILED ? result : arithmetic.negate(val);
+-            // attempt to recoerce to literal class
+-            if (valNode instanceof ASTNumberLiteral && number instanceof Number) {
+-                number = arithmetic.narrowNumber((Number) number, ((ASTNumberLiteral) valNode).getLiteralClass());
++    protected Object visit(ASTSetLiteral node, Object data) {
++        int childCount = node.jjtGetNumChildren();
++        JexlArithmetic.SetBuilder mb = arithmetic.setBuilder(childCount);
++        if (mb != null) {
++            for (int i = 0; i < childCount; i++) {
++                Object entry = node.jjtGetChild(i).jjtAccept(this, data);
++                mb.add(entry);
+             }
+-            return number;
+-        } catch (ArithmeticException xrt) {
+-            throw new JexlException(valNode, "arithmetic error", xrt);
++            return mb.create();
++        } else {
++            return null;
+         }
+     }
+ 
+     @Override
+-    protected Object visit(ASTWhileStatement node, Object data) {
+-        Object result = null;
+-        /* first objectNode is the expression */
+-        Node expressionNode = node.jjtGetChild(0);
+-        while (arithmetic.toBoolean(expressionNode.jjtAccept(this, data))) {
+-            if (isCancelled()) {
+-                throw new JexlException.Cancel(node);
++    protected Object visit(ASTMapLiteral node, Object data) {
++        int childCount = node.jjtGetNumChildren();
++        JexlArithmetic.MapBuilder mb = arithmetic.mapBuilder(childCount);
++        if (mb != null) {
++            for (int i = 0; i < childCount; i++) {
++                Object[] entry = (Object[]) (node.jjtGetChild(i)).jjtAccept(this, data);
++                mb.put(entry[0], entry[1]);
+             }
+-            if (node.jjtGetNumChildren() > 1) {
+-                try {
+-                    // execute statement
+-                    result = node.jjtGetChild(1).jjtAccept(this, data);
+-                } catch (JexlException.Break stmtBreak) {
+-                    break;
+-                } catch (JexlException.Continue stmtContinue) {
+-                    //continue;
+-                }
++            return mb.create();
++        } else {
++            return null;
++        }
++    }
++
++    @Override
++    protected Object visit(ASTMapEntry node, Object data) {
++        Object key = node.jjtGetChild(0).jjtAccept(this, data);
++        Object value = node.jjtGetChild(1).jjtAccept(this, data);
++        return new Object[]{key, value};
++    }
++
++    @Override
++    protected Object visit(ASTTernaryNode node, Object data) {
++        Object condition = node.jjtGetChild(0).jjtAccept(this, data);
++        if (node.jjtGetNumChildren() == 3) {
++            if (condition != null && arithmetic.toBoolean(condition)) {
++                return node.jjtGetChild(1).jjtAccept(this, data);
++            } else {
++                return node.jjtGetChild(2).jjtAccept(this, data);
+             }
+         }
+-        return result;
++        if (condition != null && arithmetic.toBoolean(condition)) {
++            return condition;
++        } else {
++            return node.jjtGetChild(1).jjtAccept(this, data);
++        }
+     }
+ 
+     @Override
+@@ -1197,7 +971,7 @@
+         try {
+             strictEngine = false;
+             Object val = node.jjtGetChild(0).jjtAccept(this, data);
+-            return sizeOf(node, val);
++            return operators.size(node, val);
+         } finally {
+             strictEngine = isStrict;
+         }
+@@ -1206,7 +980,7 @@
+     @Override
+     protected Object visit(ASTSizeMethod node, Object data) {
+         Object val = node.jjtGetChild(0).jjtAccept(this, data);
+-        return sizeOf(node, val);
++        return operators.size(node, val);
+     }
+ 
+     @Override
+@@ -1215,7 +989,7 @@
+         try {
+             strictEngine = false;
+             Object value = node.jjtGetChild(0).jjtAccept(this, data);
+-            return callEmpty(node, value);
++            return operators.empty(node, value);
+         } finally {
+             strictEngine = isStrict;
+         }
+@@ -1224,94 +998,7 @@
+     @Override
+     protected Object visit(ASTEmptyMethod node, Object data) {
+         Object val = node.jjtGetChild(0).jjtAccept(this, data);
+-        return callEmpty(node, val);
+-    }
+-
+-    /**
+-     * Check for emptyness of various types: Collection, Array, Map, String, and anything that has a boolean isEmpty()
+-     * method.
+-     *
+-     * @param node   the node holding the object
+-     * @param object the object to check the emptyness of.
+-     * @return the boolean
+-     */
+-    private Object callEmpty(JexlNode node, Object object) {
+-        if (object == null) {
+-            return Boolean.TRUE;
+-        }
+-        Object opcall = callOperator(node, Operator.EMPTY, object);
+-        if (opcall != JexlEngine.TRY_FAILED) {
+-            return opcall;
+-        }
+-        if (object instanceof Number) {
+-            double d = ((Number) object).doubleValue();
+-            return Double.isNaN(d) || d == 0.d ? Boolean.TRUE : Boolean.FALSE;
+-        }
+-        if (object instanceof String) {
+-            return "".equals(object) ? Boolean.TRUE : Boolean.FALSE;
+-        }
+-        if (object.getClass().isArray()) {
+-            return Array.getLength(object) == 0 ? Boolean.TRUE : Boolean.FALSE;
+-        }
+-        if (object instanceof Collection<?>) {
+-            return ((Collection<?>) object).isEmpty() ? Boolean.TRUE : Boolean.FALSE;
+-        }
+-        // Map isn't a collection
+-        if (object instanceof Map<?, ?>) {
+-            return ((Map<?, ?>) object).isEmpty() ? Boolean.TRUE : Boolean.FALSE;
+-        }
+-        // check if there is an isEmpty method on the object that returns a
+-        // boolean and if so, just use it
+-        JexlMethod vm = uberspect.getMethod(object, "isEmpty", EMPTY_PARAMS);
+-        if (vm != null && vm.getReturnType() == Boolean.TYPE) {
+-            try {
+-                return (Boolean) vm.invoke(object, EMPTY_PARAMS);
+-            } catch (Exception xany) {
+-                operatorError(node, Operator.EMPTY, xany);
+-            }
+-        }
+-        return Boolean.FALSE;
+-    }
+-
+-    /**
+-     * Calculate the <code>size</code> of various types:
+-     * Collection, Array, Map, String, and anything that has a int size() method.
+-     *
+-     * @param node   the node that gave the value to size
+-     * @param object the object to get the size of.
+-     * @return the size of val
+-     */
+-    private Object sizeOf(JexlNode node, Object object) {
+-        if (object == null) {
+-            return 0;
+-        }
+-        Object opcall = callOperator(node, Operator.SIZE, object);
+-        if (opcall != JexlEngine.TRY_FAILED) {
+-            return opcall;
+-        }
+-        if (object instanceof String) {
+-            return ((String) object).length();
+-        }
+-        if (object.getClass().isArray()) {
+-            return Array.getLength(object);
+-        }
+-        if (object instanceof Collection<?>) {
+-            return ((Collection<?>) object).size();
+-        }
+-        if (object instanceof Map<?, ?>) {
+-            return ((Map<?, ?>) object).size();
+-        }
+-        // check if there is a size method on the object that returns an
+-        // integer and if so, just use it
+-        JexlMethod vm = uberspect.getMethod(object, "size", EMPTY_PARAMS);
+-        if (vm != null && vm.getReturnType() == Integer.TYPE) {
+-            try {
+-                return (Integer) vm.invoke(object, EMPTY_PARAMS);
+-            } catch (Exception xany) {
+-                operatorError(node, Operator.SIZE, xany);
+-            }
+-        }
+-        return 0;
++        return operators.empty(node, val);
+     }
+ 
+     @Override
+@@ -1330,6 +1017,16 @@
+     }
+ 
+     @Override
++    protected Object visit(ASTVar node, Object data) {
++        return visit((ASTIdentifier) node, data);
++    }
++
++    @Override
++    protected Object visit(ASTReferenceExpression node, Object data) {
++        return node.jjtGetChild(0).jjtAccept(this, data);
++    }
++
++    @Override
+     protected Object visit(ASTIdentifier node, Object data) {
+         if (isCancelled()) {
+             throw new JexlException.Cancel(node);
+@@ -1354,11 +1051,6 @@
+     }
+ 
+     @Override
+-    protected Object visit(ASTVar node, Object data) {
+-        return visit((ASTIdentifier) node, data);
+-    }
+-
+-    @Override
+     protected Object visit(ASTArrayAccess node, Object data) {
+         // first objectNode is the identifier
+         Object object = data;
+@@ -1375,12 +1067,6 @@
+         return object;
+     }
+ 
+-    @Override
+-    protected Object visit(ASTIdentifierAccess node, Object data) {
+-        // child 0 is the identifier, data is the object
+-        return data != null ? getAttribute(data, node.getIdentifier(), node) : null;
+-    }
+-
+     /**
+      * Check if a null evaluated expression is protected by a ternary expression.
+      * <p>
+@@ -1391,7 +1077,7 @@
+      * @param node the expression node
+      * @return true if nullable variable, false otherwise
+      */
+-    private boolean isTernaryProtected(JexlNode node) {
++    protected boolean isTernaryProtected(JexlNode node) {
+         for (JexlNode walk = node.jjtGetParent(); walk != null; walk = walk.jjtGetParent()) {
+             if (walk instanceof ASTTernaryNode) {
+                 return true;
+@@ -1408,82 +1094,135 @@
+      * @param which the child we are checking
+      * @return true if child is local variable, false otherwise
+      */
+-    private boolean isLocalVariable(ASTReference node, int which) {
++    protected boolean isLocalVariable(ASTReference node, int which) {
+         return (node.jjtGetNumChildren() > which
+                 && node.jjtGetChild(which) instanceof ASTIdentifier
+                 && ((ASTIdentifier) node.jjtGetChild(which)).getSymbol() >= 0);
+     }
+ 
+     @Override
++    protected Object visit(ASTIdentifierAccess node, Object data) {
++        return data != null ? getAttribute(data, node.getIdentifier(), node) : null;
++    }
++
++    @Override
+     protected Object visit(ASTReference node, Object data) {
++        if (isCancelled()) {
++            throw new JexlException.Cancel(node);
++        }
+         final int numChildren = node.jjtGetNumChildren();
+         JexlNode parent = node.jjtGetParent();
+         // pass first piece of data in and loop through children
+         Object object = null;
+         JexlNode objectNode;
+-        StringBuilder variableName = null;
++        StringBuilder ant = null;
+         boolean antish = !(parent instanceof ASTReference);
+-        int v = 0;
++        int v = 1;
+         main:
+         for (int c = 0; c < numChildren; c++) {
+-            if (isCancelled()) {
+-                throw new JexlException.Cancel(node);
+-            }
+             objectNode = node.jjtGetChild(c);
+             if (objectNode instanceof ASTMethodNode && object == null) {
+                 break;
+             }
+-            // attempt to evaluate the property within the object
++            // attempt to evaluate the property within the object (visit(ASTIdentifierAccess node))
+             object = objectNode.jjtAccept(this, object);
+-            if (object == null && antish) {
+-                // if we still have a null object and we are evaluating 'x.y', check for an antish variable
+-                if (v == 0) {
+-                    // if the first node is a local variable or parameter, the object can not be null
++            if (object != null) {
++                // disallow mixing antish variable & bean with same root; avoid ambiguity
++                antish = false;
++            } else if (antish) {  // if we still have a null object, check for an antish variable
++                if (ant == null) {
+                     JexlNode first = node.jjtGetChild(0);
+-                    if (first instanceof ASTIdentifier && ((ASTIdentifier) first).getSymbol() >= 0) {
+-                        antish = false;
+-                        break main;
+-                    }
+-                    // first node must be an Identifier
+-                    if (objectNode instanceof ASTIdentifier) {
+-                        variableName = new StringBuilder(((ASTIdentifier) objectNode).getName());
+-                        v = 1;
++                    if (first instanceof ASTIdentifier && ((ASTIdentifier) first).getSymbol() < 0) {
++                        ant = new StringBuilder(((ASTIdentifier) first).getName());
+                     } else {
+-                        break main;
++                        break;
+                     }
+                 }
+                 for (; v <= c; ++v) {
+-                    // subsequent nodes must be identifier access
+-                    objectNode = node.jjtGetChild(v);
+-                    if (objectNode instanceof ASTIdentifierAccess) {
+-                        // variableName can *not* be null; it has been necessarily set by the (v == 0) condition
+-                        variableName.append('.');
+-                        variableName.append(((ASTIdentifierAccess) objectNode).getName());
++                    JexlNode child = node.jjtGetChild(v);
++                    if (child instanceof ASTIdentifierAccess) {
++                        ant.append('.');
++                        ant.append(((ASTIdentifierAccess) objectNode).getName());
+                     } else {
+-                        break main;
++                        break;
+                     }
+                 }
+-                // variableName can *not* be null; the code before this line made sure of that
+-                object = context.get(variableName.toString());
++                object = context.get(ant.toString());
++            } else {
++                break;
+             }
+-            antish &= object == null;
+         }
+-        if (object == null && antish && variableName != null && !isTernaryProtected(node)) {
+-            boolean undefined = !(context.has(variableName.toString()) || isLocalVariable(node, 0));
++        if (object == null && antish && ant != null && !isTernaryProtected(node)) {
++            boolean undefined = !(context.has(ant.toString()) || isLocalVariable(node, 0));
+             // variable unknown in context and not a local
+-            return unsolvableVariable(node, variableName.toString(), undefined);
++            return unsolvableVariable(node, ant.toString(), undefined);
+         }
+         return object;
+     }
+ 
+     @Override
+     protected Object visit(ASTAssignment node, Object data) {
++        return executeAssign(node, null, data);
++    }
++
++    @Override
++    protected Object visit(ASTSetAddNode node, Object data) {
++        return executeAssign(node, JexlOperator.SELF_ADD, data);
++    }
++
++    @Override
++    protected Object visit(ASTSetSubNode node, Object data) {
++        return executeAssign(node, JexlOperator.SELF_SUBTRACT, data);
++    }
++
++    @Override
++    protected Object visit(ASTSetMultNode node, Object data) {
++        return executeAssign(node, JexlOperator.SELF_MULTIPLY, data);
++    }
++
++    @Override
++    protected Object visit(ASTSetDivNode node, Object data) {
++        return executeAssign(node, JexlOperator.SELF_DIVIDE, data);
++    }
++
++    @Override
++    protected Object visit(ASTSetModNode node, Object data) {
++        return executeAssign(node, JexlOperator.SELF_MOD, data);
++    }
++
++    @Override
++    protected Object visit(ASTSetAndNode node, Object data) {
++        return executeAssign(node, JexlOperator.SELF_AND, data);
++    }
++
++    @Override
++    protected Object visit(ASTSetOrNode node, Object data) {
++        return executeAssign(node, JexlOperator.SELF_OR, data);
++    }
++
++    @Override
++    protected Object visit(ASTSetXorNode node, Object data) {
++        return executeAssign(node, JexlOperator.SELF_XOR, data);
++    }
++
++    /**
++     * Executes an assignment with an optional side-effect operator.
++     * @param node     the node
++     * @param assignop the assignment operator or null if simply assignment
++     * @param data     the data
++     * @return the left hand side
++     */
++    protected Object executeAssign(JexlNode node, JexlOperator assignop, Object data) {
++        if (isCancelled()) {
++            throw new JexlException.Cancel(node);
++        }
+         // left contains the reference to assign to
+         final JexlNode left = node.jjtGetChild(0);
+         // right is the value expression to assign
+-        final Object right = node.jjtGetChild(1).jjtAccept(this, data);
++        Object right = node.jjtGetChild(1).jjtAccept(this, data);
+         Object object = null;
+         int symbol = -1;
++        boolean antish = true;
+         // 0: determine initial object & property:
+         final int last = left.jjtGetNumChildren() - 1;
+         if (left instanceof ASTIdentifier) {
+@@ -1492,6 +1231,13 @@
+             if (symbol >= 0) {
+                 // check we are not assigning a symbol itself
+                 if (last < 0) {
++                    if (assignop != null) {
++                        Object self = frame.get(symbol);
++                        right = operators.tryAssignOverload(node, assignop, self, right);
++                        if (right == JexlOperator.ASSIGN) {
++                            return self;
++                        }
++                    }
+                     frame.set(symbol, right);
+                     // make the closure accessible to itself, ie hoist the currently set variable after frame creation
+                     if (right instanceof Closure) {
+@@ -1500,9 +1246,18 @@
+                     return right; // 1
+                 }
+                 object = frame.get(symbol);
++                // top level is a symbol, can not be an antish var
++                antish = false;
+             } else {
+                 // check we are not assigning direct global
+                 if (last < 0) {
++                    if (assignop != null) {
++                        Object self = context.get(var.getName());
++                        right = operators.tryAssignOverload(node, assignop, self, right);
++                        if (right == JexlOperator.ASSIGN) {
++                            return self;
++                        }
++                    }
+                     try {
+                         context.set(var.getName(), right);
+                     } catch (UnsupportedOperationException xsupport) {
+@@ -1511,57 +1266,45 @@
+                     return right; // 2
+                 }
+                 object = context.get(var.getName());
++                // top level accesses object, can not be an antish var
++                if (object != null) {
++                    antish = false;
++                }
+             }
+         } else if (!(left instanceof ASTReference)) {
+             throw new JexlException(left, "illegal assignment form 0");
+         }
+         // 1: follow children till penultimate, resolve dot/array
+         JexlNode objectNode = null;
+-        boolean antish = true;
+-        int v = 0;
+-        StringBuilder variableName = null;
++        StringBuilder ant = null;
++        int v = 1;
+         // start at 1 if symbol
+         for (int c = symbol >= 0 ? 1 : 0; c < last; ++c) {
+-            if (isCancelled()) {
+-                throw new JexlException.Cancel(left);
+-            }
+             objectNode = left.jjtGetChild(c);
+             object = objectNode.jjtAccept(this, object);
+             if (object != null) {
+                 // disallow mixing antish variable & bean with same root; avoid ambiguity
+                 antish = false;
+-                continue;
+             }
+-            // if we still have a null object, check for an antish variable
+-            if (antish) {
+-                if (v == 0) {
+-                    // if the first node is a local variable or parameter, the object can not be null
++            else if (antish) {
++                if (ant == null) {
+                     JexlNode first = left.jjtGetChild(0);
+-                    if (first instanceof ASTIdentifier && ((ASTIdentifier) first).getSymbol() >= 0) {
+-                        antish = false;
+-                        break;
+-                    }
+-                    if (objectNode instanceof ASTIdentifier) {
+-                        variableName = new StringBuilder(((ASTIdentifier) objectNode).getName());
+-                        v = 1;
++                    if (first instanceof ASTIdentifier && ((ASTIdentifier) first).getSymbol() < 0) {
++                        ant = new StringBuilder(((ASTIdentifier) first).getName());
+                     } else {
+-                        antish = false;
++                        break;
+                     }
+                 }
+-                for (; antish && v <= c; ++v) {
++                for (; v <= c; ++v) {
+                     JexlNode child = left.jjtGetChild(v);
+                     if (child instanceof ASTIdentifierAccess) {
+-                        variableName.append('.');
+-                        variableName.append(((ASTIdentifierAccess) objectNode).getName());
++                        ant.append('.');
++                        ant.append(((ASTIdentifierAccess) objectNode).getName());
+                     } else {
+-                        antish = false;
++                        break;
+                     }
+                 }
+-                if (antish) {
+-                    object = context.get(variableName.toString());
+-                } else {
+-                    break;
+-                }
++                object = context.get(ant.toString());
+             } else {
+                 throw new JexlException(objectNode, "illegal assignment form");
+             }
+@@ -1572,13 +1315,20 @@
+         if (propertyNode instanceof ASTIdentifierAccess) {
+             property = ((ASTIdentifierAccess) propertyNode).getIdentifier();
+             // deal with antish variable
+-            if (variableName != null && object == null) {
++            if (ant != null && object == null) {
+                 if (last > 0) {
+-                    variableName.append('.');
++                    ant.append('.');
++                }
++                ant.append(String.valueOf(property));
++                if (assignop != null) {
++                    Object self = context.get(ant.toString());
++                    right = operators.tryAssignOverload(node, assignop, self, right);
++                    if (right == JexlOperator.ASSIGN) {
++                        return self;
++                    }
+                 }
+-                variableName.append(String.valueOf(property));
+                 try {
+-                    context.set(variableName.toString(), right);
++                    context.set(ant.toString(), right);
+                 } catch (UnsupportedOperationException xsupport) {
+                     throw new JexlException(node, "context is readonly", xsupport);
+                 }
+@@ -1606,6 +1356,13 @@
+             throw new JexlException(objectNode, "bean is null");
+         }
+         // 3: one before last, assign
++        if (assignop != null) {
++            Object self = getAttribute(object, property, propertyNode);
++            right = operators.tryAssignOverload(node, assignop, self, right);
++            if (right == JexlOperator.ASSIGN) {
++                return self;
++            }
++        }
+         setAttribute(object, property, right, propertyNode);
+         return right; // 4
+     }
+@@ -1666,7 +1423,7 @@
+      * @param argNode the node carrying the arguments
+      * @return the result of the method invocation
+      */
+-    private Object call(JexlNode node, Object bean, Object functor, ASTArguments argNode) {
++    protected Object call(JexlNode node, Object bean, Object functor, ASTArguments argNode) {
+         if (isCancelled()) {
+             throw new JexlException.Cancel(node);
+         }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/Uberspect.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/Uberspect.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/Uberspect.java	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/Uberspect.java	2025-12-22 03:01:26.000000000 +1100
+@@ -18,8 +18,8 @@
+ 
+ 
+ import org.apache.commons.jexl3.JexlArithmetic;
+-import org.apache.commons.jexl3.JexlArithmetic.Operator;
+ import org.apache.commons.jexl3.JexlEngine;
++import org.apache.commons.jexl3.JexlOperator;
+ import org.apache.commons.jexl3.introspection.JexlMethod;
+ import org.apache.commons.jexl3.introspection.JexlPropertyGet;
+ import org.apache.commons.jexl3.introspection.JexlPropertySet;
+@@ -66,7 +66,7 @@
+      * <p>This keeps track of which operator methods are overloaded per JexlArithemtic classes
+      * allowing a fail fast test during interpretation by avoiding seeking a method when there is none.
+      */
+-    private final Map<Class<? extends JexlArithmetic>, Set<Operator>> operatorMap;
++    private final Map<Class<? extends JexlArithmetic>, Set<JexlOperator>> operatorMap;
+ 
+     /**
+      * Creates a new Uberspect.
+@@ -76,7 +76,7 @@
+         rlog = runtimeLogger;
+         ref = new SoftReference<Introspector>(null);
+         loader = new SoftReference<ClassLoader>(getClass().getClassLoader());
+-        operatorMap = new ConcurrentHashMap<Class<? extends JexlArithmetic>, Set<Operator>>();
++        operatorMap = new ConcurrentHashMap<Class<? extends JexlArithmetic>, Set<JexlOperator>>();
+         version = new AtomicInteger(0);
+     }
+ 
+@@ -370,14 +370,14 @@
+         /** The arithmetic instance being analyzed. */
+         private final JexlArithmetic arithmetic;
+         /** The set of overloaded operators. */
+-        private final EnumSet<Operator> overloads;
++        private final EnumSet<JexlOperator> overloads;
+ 
+         /**
+          * Creates an instance.
+          * @param theArithmetic the arithmetic instance
+          * @param theOverloads  the overloaded operators
+          */
+-        private ArithmeticUberspect(JexlArithmetic theArithmetic, Set<Operator> theOverloads) {
++        private ArithmeticUberspect(JexlArithmetic theArithmetic, Set<JexlOperator> theOverloads) {
+             this.arithmetic = theArithmetic;
+             this.overloads = EnumSet.copyOf(theOverloads);
+             // register this arithmetic class in the operator map
+@@ -385,21 +385,21 @@
+         }
+ 
+         @Override
+-        public JexlMethod getOperator(JexlArithmetic.Operator operator, Object arg) {
++        public JexlMethod getOperator(JexlOperator operator, Object arg) {
+             return overloads.contains(operator) && arg != null
+                    ? getMethod(arithmetic, operator.getMethodName(), arg)
+                    : null;
+         }
+ 
+         @Override
+-        public JexlMethod getOperator(JexlArithmetic.Operator operator, Object lhs, Object rhs) {
++        public JexlMethod getOperator(JexlOperator operator, Object lhs, Object rhs) {
+             return overloads.contains(operator) && lhs != null && rhs != null
+                    ? getMethod(arithmetic, operator.getMethodName(), lhs, rhs)
+                    : null;
+         }
+ 
+         @Override
+-        public boolean overloads(Operator operator) {
++        public boolean overloads(JexlOperator operator) {
+             return overloads.contains(operator);
+         }
+     }
+@@ -408,10 +408,10 @@
+     public JexlArithmetic.Uberspect getArithmetic(JexlArithmetic arithmetic) {
+         JexlArithmetic.Uberspect jau = null;
+         if (arithmetic != null) {
+-            Set<Operator> ops = operatorMap.get(arithmetic.getClass());
++            Set<JexlOperator> ops = operatorMap.get(arithmetic.getClass());
+             if (ops == null) {
+-                ops = EnumSet.noneOf(Operator.class);
+-                for (JexlArithmetic.Operator op : JexlArithmetic.Operator.values()) {
++                ops = EnumSet.noneOf(JexlOperator.class);
++                for (JexlOperator op : JexlOperator.values()) {
+                     Method[] methods = getMethods(arithmetic.getClass(), op.getMethodName());
+                     if (methods != null) {
+                         for (Method method : methods) {
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/LongRange.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/LongRange.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/LongRange.java	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/LongRange.java	2025-12-22 03:01:26.000000000 +1100
+@@ -52,13 +52,8 @@
+      * @param to   the higher inclusive boundary
+      */
+     protected LongRange(long from, long to) {
+-        if (from > to) {
+-            max = from;
+-            min = to;
+-        } else {
+-            min = from;
+-            max = to;
+-        }
++        min = from;
++        max = to;
+     }
+ 
+     /**
+@@ -203,6 +198,11 @@
+      * Ascending long range.
+      */
+     public static class Ascending extends LongRange {
++        /**
++         * Constructor.
++         * @param from lower boundary
++         * @param to upper boundary
++         */
+         protected Ascending(long from, long to) {
+             super(from, to);
+         }
+@@ -217,6 +217,11 @@
+      * Descending long range.
+      */
+     public static class Descending extends LongRange {
++        /**
++         * Constructor.
++         * @param from upper boundary
++         * @param to lower boundary
++         */
+         protected Descending(long from, long to) {
+             super(from, to);
+         }
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal: Operators.java
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/introspection/JexlUberspect.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/introspection/JexlUberspect.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/introspection/JexlUberspect.java	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/introspection/JexlUberspect.java	2025-12-22 03:01:26.000000000 +1100
+@@ -88,6 +88,7 @@
+      * Gets an arithmetic operator resolver for a given arithmetic instance.
+      * @param arithmetic the arithmetic instance
+      * @return the arithmetic uberspect or null if no operator method were override
++     * @since 3.0
+      */
+     JexlArithmetic.Uberspect getArithmetic(JexlArithmetic arithmetic);
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/JexlArithmetic.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/JexlArithmetic.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/JexlArithmetic.java	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/JexlArithmetic.java	2025-12-22 03:01:26.000000000 +1100
+@@ -17,7 +17,7 @@
+ package org.apache.commons.jexl3;
+ 
+ import org.apache.commons.jexl3.introspection.JexlMethod;
+-
++import java.lang.reflect.Array;
+ import java.math.BigDecimal;
+ import java.math.BigInteger;
+ import java.math.MathContext;
+@@ -26,9 +26,12 @@
+ import java.util.regex.Pattern;
+ 
+ /**
+- * Perform arithmetic.
++ * Perform arithmetic, implements JexlOperator methods.
++ * <p>
++ * This is the class to derive to implement new operator behaviors.
++ * </p>
+  * <p>
+- * The 5 arithmetic operators (+, - , *, /, %) follow the same evaluation rules regarding their arguments.
++ * The 5 base arithmetic operators (+, - , *, /, %) follow the same evaluation rules regarding their arguments.
+  * </p>
+  * <ol>
+  * <li>If both are null, result is 0</li>
+@@ -42,140 +45,11 @@
+  * </ol>
+  * </li>
+  * </ol>
+- * Note that the only exception thrown by JexlArithmetic is ArithmeticException.
++ * Note that the only exception thrown by JexlArithmetic is and must be ArithmeticException.
++ * @see JexlOperator
+  * @since 2.0
+  */
+ public class JexlArithmetic {
+-    /**
+-     * The overload-able operators.
+-     * Note that logical and (ie &amp;&amp;) and logical or (ie ||) are not in this list to avoid breaking
+-     * their shortcut semantics.
+-     * @since 3.0
+-     */
+-    public enum Operator {
+-        /** add(x, y). *//** add(x, y). */
+-        ADD("+", "add", 2),
+-        /** subtract(x, y). */
+-        SUBTRACT("-", "subtract", 2),
+-        /** multiply(x, y). */
+-        MULTIPLY("*", "multiply", 2),
+-        /** divide(x, y). */
+-        DIVIDE("/", "divide", 2),
+-        /** mod(x, y). */
+-        MOD("%", "mod", 2),
+-        /** bitwiseAnd(x, y). */
+-        AND("&", "bitwiseAnd", 2),
+-        /** bitwiseOr(x, y). */
+-        OR("|", "bitwiseOr", 2),
+-        /** bitwiseXor(x, y). */
+-        XOR("^", "bitwiseXor", 2),
+-        /** logicalNot(x). */
+-        NOT("!", "logicalNot", 1),
+-        /** bitiwiseComplement(x). */
+-        COMPLEMENT("~", "bitwiseComplement", 1),
+-        /** equals(x, y). */
+-        EQ("==", "equals", 2),
+-        /** lessThan(x, y). */
+-        LT("<", "lessThan", 2),
+-        /** lessThanOrEqual(x, y). */
+-        LTE("<=", "lessThanOrEqual", 2),
+-        /** greaterThan(x, y). */
+-        GT(">", "greaterThan", 2),
+-        /** greaterThanOrEqual(x, y). */
+-        GTE(">=", "greaterThanOrEqual", 2),
+-        /** negate(x). */
+-        NEGATE("-", "negate", 1),
+-        /** contains(x). */
+-        CONTAINS("=~", "contains", 2),
+-        /** startsWith(x, y). */
+-        STARTSWITH("=^", "startsWith", 2),
+-        /** endsWith(x, y). */
+-        ENDSWITH("=$", "endsWith", 2),
+-        /** empty(x). */
+-        EMPTY("empty", "empty", 1),
+-        /** size(x). */
+-        SIZE("size", "size", 1);
+-
+-        /**
+-         * The operator symbol.
+-         */
+-        private final String operator;
+-        /**
+-         * The associated operator method name.
+-         */
+-        private final String methodName;
+-        /**
+-         * The method arity.
+-         */
+-        private final int arity;
+-
+-        /**
+-         * Creates an operator.
+-         * @param o the operator name
+-         * @param m the method name associated to this operator in a JexlArithmetic
+-         * @param argc the number of parameters for the method
+-         */
+-        Operator(String o, String m, int argc) {
+-            this.operator = o;
+-            this.methodName = m;
+-            this.arity = argc;
+-        }
+-
+-        /**
+-         * Gets this operator symbol.
+-         * @return the symbol
+-         */
+-        public final String getOperatorSymbol() {
+-            return operator;
+-        }
+-
+-        /**
+-         * Gets this operator method name in a JexlArithmetic.
+-         * @return the method name
+-         */
+-        public final String getMethodName() {
+-            return methodName;
+-        }
+-
+-        /**
+-         * Gets this operator number of parameters.
+-         * @return the method arity
+-         */
+-        public int getArity() {
+-            return arity;
+-        }
+-    }
+-
+-    /**
+-     * The interface that uberspects JexlArithmetic classes.
+-     * <p>This allows overloaded operator methods discovery.
+-     */
+-    public interface Uberspect {
+-        /**
+-         * Checks whether this uberspect has overloads for a given operator.
+-         * @param operator the operator to check
+-         * @return true if an overload exists, false otherwise
+-         */
+-        boolean overloads(JexlArithmetic.Operator operator);
+-
+-        /**
+-         * Gets the most specific method for a monadic operator.
+-         * @param operator the operator
+-         * @param arg the argument
+-         * @return the most specific method or null if no specific override could be found
+-         */
+-        JexlMethod getOperator(JexlArithmetic.Operator operator, Object arg);
+-
+-        /**
+-         * Gets the most specific method for a diadic operator.
+-         * @param operator the operator
+-         * @param lhs the left hand side argument
+-         * @param rhs the right hand side argument
+-         * @return the most specific method or null if no specific override could be found
+-         */
+-        JexlMethod getOperator(JexlArithmetic.Operator operator, Object lhs, Object rhs);
+-    }
+-
+     /** Marker class for null operand exceptions. */
+     public static class NullOperand extends ArithmeticException {}
+     /** Double.MAX_VALUE as BigDecimal. */
+@@ -242,6 +116,36 @@
+     }
+ 
+     /**
++     * The interface that uberspects JexlArithmetic classes.
++     * <p>This allows overloaded operator methods discovery.
++     */
++    public interface Uberspect {
++        /**
++         * Checks whether this uberspect has overloads for a given operator.
++         * @param operator the operator to check
++         * @return true if an overload exists, false otherwise
++         */
++        boolean overloads(JexlOperator operator);
++
++        /**
++         * Gets the most specific method for a monadic operator.
++         * @param operator the operator
++         * @param arg      the argument
++         * @return the most specific method or null if no specific override could be found
++         */
++        JexlMethod getOperator(JexlOperator operator, Object arg);
++
++        /**
++         * Gets the most specific method for a diadic operator.
++         * @param operator the operator
++         * @param lhs      the left hand side argument
++         * @param rhs      the right hand side argument
++         * @return the most specific method or null if no specific override could be found
++         */
++        JexlMethod getOperator(JexlOperator operator, Object lhs, Object rhs);
++    }
++
++    /**
+      * Helper interface used when creating an array literal.
+      * <p>The default implementation creates an array and attempts to type it strictly.
+      * <ul>
+@@ -343,7 +247,7 @@
+         final long lfrom = toLong(from);
+         final long lto = toLong(to);
+         if ((lfrom >= Integer.MIN_VALUE && lfrom <= Integer.MAX_VALUE)
+-            && (lto >= Integer.MIN_VALUE && lto <= Integer.MAX_VALUE)) {
++                && (lto >= Integer.MIN_VALUE && lto <= Integer.MAX_VALUE)) {
+             return org.apache.commons.jexl3.internal.IntegerRange.create((int) lfrom, (int) lto);
+         } else {
+             return org.apache.commons.jexl3.internal.LongRange.create(lfrom, lto);
+@@ -352,8 +256,7 @@
+ 
+     /**
+      * Checks whether this JexlArithmetic instance
+-     * strictly considers null as an error when used as operand unexpectedly
+-     * and forces add(...) to concatenate strings (instead of attempting number conversion).
++     * strictly considers null as an error when used as operand unexpectedly.
+      * @return true if strict, false if lenient
+      */
+     public boolean isStrict() {
+@@ -399,7 +302,7 @@
+         if (isStrict()) {
+             throw new NullOperand();
+         }
+-        return Integer.valueOf(0);
++        return 0;
+     }
+ 
+     /**
+@@ -517,9 +420,9 @@
+                     if (narrowAccept(narrow, Integer.class)
+                             && l <= Integer.MAX_VALUE
+                             && l >= Integer.MIN_VALUE) {
+-                        return Integer.valueOf((int) l);
++                        return (int) l;
+                     } else if (narrowAccept(narrow, Long.class)) {
+-                        return Long.valueOf(l);
++                        return l;
+                     }
+                 } catch (ArithmeticException xa) {
+                     // ignore, no exact value possible
+@@ -531,7 +434,7 @@
+             if (narrowAccept(narrow, Float.class)
+                     && value <= Float.MAX_VALUE
+                     && value >= Float.MIN_VALUE) {
+-                result = Float.valueOf(result.floatValue());
++                result = result.floatValue();
+             }
+             // else it fits in a double only
+         } else {
+@@ -548,15 +451,15 @@
+                     && value <= Byte.MAX_VALUE
+                     && value >= Byte.MIN_VALUE) {
+                 // it will fit in a byte
+-                result = Byte.valueOf((byte) value);
++                result = (byte) value;
+             } else if (narrowAccept(narrow, Short.class)
+                     && value <= Short.MAX_VALUE
+                     && value >= Short.MIN_VALUE) {
+-                result = Short.valueOf((short) value);
++                result = (short) value;
+             } else if (narrowAccept(narrow, Integer.class)
+                     && value <= Integer.MAX_VALUE
+                     && value >= Integer.MIN_VALUE) {
+-                result = Integer.valueOf((int) value);
++                result = (int) value;
+             }
+             // else it fits in a long
+         }
+@@ -587,9 +490,9 @@
+             if (!(lhs instanceof Long || rhs instanceof Long)
+                     && l <= Integer.MAX_VALUE
+                     && l >= Integer.MIN_VALUE) {
+-                return Integer.valueOf((int) l);
++                return (int) l;
+             }
+-            return Long.valueOf(l);
++            return l;
+         }
+         return bigi;
+     }
+@@ -609,9 +512,9 @@
+                 long l = bigd.longValueExact();
+                 // coerce to int when possible (int being so often used in method parms)
+                 if (l <= Integer.MAX_VALUE && l >= Integer.MIN_VALUE) {
+-                    return Integer.valueOf((int) l);
++                    return (int) l;
+                 } else {
+-                    return Long.valueOf(l);
++                    return l;
+                 }
+             } catch (ArithmeticException xa) {
+                 // ignore, no exact value possible
+@@ -648,8 +551,8 @@
+      * If any numeric add fails on coercion to the appropriate type,
+      * treat as Strings and do concatenation.
+      * </p>
+-     * @param left  first value
+-     * @param right second value
++     * @param left  left argument
++     * @param right  right argument
+      * @return left + right.
+      */
+     public Object add(Object left, Object right) {
+@@ -672,7 +575,7 @@
+                 if (isFloatingPointNumber(left) || isFloatingPointNumber(right)) {
+                     double l = toDouble(left);
+                     double r = toDouble(right);
+-                    return new Double(l + r);
++                    return l + r;
+                 }
+                 // otherwise treat as integers
+                 BigInteger l = toBigInteger(left);
+@@ -680,7 +583,6 @@
+                 BigInteger result = l.add(r);
+                 return narrowBigInteger(left, right, result);
+             } catch (java.lang.NumberFormatException nfe) {
+-                // Well, use strings!
+                 if (left == null || right == null) {
+                     controlNullOperand();
+                 }
+@@ -691,8 +593,8 @@
+ 
+     /**
+      * Divide the left value by the right.
+-     * @param left  first value
+-     * @param right second value
++     * @param left  left argument
++     * @param right  right argument
+      * @return left / right
+      * @throws ArithmeticException if right == 0
+      */
+@@ -717,7 +619,7 @@
+             if (r == 0.0) {
+                 throw new ArithmeticException("/");
+             }
+-            return new Double(l / r);
++            return l / r;
+         }
+         // otherwise treat as integers
+         BigInteger l = toBigInteger(left);
+@@ -730,10 +632,10 @@
+     }
+ 
+     /**
+-     * left value mod right.
+-     * @param left  first value
+-     * @param right second value
+-     * @return left mod right
++     * left value modulo right.
++     * @param left  left argument
++     * @param right  right argument
++     * @return left % right
+      * @throws ArithmeticException if right == 0.0
+      */
+     public Object mod(Object left, Object right) {
+@@ -757,7 +659,7 @@
+             if (r == 0.0) {
+                 throw new ArithmeticException("%");
+             }
+-            return new Double(l % r);
++            return l % r;
+         }
+         // otherwise treat as integers
+         BigInteger l = toBigInteger(left);
+@@ -771,8 +673,8 @@
+ 
+     /**
+      * Multiply the left value by the right.
+-     * @param left  first value
+-     * @param right second value
++     * @param left  left argument
++     * @param right  right argument
+      * @return left * right.
+      */
+     public Object multiply(Object left, Object right) {
+@@ -790,7 +692,7 @@
+         if (isFloatingPointNumber(left) || isFloatingPointNumber(right)) {
+             double l = toDouble(left);
+             double r = toDouble(right);
+-            return new Double(l * r);
++            return l * r;
+         }
+         // otherwise treat as integers
+         BigInteger l = toBigInteger(left);
+@@ -801,8 +703,8 @@
+ 
+     /**
+      * Subtract the right value from the left.
+-     * @param left  first value
+-     * @param right second value
++     * @param left  left argument
++     * @param right  right argument
+      * @return left - right.
+      */
+     public Object subtract(Object left, Object right) {
+@@ -820,7 +722,7 @@
+         if (isFloatingPointNumber(left) || isFloatingPointNumber(right)) {
+             double l = toDouble(left);
+             double r = toDouble(right);
+-            return new Double(l - r);
++            return l - r;
+         }
+         // otherwise treat as integers
+         BigInteger l = toBigInteger(left);
+@@ -836,69 +738,65 @@
+      */
+     public Object negate(Object val) {
+         if (val instanceof Integer) {
+-            int valueAsInt = ((Integer) val).intValue();
+-            return Integer.valueOf(-valueAsInt);
++            return -((Integer) val);
+         } else if (val instanceof Double) {
+-            double valueAsDouble = ((Double) val).doubleValue();
+-            return new Double(-valueAsDouble);
++            return - ((Double) val);
+         } else if (val instanceof Long) {
+-            long valueAsLong = -((Long) val).longValue();
+-            return Long.valueOf(valueAsLong);
++            return -((Long) val);
+         } else if (val instanceof BigDecimal) {
+-            BigDecimal valueAsBigD = (BigDecimal) val;
+-            return valueAsBigD.negate();
++            return ((BigDecimal) val).negate();
+         } else if (val instanceof BigInteger) {
+-            BigInteger valueAsBigI = (BigInteger) val;
+-            return valueAsBigI.negate();
++            return ((BigInteger) val).negate();
+         } else if (val instanceof Float) {
+-            float valueAsFloat = ((Float) val).floatValue();
+-            return new Float(-valueAsFloat);
++            return -((Float) val);
+         } else if (val instanceof Short) {
+-            short valueAsShort = ((Short) val).shortValue();
+-            return Short.valueOf((short) -valueAsShort);
++            return (short) -((Short) val);
+         } else if (val instanceof Byte) {
+-            byte valueAsByte = ((Byte) val).byteValue();
+-            return Byte.valueOf((byte) -valueAsByte);
++            return (byte) -((Byte) val);
+         } else if (val instanceof Boolean) {
+-            return ((Boolean) val).booleanValue() ? Boolean.FALSE : Boolean.TRUE;
++            return ((Boolean) val) ? Boolean.FALSE : Boolean.TRUE;
+         }
+         throw new ArithmeticException("Object negation:(" + val + ")");
+     }
+ 
+     /**
+-     * Test if left matches right.
+-     *
+-     * @param left  first value
+-     * @param right second value
++     * Test if left contains right (right matches/in left).
++     * <p>Beware that this method arguments are the opposite of the operator arguments.
++     * 'x in y' means 'y contains x'.</p>
++     * @param container the container
++     * @param value the value
+      * @return test result or null if there is no arithmetic solution
+      */
+-    public Boolean contains(Object left, Object right) {
+-        if (left == null && right == null) {
++    public Boolean contains(Object container, Object value) {
++        if (value == null && container == null) {
+             //if both are null L == R
+             return true;
+         }
+-        if (left == null || right == null) {
++        if (value == null || container == null) {
+             // we know both aren't null, therefore L != R
+             return false;
+         }
+         // use arithmetic / pattern matching ?
+-        if (right instanceof java.util.regex.Pattern) {
+-            return ((java.util.regex.Pattern) right).matcher(left.toString()).matches();
++        if (container instanceof java.util.regex.Pattern) {
++            return ((java.util.regex.Pattern) container).matcher(value.toString()).matches();
+         }
+-        if ( right instanceof String) {
+-            return left.toString().matches(right.toString());
++        if (container instanceof String) {
++            return value.toString().matches(container.toString());
+         }
+         // try contains on map key
+-        if (right instanceof Map<?, ?>) {
+-            return ((Map<?, ?>) right).containsKey(left);
++        if (container instanceof Map<?, ?>) {
++            if (value instanceof Map<?, ?>) {
++                return ((Map<?, ?>) container).keySet().containsAll(((Map<?, ?>) value).keySet());
++            }
++            return ((Map<?, ?>) container).containsKey(value);
+         }
+         // try contains on collection
+-        if (right instanceof Collection<?>) {
+-            if (left instanceof Collection<?>) {
+-                return ((Collection<?>) right).containsAll((Collection<?>) left);
++        if (container instanceof Collection<?>) {
++            if (value instanceof Collection<?>) {
++                return ((Collection<?>) container).containsAll((Collection<?>) value);
+             }
+             // left in right ? <=> right.contains(left) ?
+-            return ((Collection<?>) right).contains(left);
++            return ((Collection<?>) container).contains(value);
+         }
+         return null;
+     }
+@@ -906,9 +804,9 @@
+     /**
+      * Test if left ends with right.
+      *
+-     * @param left  first value
+-     * @param right second value
+-     * @return test result or null if there is no arithmetic solution
++     * @param left  left argument
++     * @param right  right argument
++     * @return left $= right if there is no arithmetic solution
+      */
+     public Boolean endsWith(Object left, Object right) {
+         if (left == null && right == null) {
+@@ -928,9 +826,9 @@
+     /**
+      * Test if left starts with right.
+      *
+-     * @param left  first value
+-     * @param right second value
+-     * @return test result or null if there is no arithmetic solution
++     * @param left  left argument
++     * @param right  right argument
++     * @return left ^= right or null if there is no arithmetic solution
+      */
+     public Boolean startsWith(Object left, Object right) {
+         if (left == null && right == null) {
+@@ -948,15 +846,64 @@
+     }
+ 
+     /**
++     * Check for emptyness of various types: Number, Collection, Array, Map, String.
++     *
++     * @param object the object to check the emptyness of
++     * @return the boolean or null of there is no arithmetic solution
++     */
++    public Boolean isEmpty(Object object) {
++        if (object instanceof Number) {
++            double d = ((Number) object).doubleValue();
++            return Double.isNaN(d) || d == 0.d ? Boolean.TRUE : Boolean.FALSE;
++        }
++        if (object instanceof String) {
++            return "".equals(object) ? Boolean.TRUE : Boolean.FALSE;
++        }
++        if (object.getClass().isArray()) {
++            return Array.getLength(object) == 0 ? Boolean.TRUE : Boolean.FALSE;
++        }
++        if (object instanceof Collection<?>) {
++            return ((Collection<?>) object).isEmpty() ? Boolean.TRUE : Boolean.FALSE;
++        }
++        // Map isn't a collection
++        if (object instanceof Map<?, ?>) {
++            return ((Map<?, ?>) object).isEmpty() ? Boolean.TRUE : Boolean.FALSE;
++        }
++        return null;
++    }
++
++    /**
++     * Calculate the <code>size</code> of various types: Collection, Array, Map, String.
++     *
++     * @param object the object to get the size of
++     * @return the size of object or null if there is no arithmetic solution
++     */
++    public Integer size(Object object) {
++        if (object instanceof String) {
++            return ((String) object).length();
++        }
++        if (object.getClass().isArray()) {
++            return Array.getLength(object);
++        }
++        if (object instanceof Collection<?>) {
++            return ((Collection<?>) object).size();
++        }
++        if (object instanceof Map<?, ?>) {
++            return ((Map<?, ?>) object).size();
++        }
++        return null;
++    }
++
++    /**
+      * Performs a bitwise and.
+      * @param left  the left operand
+      * @param right the right operator
+      * @return left &amp; right
+      */
+-    public Object bitwiseAnd(Object left, Object right) {
++    public Object and(Object left, Object right) {
+         long l = toLong(left);
+         long r = toLong(right);
+-        return Long.valueOf(l & r);
++        return l & r;
+     }
+ 
+     /**
+@@ -965,22 +912,22 @@
+      * @param right the right operator
+      * @return left | right
+      */
+-    public Object bitwiseOr(Object left, Object right) {
++    public Object or(Object left, Object right) {
+         long l = toLong(left);
+         long r = toLong(right);
+-        return Long.valueOf(l | r);
++        return l | r;
+     }
+ 
+     /**
+      * Performs a bitwise xor.
+      * @param left  the left operand
+      * @param right the right operator
+-     * @return left right
++     * @return left ^ right
+      */
+-    public Object bitwiseXor(Object left, Object right) {
++    public Object xor(Object left, Object right) {
+         long l = toLong(left);
+         long r = toLong(right);
+-        return Long.valueOf(l ^ r);
++        return l ^ r;
+     }
+ 
+     /**
+@@ -988,9 +935,9 @@
+      * @param val the operand
+      * @return ~val
+      */
+-    public Object bitwiseComplement(Object val) {
++    public Object complement(Object val) {
+         long l = toLong(val);
+-        return Long.valueOf(~l);
++        return ~l;
+     }
+ 
+     /**
+@@ -998,7 +945,7 @@
+      * @param val the operand
+      * @return !val
+      */
+-    public Object logicalNot(Object val) {
++    public Object not(Object val) {
+         return toBoolean(val) ? Boolean.FALSE : Boolean.TRUE;
+     }
+ 
+@@ -1069,9 +1016,9 @@
+     /**
+      * Test if left and right are equal.
+      *
+-     * @param left  first value
+-     * @param right second value
+-     * @return test result.
++     * @param left  left argument
++     * @param right right argument
++     * @return the test result
+      */
+     public boolean equals(Object left, Object right) {
+         if (left == right) {
+@@ -1088,9 +1035,9 @@
+     /**
+      * Test if left &lt; right.
+      *
+-     * @param left  first value
+-     * @param right second value
+-     * @return test result.
++     * @param left  left argument
++     * @param right right argument
++     * @return the test result
+      */
+     public boolean lessThan(Object left, Object right) {
+         if ((left == right) || (left == null) || (right == null)) {
+@@ -1104,9 +1051,9 @@
+     /**
+      * Test if left &gt; right.
+      *
+-     * @param left  first value
+-     * @param right second value
+-     * @return test result.
++     * @param left  left argument
++     * @param right right argument
++     * @return the test result
+      */
+     public boolean greaterThan(Object left, Object right) {
+         if ((left == right) || left == null || right == null) {
+@@ -1119,9 +1066,9 @@
+     /**
+      * Test if left &lt;= right.
+      *
+-     * @param left  first value
+-     * @param right second value
+-     * @return test result.
++     * @param left  left argument
++     * @param right right argument
++     * @return the test result
+      */
+     public boolean lessThanOrEqual(Object left, Object right) {
+         if (left == right) {
+@@ -1136,9 +1083,9 @@
+     /**
+      * Test if left &gt;= right.
+      *
+-     * @param left  first value
+-     * @param right second value
+-     * @return test result.
++     * @param left  left argument
++     * @param right right argument
++     * @return the test result
+      */
+     public boolean greaterThanOrEqual(Object left, Object right) {
+         if (left == right) {
+@@ -1154,7 +1101,7 @@
+      * Coerce to a primitive boolean.
+      * <p>Double.NaN, null, "false" and empty string coerce to false.</p>
+      *
+-     * @param val Object to be coerced.
++     * @param val value to coerce
+      * @return the boolean value if coercion is possible, true if value was not null.
+      */
+     public boolean toBoolean(Object val) {
+@@ -1162,7 +1109,7 @@
+             controlNullOperand();
+             return false;
+         } else if (val instanceof Boolean) {
+-            return ((Boolean) val).booleanValue();
++            return ((Boolean) val);
+         } else if (val instanceof Number) {
+             double number = toDouble(val);
+             return !Double.isNaN(number) && number != 0.d;
+@@ -1180,9 +1127,9 @@
+      * <p>Double.NaN, null and empty string coerce to zero.</p>
+      * <p>Boolean false is 0, true is 1.</p>
+      *
+-     * @param val Object to be coerced.
+-     * @return The int coerced value.
+-     * @throws ArithmeticException if val is null and mode is strict or if coercion is not possible.
++     * @param val value to coerce
++     * @return the value coerced to int
++     * @throws ArithmeticException if val is null and mode is strict or if coercion is not possible
+      */
+     public int toInteger(Object val) {
+         if (val == null) {
+@@ -1190,7 +1137,7 @@
+             return 0;
+         } else if (val instanceof Double) {
+             Double dval = (Double) val;
+-            if (Double.isNaN(dval.doubleValue())) {
++            if (Double.isNaN(dval)) {
+                 return 0;
+             } else {
+                 return dval.intValue();
+@@ -1203,9 +1150,9 @@
+             }
+             return Integer.parseInt((String) val);
+         } else if (val instanceof Boolean) {
+-            return ((Boolean) val).booleanValue() ? 1 : 0;
++            return ((Boolean) val) ? 1 : 0;
+         } else if (val instanceof Character) {
+-            return ((Character) val).charValue();
++            return ((Character) val);
+         }
+ 
+         throw new ArithmeticException("Integer coercion: "
+@@ -1217,9 +1164,9 @@
+      * <p>Double.NaN, null and empty string coerce to zero.</p>
+      * <p>Boolean false is 0, true is 1.</p>
+      *
+-     * @param val Object to be coerced.
+-     * @return The long coerced value.
+-     * @throws ArithmeticException if val is null and mode is strict or if coercion is not possible.
++     * @param val value to coerce
++     * @return the value coerced to long
++     * @throws ArithmeticException if value is null and mode is strict or if coercion is not possible
+      */
+     public long toLong(Object val) {
+         if (val == null) {
+@@ -1227,7 +1174,7 @@
+             return 0L;
+         } else if (val instanceof Double) {
+             Double dval = (Double) val;
+-            if (Double.isNaN(dval.doubleValue())) {
++            if (Double.isNaN(dval)) {
+                 return 0L;
+             } else {
+                 return dval.longValue();
+@@ -1241,9 +1188,9 @@
+                 return Long.parseLong((String) val);
+             }
+         } else if (val instanceof Boolean) {
+-            return ((Boolean) val).booleanValue() ? 1L : 0L;
++            return ((Boolean) val) ? 1L : 0L;
+         } else if (val instanceof Character) {
+-            return ((Character) val).charValue();
++            return ((Character) val);
+         }
+ 
+         throw new ArithmeticException("Long coercion: "
+@@ -1256,8 +1203,8 @@
+      * <p>Boolean false is 0, true is 1.</p>
+      *
+      * @param val the object to be coerced.
+-     * @return a BigDecimal.
+-     * @throws ArithmeticException if val is null and mode is strict or if coercion is not possible.
++     * @return a BigDecimal
++     * @throws ArithmeticException if val is null and mode is strict or if coercion is not possible
+      */
+     public BigInteger toBigInteger(Object val) {
+         if (val == null) {
+@@ -1267,7 +1214,7 @@
+             return (BigInteger) val;
+         } else if (val instanceof Double) {
+             Double dval = (Double) val;
+-            if (Double.isNaN(dval.doubleValue())) {
++            if (Double.isNaN(dval)) {
+                 return BigInteger.ZERO;
+             } else {
+                 return BigInteger.valueOf(dval.longValue());
+@@ -1277,7 +1224,7 @@
+         } else if (val instanceof Number) {
+             return BigInteger.valueOf(((Number) val).longValue());
+         } else if (val instanceof Boolean) {
+-            return BigInteger.valueOf(((Boolean) val).booleanValue() ? 1L : 0L);
++            return BigInteger.valueOf(((Boolean) val) ? 1L : 0L);
+         } else if (val instanceof String) {
+             String string = (String) val;
+             if ("".equals(string)) {
+@@ -1286,7 +1233,7 @@
+                 return new BigInteger(string);
+             }
+         } else if (val instanceof Character) {
+-            int i = ((Character) val).charValue();
++            int i = ((Character) val);
+             return BigInteger.valueOf(i);
+         }
+ 
+@@ -1301,7 +1248,7 @@
+      *
+      * @param val the object to be coerced.
+      * @return a BigDecimal.
+-     * @throws ArithmeticException if val is null and mode is strict or if coercion is not possible.
++     * @throws ArithmeticException if val is null and mode is strict or if coercion is not possible
+      */
+     public BigDecimal toBigDecimal(Object val) {
+         if (val instanceof BigDecimal) {
+@@ -1310,7 +1257,7 @@
+             controlNullOperand();
+             return BigDecimal.ZERO;
+         } else if (val instanceof Double) {
+-            if (Double.isNaN(((Double) val).doubleValue())) {
++            if (Double.isNaN(((Double) val))) {
+                 return BigDecimal.ZERO;
+             } else {
+                 return roundBigDecimal(new BigDecimal(val.toString(), getMathContext()));
+@@ -1318,7 +1265,7 @@
+         } else if (val instanceof Number) {
+             return roundBigDecimal(new BigDecimal(val.toString(), getMathContext()));
+         } else if (val instanceof Boolean) {
+-            return BigDecimal.valueOf(((Boolean) val).booleanValue() ? 1. : 0.);
++            return BigDecimal.valueOf(((Boolean) val) ? 1. : 0.);
+         } else if (val instanceof String) {
+             String string = (String) val;
+             if ("".equals(string)) {
+@@ -1326,7 +1273,7 @@
+             }
+             return roundBigDecimal(new BigDecimal(string, getMathContext()));
+         } else if (val instanceof Character) {
+-            int i = ((Character) val).charValue();
++            int i = ((Character) val);
+             return new BigDecimal(i);
+         }
+         throw new ArithmeticException("BigDecimal coercion: "
+@@ -1337,22 +1284,22 @@
+      * Coerce to a primitive double.
+      * <p>Double.NaN, null and empty string coerce to zero.</p>
+      * <p>Boolean false is 0, true is 1.</p>
+-     * @param val Object to be coerced.
++     * @param val value to coerce.
+      * @return The double coerced value.
+-     * @throws ArithmeticException if val is null and mode is strict or if coercion is not possible.
++     * @throws ArithmeticException if val is null and mode is strict or if coercion is not possible
+      */
+     public double toDouble(Object val) {
+         if (val == null) {
+             controlNullOperand();
+             return 0;
+         } else if (val instanceof Double) {
+-            return ((Double) val).doubleValue();
++            return ((Double) val);
+         } else if (val instanceof Number) {
+             //The below construct is used rather than ((Number)val).doubleValue() to ensure
+             //equality between comparing new Double( 6.4 / 3 ) and the jexl expression of 6.4 / 3
+             return Double.parseDouble(String.valueOf(val));
+         } else if (val instanceof Boolean) {
+-            return ((Boolean) val).booleanValue() ? 1. : 0.;
++            return ((Boolean) val) ? 1. : 0.;
+         } else if (val instanceof String) {
+             String string = (String) val;
+             if ("".equals(string)) {
+@@ -1362,7 +1309,7 @@
+                 return Double.parseDouble(string);
+             }
+         } else if (val instanceof Character) {
+-            int i = ((Character) val).charValue();
++            int i = ((Character) val);
+             return i;
+         }
+         throw new ArithmeticException("Double coercion: "
+@@ -1373,9 +1320,9 @@
+      * Coerce to a string.
+      * <p>Double.NaN coerce to the empty string.</p>
+      *
+-     * @param val Object to be coerced.
++     * @param val value to coerce.
+      * @return The String coerced value.
+-     * @throws ArithmeticException if val is null and mode is strict or if coercion is not possible.
++     * @throws ArithmeticException if val is null and mode is strict or if coercion is not possible
+      */
+     public String toString(Object val) {
+         if (val == null) {
+@@ -1383,7 +1330,7 @@
+             return "";
+         } else if (val instanceof Double) {
+             Double dval = (Double) val;
+-            if (Double.isNaN(dval.doubleValue())) {
++            if (Double.isNaN(dval)) {
+                 return "";
+             } else {
+                 return dval.toString();
+@@ -1392,4 +1339,68 @@
+             return val.toString();
+         }
+     }
+-}
+\ No newline at end of file
++
++    /**
++     * Use or overload and() instead.
++     * @param lhs left hand side
++     * @param rhs right hand side
++     * @return lhs & rhs
++     * @see JexlArithmetic#and
++     * @deprecated
++     */
++    @Deprecated
++    public final Object bitwiseAnd(Object lhs, Object rhs) {
++        return and(lhs, rhs);
++    }
++    /**
++     * Use or overload or() instead.
++     * @param lhs left hand side
++     * @param rhs right hand side
++     * @return lhs | rhs
++     * @see JexlArithmetic#or
++     * @deprecated
++     */
++    @Deprecated
++    public final Object bitwiseOr(Object lhs, Object rhs) {
++        return or(lhs, rhs);
++    }
++
++    /**
++     * Use or overload xor() instead.
++     * @param lhs left hand side
++     * @param rhs right hand side
++     * @return lhs ^ rhs
++     * @see JexlArithmetic#xor
++     * @deprecated
++     */
++    @Deprecated
++    public final Object bitwiseXor(Object lhs, Object rhs) {
++        return xor(lhs, rhs);
++    }
++
++    /**
++     * Use or overload not() instead.
++     * @param arg argument
++     * @return !arg
++     * @see JexlArithmetic#not
++     * @deprecated
++     */
++    @Deprecated
++    public final Object logicalNot(Object arg) {
++        return not(arg);
++    }
++
++    /**
++     * Use or overload contains() instead.
++     * @param lhs left hand side
++     * @param rhs right hand side
++     * @return contains(rhs, lhs)
++     * @see JexlArithmetic#contains
++     * @deprecated
++     */
++    @Deprecated
++    public final Object matches(Object lhs, Object rhs) {
++        return contains(rhs, lhs);
++    }
++
++}
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/JexlException.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/JexlException.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/JexlException.java	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/JexlException.java	2025-12-22 03:01:26.000000000 +1100
+@@ -162,9 +162,9 @@
+      */
+     private static Throwable unwrap(Throwable xthrow) {
+         if (xthrow instanceof InvocationTargetException) {
+-            return ((InvocationTargetException) xthrow).getTargetException();
++            return ((InvocationTargetException) xthrow).getCause();
+         } else if (xthrow instanceof UndeclaredThrowableException) {
+-            return ((UndeclaredThrowableException) xthrow).getUndeclaredThrowable();
++            return ((UndeclaredThrowableException) xthrow).getCause();
+         } else {
+             return xthrow;
+         }
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3: JexlOperator.java
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/JxltEngine.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/JxltEngine.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/JxltEngine.java	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/JxltEngine.java	2025-12-22 03:01:26.000000000 +1100
+@@ -172,7 +172,8 @@
+          * <p>
+          * In effect, this binds the result of the immediate sub-expressions evaluation in the
+          * context, allowing to differ evaluation of the remaining (deferred) expression within another context.
+-         * This only has an effect to nested and composite expressions that contain differed and immediate sub-expressions.
++         * This only has an effect to nested and composite expressions that contain differed and
++         * immediate sub-expressions.
+          * </p>
+          * <p>
+          * If the underlying JEXL engine is silent, errors will be logged through its logger as warning.
+@@ -307,6 +308,7 @@
+ 
+         /**
+          * Gets the list of parameters expected by this template.
++         * @return the parameter names array
+          */
+         String[] getParameters();
+     }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/Parser.jjt ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/Parser.jjt
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/Parser.jjt	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/Parser.jjt	2025-12-22 03:01:26.000000000 +1100
+@@ -157,17 +157,27 @@
+ }
+ 
+ <*> TOKEN : { /* OPERATORS */
+-      < assign : "=" >
+-    | < mod : "%" | "mod" >
+-    | < div : "/" | "div" >
+-    | < not : "!" | "not" >
++      < plus_assign : "+=" >
++    | < minus_assign : "-=" >
++    | < mult_assign : "*=" >
++    | < div_assign : "/=" >
++    | < mod_assign : "%=" >
++    | < and_assign : "&=" >
++    | < or_assign : "|=" >
++    | < xor_assign : "^=" >
++
++    | < assign : "=" >
+     | < plus : "+" >
+     | < minus : "-" >
+     | < mult : "*" >
+-    | < tilda : "~" >
++    | < div : "/" | "div" >
++    | < mod : "%" | "mod" >
++    | < not : "!" | "not" >
+     | < and : "&" >
+     | < or : "|" >
+     | < xor : "^" >
++
++    | < tilda : "~" >
+     | < range : ".." >
+ }
+ 
+@@ -368,7 +378,26 @@
+ 
+ void AssignmentExpression() #void : {}
+ {
+-    ConditionalExpression() [ LOOKAHEAD( <assign> ) <assign> Expression() #Assignment(2) ]
++  ConditionalExpression()
++  ( LOOKAHEAD(2) (
++    <plus_assign>  Expression() #SetAddNode(2)
++  |
++    <mult_assign>  Expression() #SetMultNode(2)
++  |
++    <div_assign>  Expression() #SetDivNode(2)
++  |
++    <mod_assign>  Expression() #SetModNode(2)
++  |
++    <and_assign>  Expression() #SetAndNode(2)
++  |
++    <or_assign>  Expression() #SetOrNode(2)
++  |
++    <xor_assign> Expression() #SetXorNode(2)
++  |
++    <minus_assign>  Expression() #SetSubNode(2)
++  |
++    <assign> Expression() #Assignment(2)
++  ) )*
+ }
+ 
+ /***************************************
+@@ -481,17 +510,17 @@
+ 
+ void UnaryExpression() #void : {}
+ {
+-  <minus> UnaryExpression() #UnaryMinusNode(1)
+-|
+-  <tilda> UnaryExpression() #BitwiseComplNode(1)
+-|
+-  <not> UnaryExpression() #NotNode(1)
+-|
+-  <EMPTY> UnaryExpression() #EmptyFunction(1)
+-|
+-  <SIZE> UnaryExpression() #SizeFunction(1)
+-|
+-  ValueExpression()
++    <minus> UnaryExpression() #UnaryMinusNode(1)
++  |
++    <tilda> UnaryExpression() #BitwiseComplNode(1)
++  |
++    <not> UnaryExpression() #NotNode(1)
++  |
++    <EMPTY> UnaryExpression() #EmptyFunction(1)
++  |
++    <SIZE> UnaryExpression() #SizeFunction(1)
++  |
++    ValueExpression()
+ }
+ 
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/ParserVisitor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/ParserVisitor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/ParserVisitor.java	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/ParserVisitor.java	2025-12-22 03:01:26.000000000 +1100
+@@ -159,4 +159,20 @@
+     protected abstract Object visit(ASTArguments node, Object data);
+ 
+     protected abstract Object visit(ASTReferenceExpression node, Object data);
++
++    protected abstract Object visit(ASTSetAddNode node, Object data);
++
++    protected abstract Object visit(ASTSetSubNode node, Object data);
++
++    protected abstract Object visit(ASTSetMultNode node, Object data);
++
++    protected abstract Object visit(ASTSetDivNode node, Object data);
++
++    protected abstract Object visit(ASTSetModNode node, Object data);
++
++    protected abstract Object visit(ASTSetAndNode node, Object data);
++
++    protected abstract Object visit(ASTSetOrNode node, Object data);
++
++    protected abstract Object visit(ASTSetXorNode node, Object data);
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/site/xdoc/changes.xml ./RegMiner4APR-Regression-Bugs/BIC/src/site/xdoc/changes.xml
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/site/xdoc/changes.xml	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/site/xdoc/changes.xml	2025-12-22 03:01:26.000000000 +1100
+@@ -26,6 +26,9 @@
+     </properties>
+     <body>
+         <release version="3.0" date="unreleased">
++            <action dev="henrib" type="add" issue="JEXL-170">
++                Implement assignment operators
++            </action>
+             <action dev="henrib" type="fix" issue="JEXL-169" due-to="Robert Neßelrath">
+                 A string is wrongly identified as FloatingPointNumber
+             </action>
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/jexl3/ArithmeticOperatorTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/jexl3/ArithmeticOperatorTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/jexl3/ArithmeticOperatorTest.java	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/jexl3/ArithmeticOperatorTest.java	2025-12-22 03:01:26.000000000 +1100
+@@ -26,6 +26,7 @@
+ import java.util.SortedSet;
+ import java.util.TreeSet;
+ import org.apache.commons.jexl3.junit.Asserter;
++import java.util.Arrays;
+ import org.junit.Assert;
+ import org.junit.Before;
+ import org.junit.Test;
+@@ -127,6 +128,14 @@
+             return values.iterator();
+         }
+ 
++        public boolean contains(int i) {
++            return values.contains(i);
++        }
++
++        public boolean contains(int[] i) {
++            return values.containsAll(Arrays.asList(i));
++        }
++
+         public boolean startsWith(int i) {
+             return values.first().equals(i);
+         }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/jexl3/ArithmeticTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/jexl3/ArithmeticTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/jexl3/ArithmeticTest.java	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/jexl3/ArithmeticTest.java	2025-12-22 03:01:26.000000000 +1100
+@@ -16,6 +16,7 @@
+  */
+ package org.apache.commons.jexl3;
+ 
++import static org.apache.commons.jexl3.JexlArithmetic.FLOAT_PATTERN;
+ import org.apache.commons.jexl3.junit.Asserter;
+ 
+ import java.io.ByteArrayInputStream;
+@@ -27,7 +28,6 @@
+ import java.math.BigInteger;
+ import javax.xml.parsers.DocumentBuilder;
+ import javax.xml.parsers.DocumentBuilderFactory;
+-import static org.apache.commons.jexl3.JexlArithmetic.FLOAT_PATTERN;
+ import org.junit.Assert;
+ import org.junit.Before;
+ import org.junit.Test;
+@@ -412,7 +412,6 @@
+         Assert.assertTrue((Boolean) result);
+     }
+ 
+-
+     @Test
+     public void testAddWithStringsLenient() throws Exception {
+         JexlEngine jexl = new JexlBuilder().arithmetic(new JexlArithmetic(false)).create();
+@@ -568,7 +567,7 @@
+     }
+ 
+     public static class Var {
+-        final int value;
++        int value;
+ 
+         Var(int v) {
+             value = v;
+@@ -630,15 +629,15 @@
+             return new Var(-arg.value);
+         }
+ 
+-        public Var bitwiseAnd(Var lhs, Var rhs) {
++        public Var and(Var lhs, Var rhs) {
+             return new Var(lhs.value & rhs.value);
+         }
+ 
+-        public Var bitwiseOr(Var lhs, Var rhs) {
++        public Var or(Var lhs, Var rhs) {
+             return new Var(lhs.value | rhs.value);
+         }
+ 
+-        public Var bitwiseXor(Var lhs, Var rhs) {
++        public Var xor(Var lhs, Var rhs) {
+             return new Var(lhs.value ^ rhs.value);
+         }
+ 
+@@ -654,7 +653,7 @@
+             return lhs.toString().endsWith(rhs.toString());
+         }
+ 
+-        public Var bitwiseComplement(Var arg) {
++        public Var complement(Var arg) {
+             return new Var(~arg.value);
+         }
+ 
+@@ -683,6 +682,7 @@
+         JexlEngine jexl = new JexlBuilder().cache(64).arithmetic(new ArithmeticPlus(false)).create();
+         JexlContext jc = new EmptyTestContext();
+         runOverload(jexl, jc);
++        runOverload(jexl, jc);
+     }
+ 
+     @Test
+@@ -854,15 +854,21 @@
+         result = script.execute(jc, 3155, 15);
+         Assert.assertFalse((Boolean) result);
+         result = script.execute(jc, new Var(3155), new Var(15));
++        Assert.assertFalse((Boolean) result);
++        result = script.execute(jc, new Var(15), new Var(3155));
+         Assert.assertTrue((Boolean) result);
+ 
+         script = jexl.createScript("(x, y)->{ x !~ y }");
+         result = script.execute(jc, 3115, 15);
+         Assert.assertTrue((Boolean) result);
+         result = script.execute(jc, new Var(3155), new Var(15));
++        Assert.assertTrue((Boolean) result);
++        result = script.execute(jc, new Var(15), new Var(3155));
+         Assert.assertFalse((Boolean) result);
++
+     }
+ 
++
+     public static class Arithmetic132 extends JexlArithmetic {
+         public Arithmetic132() {
+             super(false);
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/jexl3/ArrayAccessTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/jexl3/ArrayAccessTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/jexl3/ArrayAccessTest.java	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/jexl3/ArrayAccessTest.java	2025-12-22 03:01:26.000000000 +1100
+@@ -22,7 +22,9 @@
+ import java.util.Map;
+ 
+ import org.apache.commons.jexl3.junit.Asserter;
++import org.junit.Assert;
+ import org.junit.Before;
++import org.junit.Test;
+ 
+ 
+ /**
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/jexl3/junit/Asserter.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/jexl3/junit/Asserter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/apache/commons/jexl3/junit/Asserter.java	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/jexl3/junit/Asserter.java	2025-12-22 03:01:26.000000000 +1100
+@@ -151,4 +151,21 @@
+     public Object removeVariable(String name) {
+         return variables.remove(name);
+     }
++
++    /**
++     * Gets a variable of a certain name.
++     *
++     * @param name variable name
++     * @return value variable value
++     */
++    public Object getVariable(String name) {
++        return variables.get(name);
++    }
++
++    /**
++     * @return the variables map
++     */
++    public Map<String, Object> getVariables() {
++        return variables;
++    }
+ }
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/apache/commons/jexl3: SideEffectTest.java

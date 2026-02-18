@@ -1,0 +1,125 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/spring-amqp/src/main/java/org/springframework/amqp/support/converter/AbstractJackson2MessageConverter.java ./RegMiner4APR-Regression-Bugs/BIC/spring-amqp/src/main/java/org/springframework/amqp/support/converter/AbstractJackson2MessageConverter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/spring-amqp/src/main/java/org/springframework/amqp/support/converter/AbstractJackson2MessageConverter.java	2025-12-24 14:43:11.709898429 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/spring-amqp/src/main/java/org/springframework/amqp/support/converter/AbstractJackson2MessageConverter.java	2025-12-24 15:33:07.629118664 +1100
+@@ -88,6 +88,8 @@
+ 
+ 	private boolean assumeSupportedContentType = true;
+ 
++	private boolean alwaysConvertToInferredType;
+
+ 	/**
+ 	 * Construct with the provided {@link ObjectMapper} instance.
+ 	 * @param objectMapper the {@link ObjectMapper} to use.
+@@ -201,6 +203,18 @@
+	 * @param alwaysAttemptConversion true to attempt.
+	 * @since 2.2.8
+	 */
++	public void setAlwaysConvertToInferredType(boolean alwaysAttemptConversion) {
++		this.alwaysConvertToInferredType = alwaysAttemptConversion;
++	}
+
+ 	protected boolean isUseProjectionForInterfaces() {
+ 		return this.useProjectionForInterfaces;
+ 	}
+@@ -274,29 +288,34 @@
+ 	private Object doFromMessage(Message message, Object conversionHint, MessageProperties properties,
+ 			String encoding) {
+ 
+-		Object content;
++		Object content = null;
+ 		try {
+ 			JavaType inferredType = this.javaTypeMapper.getInferredType(properties);
+ 			if (inferredType != null && this.useProjectionForInterfaces && inferredType.isInterface()
+ 					&& !inferredType.getRawClass().getPackage().getName().startsWith("java.util")) { // List etc
+ 				content = this.projectingConverter.convert(message, inferredType.getRawClass());
+ 			}
+-			else if (conversionHint instanceof ParameterizedTypeReference) {
+-				content = convertBytesToObject(message.getBody(), encoding,
+-						this.objectMapper.getTypeFactory().constructType(
+-								((ParameterizedTypeReference<?>) conversionHint).getType()));
+-			}
+-			else if (getClassMapper() == null) {
+-				JavaType targetJavaType = getJavaTypeMapper()
+-						.toJavaType(message.getMessageProperties());
+-				content = convertBytesToObject(message.getBody(),
+-						encoding, targetJavaType);
++			else if (inferredType != null && this.alwaysConvertToInferredType) {
++				content = tryConverType(message, encoding, inferredType);
+ 			}
+-			else {
+-				Class<?> targetClass = getClassMapper().toClass(// NOSONAR never null
+-						message.getMessageProperties());
+-				content = convertBytesToObject(message.getBody(),
+-						encoding, targetClass);
++			if (content == null) {
++				if (conversionHint instanceof ParameterizedTypeReference) {
++					content = convertBytesToObject(message.getBody(), encoding,
++							this.objectMapper.getTypeFactory().constructType(
++									((ParameterizedTypeReference<?>) conversionHint).getType()));
++				}
++				else if (getClassMapper() == null) {
++					JavaType targetJavaType = getJavaTypeMapper()
++							.toJavaType(message.getMessageProperties());
++					content = convertBytesToObject(message.getBody(),
++							encoding, targetJavaType);
++				}
++				else {
++					Class<?> targetClass = getClassMapper().toClass(// NOSONAR never null
++							message.getMessageProperties());
++					content = convertBytesToObject(message.getBody(),
++							encoding, targetClass);
++				}
+ 			}
+ 		}
+ 		catch (IOException e) {
+@@ -306,6 +325,21 @@
+ 	/*
+ 	 * Unfortunately, mapper.canDeserialize() always returns true (adds an AbstractDeserializer
+ 	 * to the cache); so all we can do is try a conversion.
+ 	 */
++	@Nullable
++	private Object tryConverType(Message message, String encoding, JavaType inferredType) {
++		try {
++			return convertBytesToObject(message.getBody(), encoding, inferredType);
++		}
++		catch (Exception e) {
++			this.log.trace("Cannot create possibly abstract container contents; falling back to headers", e);
++			return null;
++		}
++	}
++
+ 	private Object convertBytesToObject(byte[] body, String encoding, JavaType targetJavaType) throws IOException {
+ 		String contentAsString = new String(body, encoding);
+ 		return this.objectMapper.readValue(contentAsString, targetJavaType);
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/spring-amqp/src/main/java/org/springframework/amqp/support/converter/DefaultJackson2JavaTypeMapper.java ./RegMiner4APR-Regression-Bugs/BIC/spring-amqp/src/main/java/org/springframework/amqp/support/converter/DefaultJackson2JavaTypeMapper.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/spring-amqp/src/main/java/org/springframework/amqp/support/converter/DefaultJackson2JavaTypeMapper.java	2025-12-24 14:43:11.709898429 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/spring-amqp/src/main/java/org/springframework/amqp/support/converter/DefaultJackson2JavaTypeMapper.java	2025-12-24 15:33:07.629118664 +1100
+@@ -112,9 +112,7 @@
+ 	@Override
+ 	public JavaType toJavaType(MessageProperties properties) {
+ 		JavaType inferredType = getInferredType(properties);
+-		if (inferredType != null && ((!inferredType.isAbstract() && !inferredType.isInterface() || inferredType.getRawClass().getPackage().getName().startsWith("java.util")))) {
++		if (inferredType != null && canConvert(inferredType)) {
+ 			return inferredType;
+ 		}
+ 
+@@ -131,6 +129,19 @@
+ 		return TypeFactory.defaultInstance().constructType(Object.class);
+ 	}
+ 
++	private boolean canConvert(JavaType inferredType) {
++		if (inferredType.isAbstract()) {
++			return false;
++		}
++		if (inferredType.isContainerType() && inferredType.getContentType().isAbstract()) {
++			return false;
++		}
++		if (inferredType.getKeyType() != null && inferredType.getKeyType().isAbstract()) {
++			return false;
++		}
++		return true;
++	}
+
+ 	private JavaType fromTypeHeader(MessageProperties properties, String typeIdHeader) {
+ 		JavaType classType = getClassIdType(typeIdHeader);
+ 		if (!classType.isContainerType() || classType.isArrayType()) {

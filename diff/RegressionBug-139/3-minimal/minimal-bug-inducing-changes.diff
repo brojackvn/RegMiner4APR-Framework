@@ -1,0 +1,209 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/AbstractWriter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/AbstractWriter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/AbstractWriter.java	2025-12-29 16:14:37.586715686 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/AbstractWriter.java	2025-12-29 16:17:03.018617249 +1100
+@@ -167,7 +167,7 @@
+ 		this.maxColumns = settings.getMaxColumns();
+ 
+ 		this.appender = new WriterCharAppender(settings.getMaxCharsPerColumn(), "", settings.getFormat());
+-		this.rowAppender = new WriterCharAppender(settings.getMaxCharsPerColumn() * settings.getMaxColumns(), "", settings.getFormat());
++		this.rowAppender = new WriterCharAppender(settings.getMaxCharsPerColumn(), "", settings.getFormat());
+ 
+ 		if (writer != null) {
+ 			if (writer instanceof BufferedWriter) {
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/input/DefaultCharAppender.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/input/DefaultCharAppender.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/input/DefaultCharAppender.java	2025-12-29 16:14:37.590715683 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/input/DefaultCharAppender.java	2025-12-29 16:17:03.022617246 +1100
+@@ -20,7 +20,7 @@
+ public class DefaultCharAppender implements CharAppender {
+ 
+ 	final char[] emptyChars; // default value to return when no characters have been accumulated
+-	final char[] chars;
++	char[] chars;
+ 	final char padding;
+ 	int index = 0;
+ 	final String emptyValue; // default value to return when no characters have been accumulated
+@@ -61,12 +61,12 @@
+ 	 */
+ 	@Override
+ 	public void appendIgnoringWhitespaceAndPadding(char ch) {
++		chars[index++] = ch;
+ 		if (ch <= ' ' || ch == padding) {
+ 			whitespaceCount++;
+ 		} else {
+ 			whitespaceCount = 0;
+ 		}
+-		chars[index++] = ch;
+ 	}
+ 
+ 	/**
+@@ -74,12 +74,12 @@
+ 	 */
+ 	@Override
+ 	public void appendIgnoringPadding(char ch) {
++		chars[index++] = ch;
+ 		if (ch == padding) {
+ 			whitespaceCount++;
+ 		} else {
+ 			whitespaceCount = 0;
+ 		}
+-		chars[index++] = ch;
+ 	}
+ 
+ 	/**
+@@ -87,12 +87,12 @@
+ 	 */
+ 	@Override
+ 	public void appendIgnoringWhitespace(char ch) {
++		chars[index++] = ch;
+ 		if (ch <= ' ') {
+ 			whitespaceCount++;
+ 		} else {
+ 			whitespaceCount = 0;
+ 		}
+-		chars[index++] = ch;
+ 	}
+ 
+ 	/**
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/input/WriterCharAppender.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/input/WriterCharAppender.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/input/WriterCharAppender.java	2025-12-29 16:14:37.590715683 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/input/WriterCharAppender.java	2025-12-29 16:17:03.022617246 +1100
+@@ -90,13 +89,18 @@
+ 	 */
+ 	@Override
+ 	public void appendIgnoringWhitespace(char ch) {
+-		if (ch == newLine) {
+-			super.appendIgnoringWhitespace(lineSeparator1);
+-			if (lineSeparator2 != '\0') {
+-				super.appendIgnoringWhitespace(lineSeparator2);
++		try {
++			if (ch == newLine) {
++				super.appendIgnoringWhitespace(lineSeparator1);
++				if (lineSeparator2 != '\0') {
++					super.appendIgnoringWhitespace(lineSeparator2);
++				}
++			} else {
++				super.appendIgnoringWhitespace(ch);
+ 			}
+-		} else {
+-			super.appendIgnoringWhitespace(ch);
++		} catch (ArrayIndexOutOfBoundsException e) {
++			expandAndRetry();
++			appendIgnoringPadding(ch);
+ 		}
+ 	}
+ 
+@@ -109,13 +113,18 @@
+ 	 */
+ 	@Override
+ 	public void appendIgnoringPadding(char ch) {
+-		if (ch == newLine) {
+-			super.appendIgnoringPadding(lineSeparator1);
+-			if (lineSeparator2 != '\0') {
+-				super.appendIgnoringPadding(lineSeparator2);
++		try {
++			if (ch == newLine) {
++				super.appendIgnoringPadding(lineSeparator1);
++				if (lineSeparator2 != '\0') {
++					super.appendIgnoringPadding(lineSeparator2);
++				}
++			} else {
++				super.appendIgnoringPadding(ch);
+ 			}
+-		} else {
+-			super.appendIgnoringPadding(ch);
++		} catch (ArrayIndexOutOfBoundsException e) {
++			expandAndRetry();
++			appendIgnoringPadding(ch);
+ 		}
+ 	}
+ 
+@@ -128,13 +137,18 @@
+ 	 */
+ 	@Override
+ 	public void appendIgnoringWhitespaceAndPadding(char ch) {
+-		if (ch == newLine) {
+-			super.appendIgnoringWhitespaceAndPadding(lineSeparator1);
+-			if (lineSeparator2 != '\0') {
+-				super.appendIgnoringWhitespaceAndPadding(lineSeparator2);
++		try {
++			if (ch == newLine) {
++				super.appendIgnoringWhitespaceAndPadding(lineSeparator1);
++				if (lineSeparator2 != '\0') {
++					super.appendIgnoringWhitespaceAndPadding(lineSeparator2);
++				}
++			} else {
++				super.appendIgnoringWhitespaceAndPadding(ch);
+ 			}
+-		} else {
+-			super.appendIgnoringWhitespaceAndPadding(ch);
++		} catch (ArrayIndexOutOfBoundsException e) {
++			expandAndRetry();
++			appendIgnoringPadding(ch);
+ 		}
+ 	}
+ 
+@@ -150,7 +164,7 @@
+ 		if (ch == newLine) {
+ 			appendNewLine();
+ 		} else {
+-			super.append(ch);
++			appendAndExpand(ch);
+ 		}
+ 	}
+ 
+@@ -175,9 +191,53 @@
+ 	 * Appends the newline character sequence specified in {@link Format#getLineSeparator()}
+ 	 */
+ 	public void appendNewLine() {
+-		super.append(lineSeparator1);
++		if(index + 2 >= chars.length){
++			expand();
++		}
++		chars[index++] = lineSeparator1;
+ 		if (lineSeparator2 != '\0') {
+-			super.append(lineSeparator2);
++			chars[index++] = lineSeparator2;
++		}
++	}
+
++	@Override
++	public void fill(char ch, int length) {
++		while (index + length > chars.length) {
++			expand(length);
++		}
++		for (int i = 0; i < length; i++) {
++			chars[index++] = ch;
++		}
++	}
+
++	private void appendAndExpand(char ch) {
++		try {
++			chars[index++] = ch;
++		} catch (ArrayIndexOutOfBoundsException e) {
++			expand();
++			chars[index] = ch;
++		}
++	}
+
++	private void expandAndRetry() {
++		expand();
++		index--;
++	}
+
++	private void expand() {
++		chars = Arrays.copyOf(chars, (int) ((double) chars.length * 1.5));
++	}
+
++	private void expand(int additionalLength) {
++		chars = Arrays.copyOf(chars, (int) ((double) (index + additionalLength) * 1.5));
++	}
+
++	public void append(DefaultCharAppender appender) {
++		try {
++			super.append(appender);
++		} catch (ArrayIndexOutOfBoundsException e) {
++			expand(appender.index);
++			super.append(appender);
+ 		}
+ 	}
+ }

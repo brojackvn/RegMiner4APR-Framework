@@ -1,0 +1,64 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jongo/query/BsonQueryFactory.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jongo/query/BsonQueryFactory.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jongo/query/BsonQueryFactory.java	2025-12-23 04:46:54.958750591 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jongo/query/BsonQueryFactory.java	2025-12-23 04:44:54.958764034 +1100
+@@ -124,9 +124,15 @@
+ 
+         for (char nextChar : query.toCharArray()) {
+             if (ctxStack.peek() == Context.STRING) {
+-                currentToken.append(nextChar);
+-                if (nextChar == currentStringStartingQuote) {
+-                    ctxStack.pop();
++                if (currentTokenWithNextCharIsToken(currentToken, nextChar)) {
++                    currentToken.delete(currentToken.length() - token.length() + 1, currentToken.length());
++                    currentToken.append(parameters[paramIndex]);
++                    paramIndex++;
++                } else {
++                    currentToken.append(nextChar);
++                    if (nextChar == currentStringStartingQuote) {
++                        ctxStack.pop();
++                    }
+                 }
+             } else if (isAQuote(nextChar)) {
+                 ctxStack.push(Context.STRING);
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/jongo/query/BsonQueryFactoryTest.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/jongo/query/BsonQueryFactoryTest.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/org/jongo/query/BsonQueryFactoryTest.java	2025-12-23 04:46:54.966750590 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/org/jongo/query/BsonQueryFactoryTest.java	2025-12-23 04:44:54.966764033 +1100
+@@ -266,6 +266,7 @@
+         assertThat(query.toDBObject()).isEqualTo(QueryBuilder.start("id").is(123).get());
+     }
+ 
++    @Test
+     public void shouldBindKeyParameterInValueString() throws Exception {
+ 
+         Query query = factory.createQuery("{id: '#, 123'}", "123");
+@@ -282,14 +283,6 @@
+     }
+ 
+     @Test
+-    public void shouldBindKeyParameterInSecondPosition() throws Exception {
+-
+-        Query query = factory.createQuery("{a: 'a', #: 'b'}", "id");
+-
+-        assertThat(query.toDBObject()).isEqualTo(QueryBuilder.start("a").is("a").and("id").is("b").get());
+-    }
+-
+-    @Test
+     public void shouldBindKeyParameterEvenIfQuoted() throws Exception {
+         Query query = factory.createQuery("{'#': 123}", "id");
+ 
+@@ -313,6 +306,14 @@
+     }
+ 
+     @Test
++    public void shouldBindKeyParameterInSecondPosition() throws Exception {
++
++        Query query = factory.createQuery("{a: 'a', #: 'b'}", "id");
++
++        assertThat(query.toDBObject()).isEqualTo(QueryBuilder.start("a").is("a").and("id").is("b").get());
++    }
++
++    @Test
+     public void shouldBindOneValueInAnArray() throws Exception {
+ 
+         Query query = factory.createQuery("{a: [ # ]}", "test");

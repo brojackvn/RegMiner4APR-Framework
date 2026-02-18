@@ -1,0 +1,16 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/select/Elements.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/select/Elements.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/select/Elements.java	2025-12-20 13:18:36.125919531 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/jsoup/select/Elements.java	2025-12-20 13:14:18.694333144 +1100
+@@ -638,7 +638,11 @@
+      * no forms.
+      */
+     public List<FormElement> forms() {
+-        return nodesOfType(FormElement.class);
++        ArrayList<FormElement> forms = new ArrayList<>();
++        for (Element el: this)
++            if (el instanceof FormElement)
++                forms.add((FormElement) el);
++        return forms;
+     }
+ 
+     /**

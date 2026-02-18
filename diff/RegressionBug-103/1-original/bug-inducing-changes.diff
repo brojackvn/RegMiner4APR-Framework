@@ -1,0 +1,12 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/google/code/regexp/Matcher.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/google/code/regexp/Matcher.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/google/code/regexp/Matcher.java	2025-12-11 20:58:08.354521313 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/google/code/regexp/Matcher.java	2025-12-11 20:59:00.066569222 +1100
+@@ -301,7 +301,7 @@
+         }
+ 
+         int nextIndex = 0;
+-        while (matcher.find(nextIndex)) {
++        while (!matcher.hitEnd() && matcher.find(nextIndex)) {
+             Map<String, String> matches = new LinkedHashMap<String, String>();
+ 
+             for (String groupName : groupNames) {

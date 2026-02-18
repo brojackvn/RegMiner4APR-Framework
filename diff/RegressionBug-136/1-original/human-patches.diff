@@ -1,0 +1,13 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/AbstractWriter.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/AbstractWriter.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/parsers/common/AbstractWriter.java	2025-12-27 05:27:03.815038346 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/univocity/parsers/common/AbstractWriter.java	2025-12-27 05:25:32.559093939 +1100
+@@ -910,7 +910,7 @@
+ 		}
+ 		if (indexesToWrite.length < row.length) {
+ 			for (int i = 0; i < indexesToWrite.length; i++) {
+-				outputRow[indexesToWrite[i]] = row[indexesToWrite[i]];
++				outputRow[i] = row[indexesToWrite[i]];
+ 			}
+ 		} else {
+ 			for (int i = 0; i < row.length && i < indexesToWrite.length; i++) {

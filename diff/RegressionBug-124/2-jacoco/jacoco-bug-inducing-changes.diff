@@ -1,0 +1,351 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/Interpreter.java	2025-12-22 03:01:26.000000000 +1100
+@@ -115,8 +117,8 @@
+     protected final JexlUberspect uberspect;
+     /** The arithmetic handler. */
+     protected final JexlArithmetic arithmetic;
+-    protected final JexlArithmetic.Uberspect operators;
++    protected final Operators operators;
+     /** The map of symboled functions. */
+     protected final Map<String, Object> functions;
+     /** The map of symboled functions. */
+@@ -170,10 +172,10 @@
+         }
+         this.functions = jexl.functions;
+         this.strictArithmetic = this.arithmetic.isStrict();
+-        this.operators = uberspect.getArithmetic(arithmetic);
+         this.cache = jexl.cache != null;
+         this.frame = eFrame;
+         this.functors = null;
++        this.operators = new Operators(this);
+     }
+ 
+     /**
+@@ -1330,6 +1017,16 @@
+         return node.jjtGetChild(0).jjtAccept(this, data);
+     }
+
++    @Override
+     protected Object visit(ASTIdentifier node, Object data) {
+         if (isCancelled()) {
+             throw new JexlException.Cancel(node);
+@@ -1391,7 +1077,7 @@
+      * @param node the expression node
+      * @return true if nullable variable, false otherwise
+      */
+-    private boolean isTernaryProtected(JexlNode node) {
++    protected boolean isTernaryProtected(JexlNode node) {
+         for (JexlNode walk = node.jjtGetParent(); walk != null; walk = walk.jjtGetParent()) {
+             if (walk instanceof ASTTernaryNode) {
+                 return true;
+@@ -1408,82 +1094,135 @@
+         return (node.jjtGetNumChildren() > which
+                 && node.jjtGetChild(which) instanceof ASTIdentifier
+                 && ((ASTIdentifier) node.jjtGetChild(which)).getSymbol() >= 0);
+     }
+ 
+     @Override
++    protected Object visit(ASTIdentifierAccess node, Object data) {
++        return data != null ? getAttribute(data, node.getIdentifier(), node) : null;
++    }
++
++    @Override
+     protected Object visit(ASTReference node, Object data) {
++        if (isCancelled()) {
++            throw new JexlException.Cancel(node);
++        }
+         final int numChildren = node.jjtGetNumChildren();
+         JexlNode parent = node.jjtGetParent();
+         // pass first piece of data in and loop through children
+         Object object = null;
+         JexlNode objectNode;
+-        StringBuilder variableName = null;
++        StringBuilder ant = null;
+         boolean antish = !(parent instanceof ASTReference);
+-        int v = 0;
++        int v = 1;
+         main:
+         for (int c = 0; c < numChildren; c++) {
+-            if (isCancelled()) {
+-                throw new JexlException.Cancel(node);
+-            }
+             objectNode = node.jjtGetChild(c);
+             if (objectNode instanceof ASTMethodNode && object == null) {
+                 break;
+             }
+             object = objectNode.jjtAccept(this, object);
+-            if (object == null && antish) {
+-                if (v == 0) {
++            if (object != null) {
++                antish = false;
++            } else if (antish) {  // if we still have a null object, check for an antish variable
++                if (ant == null) {
+                     JexlNode first = node.jjtGetChild(0);
+-                    if (first instanceof ASTIdentifier && ((ASTIdentifier) first).getSymbol() >= 0) {
+-                        antish = false;
+-                        break main;
+-                    }
+-                    if (objectNode instanceof ASTIdentifier) {
+-                        variableName = new StringBuilder(((ASTIdentifier) objectNode).getName());
+-                        v = 1;
++                    if (first instanceof ASTIdentifier && ((ASTIdentifier) first).getSymbol() < 0) {
++                        ant = new StringBuilder(((ASTIdentifier) first).getName());
+                     } else {
+-                        break main;
++                        break;
+                     }
+                 }
+                 for (; v <= c; ++v) {
+-                    objectNode = node.jjtGetChild(v);
+-                    if (objectNode instanceof ASTIdentifierAccess) {
+-                        variableName.append('.');
+-                        variableName.append(((ASTIdentifierAccess) objectNode).getName());
++                    JexlNode child = node.jjtGetChild(v);
++                    if (child instanceof ASTIdentifierAccess) {
++                        ant.append('.');
++                        ant.append(((ASTIdentifierAccess) objectNode).getName());
+                     } else {
+-                        break main;
++                        break;
+                     }
+                 }
+-                object = context.get(variableName.toString());
++                object = context.get(ant.toString());
++            } else {
++                break;
+             }
+-            antish &= object == null;
+         }
+-        if (object == null && antish && variableName != null && !isTernaryProtected(node)) {
+-            boolean undefined = !(context.has(variableName.toString()) || isLocalVariable(node, 0));
++        if (object == null && antish && ant != null && !isTernaryProtected(node)) {
++            boolean undefined = !(context.has(ant.toString()) || isLocalVariable(node, 0));
+             // variable unknown in context and not a local
+-            return unsolvableVariable(node, variableName.toString(), undefined);
++            return unsolvableVariable(node, ant.toString(), undefined);
+         }
+         return object;
+     }
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/Uberspect.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/Uberspect.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/introspection/Uberspect.java	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/introspection/Uberspect.java	2025-12-22 03:01:26.000000000 +1100
+@@ -66,7 +66,7 @@
+      * <p>This keeps track of which operator methods are overloaded per JexlArithemtic classes
+      * allowing a fail fast test during interpretation by avoiding seeking a method when there is none.
+      */
+-    private final Map<Class<? extends JexlArithmetic>, Set<Operator>> operatorMap;
++    private final Map<Class<? extends JexlArithmetic>, Set<JexlOperator>> operatorMap;
+ 
+     /**
+      * Creates a new Uberspect.
+@@ -76,7 +76,7 @@
+         rlog = runtimeLogger;
+         ref = new SoftReference<Introspector>(null);
+         loader = new SoftReference<ClassLoader>(getClass().getClassLoader());
+-        operatorMap = new ConcurrentHashMap<Class<? extends JexlArithmetic>, Set<Operator>>();
++        operatorMap = new ConcurrentHashMap<Class<? extends JexlArithmetic>, Set<JexlOperator>>();
+         version = new AtomicInteger(0);
+     }
+ 
+@@ -370,14 +370,14 @@
+         /** The arithmetic instance being analyzed. */
+         private final JexlArithmetic arithmetic;
+         /** The set of overloaded operators. */
+-        private final EnumSet<Operator> overloads;
++        private final EnumSet<JexlOperator> overloads;
+ 
+         /**
+          * Creates an instance.
+          * @param theArithmetic the arithmetic instance
+          * @param theOverloads  the overloaded operators
+          */
+-        private ArithmeticUberspect(JexlArithmetic theArithmetic, Set<Operator> theOverloads) {
++        private ArithmeticUberspect(JexlArithmetic theArithmetic, Set<JexlOperator> theOverloads) {
+             this.arithmetic = theArithmetic;
+             this.overloads = EnumSet.copyOf(theOverloads);
+             // register this arithmetic class in the operator map
+@@ -385,21 +385,21 @@
+         }
+ 
+         @Override
+-        public JexlMethod getOperator(JexlArithmetic.Operator operator, Object arg) {
++        public JexlMethod getOperator(JexlOperator operator, Object arg) {
+             return overloads.contains(operator) && arg != null
+                    ? getMethod(arithmetic, operator.getMethodName(), arg)
+                    : null;
+         }
+ 
+         @Override
+-        public JexlMethod getOperator(JexlArithmetic.Operator operator, Object lhs, Object rhs) {
++        public JexlMethod getOperator(JexlOperator operator, Object lhs, Object rhs) {
+             return overloads.contains(operator) && lhs != null && rhs != null
+                    ? getMethod(arithmetic, operator.getMethodName(), lhs, rhs)
+                    : null;
+         }
+ 
+         @Override
+-        public boolean overloads(Operator operator) {
++        public boolean overloads(JexlOperator operator) {
+             return overloads.contains(operator);
+         }
+     }
+@@ -408,10 +408,10 @@
+     public JexlArithmetic.Uberspect getArithmetic(JexlArithmetic arithmetic) {
+         JexlArithmetic.Uberspect jau = null;
+         if (arithmetic != null) {
+-            Set<Operator> ops = operatorMap.get(arithmetic.getClass());
++            Set<JexlOperator> ops = operatorMap.get(arithmetic.getClass());
+             if (ops == null) {
+-                ops = EnumSet.noneOf(Operator.class);
+-                for (JexlArithmetic.Operator op : JexlArithmetic.Operator.values()) {
++                ops = EnumSet.noneOf(JexlOperator.class);
++                for (JexlOperator op : JexlOperator.values()) {
+                     Method[] methods = getMethods(arithmetic.getClass(), op.getMethodName());
+                     if (methods != null) {
+                         for (Method method : methods) {
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/LongRange.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/LongRange.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/internal/LongRange.java	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal/LongRange.java	2025-12-22 03:01:26.000000000 +1100
+@@ -52,13 +52,8 @@
+      * @param to   the higher inclusive boundary
+      */
+     protected LongRange(long from, long to) {
+-        if (from > to) {
+-            max = from;
+-            min = to;
+-        } else {
+-            min = from;
+-            max = to;
+-        }
++        min = from;
++        max = to;
+     }
+ 
+     /**
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/internal: Operators.java
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/JexlException.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/JexlException.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/JexlException.java	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/JexlException.java	2025-12-22 03:01:26.000000000 +1100
+@@ -162,9 +162,9 @@
+      */
+     private static Throwable unwrap(Throwable xthrow) {
+         if (xthrow instanceof InvocationTargetException) {
+-            return ((InvocationTargetException) xthrow).getTargetException();
++            return ((InvocationTargetException) xthrow).getCause();
+         } else if (xthrow instanceof UndeclaredThrowableException) {
+-            return ((UndeclaredThrowableException) xthrow).getUndeclaredThrowable();
++            return ((UndeclaredThrowableException) xthrow).getCause();
+         } else {
+             return xthrow;
+         }
+Only in ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3: JexlOperator.java
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/Parser.jjt ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/Parser.jjt
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/Parser.jjt	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/Parser.jjt	2025-12-22 03:01:26.000000000 +1100
+@@ -157,17 +157,27 @@
+ }
+ 
+ <*> TOKEN : { /* OPERATORS */
+-      < assign : "=" >
+-    | < mod : "%" | "mod" >
+-    | < div : "/" | "div" >
+-    | < not : "!" | "not" >
++      < plus_assign : "+=" >
++    | < minus_assign : "-=" >
++    | < mult_assign : "*=" >
++    | < div_assign : "/=" >
++    | < mod_assign : "%=" >
++    | < and_assign : "&=" >
++    | < or_assign : "|=" >
++    | < xor_assign : "^=" >
++
++    | < assign : "=" >
+     | < plus : "+" >
+     | < minus : "-" >
+     | < mult : "*" >
+-    | < tilda : "~" >
++    | < div : "/" | "div" >
++    | < mod : "%" | "mod" >
++    | < not : "!" | "not" >
+     | < and : "&" >
+     | < or : "|" >
+     | < xor : "^" >
++
++    | < tilda : "~" >
+     | < range : ".." >
+ }
+ 
+@@ -368,7 +378,26 @@
+ 
+ void AssignmentExpression() #void : {}
+ {
+-    ConditionalExpression() [ LOOKAHEAD( <assign> ) <assign> Expression() #Assignment(2) ]
++  ConditionalExpression()
++  ( LOOKAHEAD(2) (
++    <plus_assign>  Expression() #SetAddNode(2)
++  |
++    <mult_assign>  Expression() #SetMultNode(2)
++  |
++    <div_assign>  Expression() #SetDivNode(2)
++  |
++    <mod_assign>  Expression() #SetModNode(2)
++  |
++    <and_assign>  Expression() #SetAndNode(2)
++  |
++    <or_assign>  Expression() #SetOrNode(2)
++  |
++    <xor_assign> Expression() #SetXorNode(2)
++  |
++    <minus_assign>  Expression() #SetSubNode(2)
++  |
++    <assign> Expression() #Assignment(2)
++  ) )*
+ }
+ 
+ /***************************************
+@@ -481,17 +510,17 @@
+ 
+ void UnaryExpression() #void : {}
+ {
+-  <minus> UnaryExpression() #UnaryMinusNode(1)
+-|
+-  <tilda> UnaryExpression() #BitwiseComplNode(1)
+-|
+-  <not> UnaryExpression() #NotNode(1)
+-|
+-  <EMPTY> UnaryExpression() #EmptyFunction(1)
+-|
+-  <SIZE> UnaryExpression() #SizeFunction(1)
+-|
+-  ValueExpression()
++    <minus> UnaryExpression() #UnaryMinusNode(1)
++  |
++    <tilda> UnaryExpression() #BitwiseComplNode(1)
++  |
++    <not> UnaryExpression() #NotNode(1)
++  |
++    <EMPTY> UnaryExpression() #EmptyFunction(1)
++  |
++    <SIZE> UnaryExpression() #SizeFunction(1)
++  |
++    ValueExpression()
+ }
+ 
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/ParserVisitor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/ParserVisitor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/apache/commons/jexl3/parser/ParserVisitor.java	2025-12-22 03:01:48.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/apache/commons/jexl3/parser/ParserVisitor.java	2025-12-22 03:01:26.000000000 +1100
+@@ -159,4 +159,20 @@
+     protected abstract Object visit(ASTArguments node, Object data);
+     protected abstract Object visit(ASTReferenceExpression node, Object data);
++    protected abstract Object visit(ASTSetAddNode node, Object data);
++    protected abstract Object visit(ASTSetSubNode node, Object data);
++    protected abstract Object visit(ASTSetMultNode node, Object data);
++    protected abstract Object visit(ASTSetDivNode node, Object data);
++    protected abstract Object visit(ASTSetModNode node, Object data);
++    protected abstract Object visit(ASTSetAndNode node, Object data);
++    protected abstract Object visit(ASTSetOrNode node, Object data);
++    protected abstract Object visit(ASTSetXorNode node, Object data);
+ }

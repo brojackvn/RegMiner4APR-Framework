@@ -1,0 +1,124 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java	2025-12-29 14:58:12.477651004 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/AnnotationHelper.java	2025-12-29 15:59:52.875316653 +1100
+@@ -688,4 +693,32 @@
+	 *
+	 * @return the default value for the given primitive type, or {@code null} if the type is not primitive.
+	 */
++	public static final Object getDefaultPrimitiveValue(Class type) {
++		if (type == int.class) {
++			return Integer.valueOf(0);
++		} else if (type == double.class) {
++			return 0.0D;
++		} else if (type == boolean.class) {
++			return Boolean.FALSE;
++		} else if (type == long.class) {
++			return Long.valueOf(0L);
++		} else if (type == float.class) {
++			return 0.0F;
++		} else if (type == byte.class) {
++			return Byte.valueOf((byte) 0);
++		} else if (type == char.class) {
++			return Character.valueOf('\0');
++		} else if (type == short.class) {
++			return Short.valueOf((short) 0);
++		}
++		return null;
++	}
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/FieldMapping.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/FieldMapping.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/annotations/helpers/FieldMapping.java	2025-12-29 14:58:12.477651004 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/annotations/helpers/FieldMapping.java	2025-12-29 15:59:52.875316653 +1100
+@@ -34,7 +36,10 @@
+ 	private final Class<?> beanClass;
+ 	private final Method readMethod;
+ 	private final Method writeMethod;
+-	private boolean accessible = false;
++	private boolean accessible;
++	private final boolean primitive;
++	private final Object defaultPrimitiveValue;
++	private Boolean applyDefault = null;
+ 
+ 	/**
+ 	 * Creates the mapping and identifies how it is mapped (by name or by index)
+@@ -48,6 +53,18 @@
+ 		this.readMethod = property != null ? property.getReadMethod() : null;
+ 		this.writeMethod = property != null ? property.getWriteMethod() : null;
+ 
++		Class typeToSet;
++		if(field != null){
++			typeToSet = field.getType();
++		} else if (writeMethod != null && writeMethod.getParameterTypes().length == 1){
++			typeToSet = writeMethod.getParameterTypes()[0];
++		} else {
++			typeToSet = Object.class;
++		}
++		primitive = typeToSet.isPrimitive();
++		defaultPrimitiveValue = getDefaultPrimitiveValue(typeToSet);
+ 		determineFieldMapping();
+ 	}
+ 
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/processor/core/AbstractBeanConversionProcessor.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/processor/core/AbstractBeanConversionProcessor.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/univocity/parsers/common/processor/core/AbstractBeanConversionProcessor.java	2025-12-29 14:58:12.481651001 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/univocity/parsers/common/processor/core/AbstractBeanConversionProcessor.java	2025-12-29 15:59:52.883316648 +1100
+@@ -32,6 +32,8 @@
+ 	protected final Set<FieldMapping> parsedFields = new LinkedHashSet<FieldMapping>();
+ 	private int lastFieldIndexMapped = -1;
+ 	private FieldMapping[] readOrder;
++	private FieldMapping[] missing;
++	private Object[] valuesForMissing;
+ 	protected boolean initialized = false;
+ 	boolean strictHeaderValidationEnabled = false;
+ 	private String[] syntheticHeaders = null;
+@@ -284,16 +298,15 @@
+ 		if (headers == null) {
+ 			headers = ArgumentUtils.EMPTY_STRING_ARRAY;
+ 		}
+-		int biggestIndex = headers.length > row.length ? headers.length : row.length;
++		int last = headers.length > row.length ? headers.length : row.length;
+ 		for (FieldMapping mapping : parsedFields) {
+ 			int index = mapping.getIndex();
+-			if (biggestIndex < index) {
+-				biggestIndex = index;
++			if (last < index) {
++				last = index;
+ 			}
+ 		}
+ 
+-		FieldMapping[] fieldOrder = new FieldMapping[biggestIndex + 1];
++		FieldMapping[] fieldOrder = new FieldMapping[last];
+ 		TreeSet<String> fieldsNotFound = new TreeSet<String>();
+ 
+ 		for (FieldMapping mapping : parsedFields) {
+@@ -353,8 +366,39 @@
+ 
++	private void initializeValuesForMissing(){
++		if (readOrder.length < parsedFields.size()) {
++			Set<FieldMapping> unmapped = new LinkedHashSet<FieldMapping>(parsedFields);
++			unmapped.removeAll(Arrays.asList(readOrder));
++			missing = unmapped.toArray(new FieldMapping[0]);
++			String[] headers = new String[missing.length];
++			AbstractBeanConversionProcessor tmp = new AbstractBeanConversionProcessor(getBeanClass()){
++				protected void addConversion(Conversion conversion, FieldMapping mapping) {
++					if (conversion == null) {
++						return;
++					}
++					convertFields(conversion).add(mapping.getFieldName());
++				}
++			};
++			for(int i = 0; i < missing.length; i++){
++				FieldMapping mapping = missing[i];
++				if (processField(mapping)) {
++					tmp.setupConversions(mapping.getField(), mapping);
++				}
++				headers[i] = mapping.getFieldName();
++			}
++			tmp.initializeConversions(headers, null);
++			valuesForMissing = tmp.applyConversions(new String[missing.length], null);
++		} else {
++			missing = null;
++			valuesForMissing = null;
++		}
+ 	}
+ 
+ 	/**

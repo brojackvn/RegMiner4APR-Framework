@@ -1,0 +1,133 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/build.gradle ./RegMiner4APR-Regression-Bugs/BFC/build.gradle
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/build.gradle	2026-01-17 19:58:22.748358326 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/build.gradle	2026-01-17 14:31:25.138405458 +1100
+@@ -610,34 +610,3 @@
+ 	group = 'Distribution'
+ 	description = 'Builds -dist, -docs and -schema distribution archives.'
+ }
+-
+-// task copyDependencies {
+-//     group = 'build'
+-//     description = 'Copy compile + runtime dependencies for each module separately'
+-
+-//     doLast {
+-//         subprojects.each { subproject ->
+-//             if (subproject.plugins.hasPlugin('java')) {
+-
+-//                 def outputDir = file("$buildDir/generated-dependencies/${subproject.name}")
+-//                 outputDir.mkdirs()
+-
+-//                 // Collect compile dependencies
+-//                 subproject.configurations.compile.resolvedConfiguration.resolvedArtifacts.each { artifact ->
+-//                     copy {
+-//                         from artifact.file
+-//                         into outputDir
+-//                     }
+-//                 }
+-
+-//                 // Collect runtime dependencies
+-//                 subproject.configurations.runtime.resolvedConfiguration.resolvedArtifacts.each { artifact ->
+-//                     copy {
+-//                         from artifact.file
+-//                         into outputDir
+-//                     }
+-//                 }
+-//             }
+-//         }
+-//     }
+-// }
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/5.6.4/executionHistory/executionHistory.bin and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/5.6.4/executionHistory/executionHistory.bin differ
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/5.6.4/executionHistory/executionHistory.lock and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/5.6.4/executionHistory/executionHistory.lock differ
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/5.6.4/fileHashes/fileHashes.bin and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/5.6.4/fileHashes/fileHashes.bin differ
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/5.6.4/fileHashes/fileHashes.lock and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/5.6.4/fileHashes/fileHashes.lock differ
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/5.6.4/fileHashes/resourceHashesCache.bin and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/5.6.4/fileHashes/resourceHashesCache.bin differ
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/5.6.4/javaCompile/classAnalysis.bin and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/5.6.4/javaCompile/classAnalysis.bin differ
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/5.6.4/javaCompile/jarAnalysis.bin and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/5.6.4/javaCompile/jarAnalysis.bin differ
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/5.6.4/javaCompile/javaCompile.lock and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/5.6.4/javaCompile/javaCompile.lock differ
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/5.6.4/javaCompile/taskHistory.bin and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/5.6.4/javaCompile/taskHistory.bin differ
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/buildOutputCleanup/buildOutputCleanup.lock and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/buildOutputCleanup/buildOutputCleanup.lock differ
+Binary files ./RegMiner4APR-Regression-Bugs/BUGGY/.gradle/buildOutputCleanup/outputFiles.bin and ./RegMiner4APR-Regression-Bugs/BFC/.gradle/buildOutputCleanup/outputFiles.bin differ
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/spring-rabbit/src/main/java/org/springframework/amqp/rabbit/listener/adapter/MessagingMessageListenerAdapter.java ./RegMiner4APR-Regression-Bugs/BFC/spring-rabbit/src/main/java/org/springframework/amqp/rabbit/listener/adapter/MessagingMessageListenerAdapter.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/spring-rabbit/src/main/java/org/springframework/amqp/rabbit/listener/adapter/MessagingMessageListenerAdapter.java	2025-12-24 02:56:25.154900513 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/spring-rabbit/src/main/java/org/springframework/amqp/rabbit/listener/adapter/MessagingMessageListenerAdapter.java	2025-12-24 02:48:44.223122601 +1100
+@@ -35,6 +35,7 @@
+ import org.springframework.messaging.Message;
+ import org.springframework.messaging.MessagingException;
+ import org.springframework.messaging.handler.annotation.Header;
++import org.springframework.messaging.handler.annotation.Headers;
+ import org.springframework.messaging.handler.annotation.Payload;
+ import org.springframework.messaging.support.MessageBuilder;
+ import org.springframework.remoting.support.RemoteInvocationResult;
+@@ -337,17 +338,16 @@
+ 				 * We're looking for a single parameter, or one annotated with @Payload.
+ 				 * We ignore parameters with type Message because they are not involved with conversion.
+ 				 */
+-				boolean isHeader = methodParameter.hasParameterAnnotation(Header.class);
++				boolean isHeaderOrHeaders = methodParameter.hasParameterAnnotation(Header.class)
++						|| methodParameter.hasParameterAnnotation(Headers.class);
+ 				boolean isPayload = methodParameter.hasParameterAnnotation(Payload.class);
+-				if (isHeader && isPayload) {
+-					if (MessagingMessageListenerAdapter.this.logger.isWarnEnabled()) {
+-						MessagingMessageListenerAdapter.this.logger.warn(this.method.getName()
+-							+ ": Cannot annotate a parameter with both @Header and @Payload; "
+-							+ "ignored for payload conversion");
+-					}
++				if (isHeaderOrHeaders && isPayload && MessagingMessageListenerAdapter.this.logger.isWarnEnabled()) {
++					MessagingMessageListenerAdapter.this.logger.warn(this.method.getName()
++						+ ": Cannot annotate a parameter with both @Header and @Payload; "
++						+ "ignored for payload conversion");
+ 				}
+ 				if (isEligibleParameter(methodParameter)
+-						&& (!isHeader || isPayload) && !(isHeader && isPayload)) {
++						&& (!isHeaderOrHeaders || isPayload) && !(isHeaderOrHeaders && isPayload)) {
+ 
+ 					if (genericParameterType == null) {
+ 						genericParameterType = extractGenericParameterTypFromMethodParameter(methodParameter);
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/spring-rabbit/src/test/java/org/springframework/amqp/rabbit/listener/adapter/MessagingMessageListenerAdapterTests.java ./RegMiner4APR-Regression-Bugs/BFC/spring-rabbit/src/test/java/org/springframework/amqp/rabbit/listener/adapter/MessagingMessageListenerAdapterTests.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/spring-rabbit/src/test/java/org/springframework/amqp/rabbit/listener/adapter/MessagingMessageListenerAdapterTests.java	2025-12-24 04:07:59.007545721 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/spring-rabbit/src/test/java/org/springframework/amqp/rabbit/listener/adapter/MessagingMessageListenerAdapterTests.java	2025-12-24 02:48:44.243122591 +1100
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2014-2025 the original author or authors.
++ * Copyright 2014-2020 the original author or authors.
+  *
+  * Licensed under the Apache License, Version 2.0 (the "License");
+  * you may not use this file except in compliance with the License.
+@@ -28,6 +28,7 @@
+ import java.util.Arrays;
+ import java.util.LinkedHashMap;
+ import java.util.List;
++import java.util.Map;
+ import java.util.stream.Collectors;
+ 
+ import org.junit.jupiter.api.BeforeEach;
+@@ -39,8 +40,10 @@
+ import org.springframework.amqp.support.AmqpHeaders;
+ import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+ import org.springframework.amqp.support.converter.SimpleMessageConverter;
++import org.springframework.amqp.utils.test.TestUtils;
+ import org.springframework.beans.factory.support.StaticListableBeanFactory;
+ import org.springframework.messaging.Message;
++import org.springframework.messaging.handler.annotation.Headers;
+ import org.springframework.messaging.handler.annotation.support.DefaultMessageHandlerMethodFactory;
+ import org.springframework.messaging.handler.invocation.InvocableHandlerMethod;
+ import org.springframework.messaging.support.MessageBuilder;
+@@ -49,9 +52,6 @@
+ import com.rabbitmq.client.AMQP.BasicProperties;
+ import com.rabbitmq.client.Channel;
+ 
+-import java.util.Map;
+-import org.springframework.amqp.utils.test.TestUtils;
+-import org.springframework.messaging.handler.annotation.Headers;
+ /**
+  * @author Stephane Nicoll
+  * @author Artem Bilan
+@@ -391,6 +391,7 @@
+ 		@SuppressWarnings("unused")
+ 		public void withHeaders(Foo foo, @Headers Map<String, Object> headers) {
+ 		}
++
+ 	}
+ 
+ 	private static class Foo {

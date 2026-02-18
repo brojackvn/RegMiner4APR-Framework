@@ -1,0 +1,28 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/fasterxml/jackson/core/JsonLocation.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/fasterxml/jackson/core/JsonLocation.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/fasterxml/jackson/core/JsonLocation.java	2025-12-11 15:01:29.585307547 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/fasterxml/jackson/core/JsonLocation.java	2025-12-11 15:02:39.317363675 +1100
+@@ -173,24 +173,15 @@
+                 sb.append("UNKNOWN");
+             }
+         } else {
+-            if (_lineNr > 0) {
+-                sb.append("line: ").append(_lineNr);
+-                if (_columnNr > 0) {
+-                    sb.append(", column: ");
+-                    sb.append(_columnNr);
+-                }
++            sb.append("byte offset: #");
++            if (_totalBytes >= 0) {
++                sb.append(_totalBytes);
+             } else {
+-                sb.append("byte offset: #");
+-                if (_totalBytes >= 0) {
+-                    sb.append(_totalBytes);
+-                } else {
+-                    sb.append("UNKNOWN");
+-                }
++                sb.append("UNKNOWN");
+             }
+         }
+         return sb;

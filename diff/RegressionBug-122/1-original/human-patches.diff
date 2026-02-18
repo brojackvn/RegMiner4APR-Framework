@@ -1,0 +1,28 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/jexl3/internal/introspection/Uberspect.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/jexl3/internal/introspection/Uberspect.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/apache/commons/jexl3/internal/introspection/Uberspect.java	2025-12-21 01:46:05.127656369 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/apache/commons/jexl3/internal/introspection/Uberspect.java	2025-12-21 01:46:24.275648310 +1100
+@@ -287,6 +287,10 @@
+                     case FIELD:
+                         // a field may be? (can not be a number)
+                         executor = FieldGetExecutor.discover(is, claz, property);
++                        // static class fields (enums included)
++                        if (obj instanceof Class<?>) {
++                            executor = FieldGetExecutor.discover(is, (Class<?>) obj, property);
++                        }
+                         break;
+                     case CONTAINER:
+                         // or an indexed property?
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/site/xdoc/changes.xml ./RegMiner4APR-Regression-Bugs/BFC/src/site/xdoc/changes.xml
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/site/xdoc/changes.xml	2025-12-21 01:46:05.131656368 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/site/xdoc/changes.xml	2025-12-21 01:46:24.283648304 +1100
+@@ -26,6 +26,9 @@
+     </properties>
+     <body>
+         <release version="3.1" date="unreleased">
++            <action dev="henrib" type="fix" issue="JEXL-191" due-to="Constantin Mitocaru">
++                Jexl3 unsolvable property exception when using enum
++            </action>
+             <action dev="henrib" type="fix" issue="JEXL-189" due-to="Dmitri Blinov">
+                 Possible bug in Interpreter.isCancelled()
+             </action>
