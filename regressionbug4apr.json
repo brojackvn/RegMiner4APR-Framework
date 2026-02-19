@@ -1855,22 +1855,16 @@
     },
     "101": {
         "bug_id": "RegressionBug-101",
-        "github_repository": "ralscha/extdirectspring",
-        "bfcID": "33859a9f887c98c29be32b129999f6cb7383a1e4",
-        "buggyID": "d97e51099954bb19f8cc489fd70c040192855d90",
-        "bicID": "d97e51099954bb19f8cc489fd70c040192855d90",
-        "workingID": "45bd3e0a410b170b4d65d3a8d6ebebb4459d3488",
+        "github_repository": "traccar/traccar",
+        "bfcID": "3aebd92cc3781b417ded6260d1300434b1418e7e",
+        "buggyID": "5e481bfc1596de062093c5bc01cf168ed906aafc",
+        "bicID": "ff949b7ee233cd343f1fb5bb5ef7db7f24991df0",
+        "workingID": "0a8d0110d5d3876a292d6ea8213e62e4bb98c252",
         "failing_tests": {
-            "ch.ralscha.extdirectspring.filter.BooleanFilterTest#testBooleanPropertyNullFilter": [
+            "org.traccar.protocol.EelinkProtocolDecoderTest#testDecode": [
                 {
-                    "type": "java.lang.NullPointerException:",
-                    "message": "null"
-                }
-            ],
-            "ch.ralscha.extdirectspring.filter.BooleanFilterTest#testBooleanNullFilter": [
-                {
-                    "type": "java.lang.NullPointerException:",
-                    "message": "null"
+                    "type": "java.lang.IndexOutOfBoundsException",
+                    "message": ": Not enough readable bytes - Need 2, maximum is 1"
                 }
             ]
         }
