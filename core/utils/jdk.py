@@ -9,7 +9,7 @@ def check_jdk_version():
         if 'version "1.8' in result.stderr or 'version "8' in result.stderr:
             return 0  # Java 8 is found
         elif 'version "11' in result.stderr:
-            return 1  # Java 11 is found
+            return 0  # Java 11 is found
         else:
             print("Java 8 and 11 is required!")
             return 1  # Not Java 8
