@@ -1,0 +1,13 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/org/traccar/protocol/EelinkProtocolDecoder.java ./RegMiner4APR-Regression-Bugs/BFC/src/org/traccar/protocol/EelinkProtocolDecoder.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/org/traccar/protocol/EelinkProtocolDecoder.java	2026-02-19 15:04:48.907238501 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/org/traccar/protocol/EelinkProtocolDecoder.java	2026-02-19 16:08:40.943799476 +1100
+@@ -160,7 +160,9 @@
+ 
+             if (statusType == 0x01 || statusType == 0x02 || statusType == 0x03) {
+                 buf.readUnsignedInt(); // device time
++                if (buf.readableBytes() >= 2) {
+                     decodeStatus(position, buf.readUnsignedShort());
++                }
+             }
+ 
+         }
