@@ -1,0 +1,51 @@
+Only in ./RegMiner4APR-Regression-Bugs/BIC: chrome_2026.01.01_02.41.56.143_c625556479dc1cd2f1dcf1c2062295c9.mp4
+Only in ./RegMiner4APR-Regression-Bugs/BIC: chrome_2026.01.01_02.47.10.150_0d5ef505a96c0fdb7d7c05a068d4812d.mp4
+Only in ./RegMiner4APR-Regression-Bugs/BIC: custom_value
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/github/bonigarcia/wdm/managers/ChromeDriverManager.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/github/bonigarcia/wdm/managers/ChromeDriverManager.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/github/bonigarcia/wdm/managers/ChromeDriverManager.java	2025-12-31 20:20:07.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/github/bonigarcia/wdm/managers/ChromeDriverManager.java	2025-12-31 20:19:38.000000000 +1100
+@@ -20,7 +20,6 @@
+ import static io.github.bonigarcia.wdm.config.Architecture.X32;
+ import static io.github.bonigarcia.wdm.config.Config.isNullOrEmpty;
+ import static io.github.bonigarcia.wdm.config.DriverManagerType.CHROME;
+-import static java.util.Collections.emptyList;
+ import static java.util.Locale.ROOT;
+ import static java.util.Optional.empty;
+ 
+@@ -116,24 +115,18 @@
+         if (isUseMirror()) {
+             return getDriversFromMirror(getMirrorUrl().get(), driverVersion);
+         } else {
+-            if (!isNullOrEmpty(driverVersion)
+-                    && Integer.parseInt(VersionDetector.getMajorVersion(
+-                            driverVersion)) >= MIN_CHROMEDRIVER_IN_CFT) {
+-                String cftUrl = config.getChromeLastGoodVersionsUrl();
+-                LastGoodVersions versions = Parser.parseJson(httpClient, cftUrl,
+-                        LastGoodVersions.class);
+-                return versions.channels.stable.downloads.chromedriver.stream()
+-                        .map(platformUrl -> {
+-                            try {
+-                                return new URL(platformUrl.url);
+-                            } catch (MalformedURLException e) {
+-                                throw new WebDriverException(
+-                                        "Incorrect CfT URL " + platformUrl.url);
+-                            }
+-                        }).collect(Collectors.toList());
+-            } else {
+-                return emptyList();
+-            }
++            String cftUrl = config.getChromeLastGoodVersionsUrl();
++            LastGoodVersions versions = Parser.parseJson(getHttpClient(),
++                    cftUrl, LastGoodVersions.class);
++            return versions.channels.stable.downloads.chromedriver.stream()
++                    .map(platformUrl -> {
++                        try {
++                            return new URL(platformUrl.url);
++                        } catch (MalformedURLException e) {
++                            throw new WebDriverException(
++                                    "Incorrect CfT URL " + platformUrl.url);
++                        }
++                    }).collect(Collectors.toList());
+         }
+     }
+ 

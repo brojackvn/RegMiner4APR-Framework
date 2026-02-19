@@ -1,0 +1,104 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/javaewah/EWAHCompressedBitmap.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/javaewah/EWAHCompressedBitmap.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/javaewah/EWAHCompressedBitmap.java	2026-01-02 02:44:09.837878765 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/javaewah/EWAHCompressedBitmap.java	2026-01-02 02:41:38.773960344 +1100
+@@ -298,6 +298,11 @@
+     @Override
+     public void addStreamOfLiteralWords(final Buffer buffer, final int start,
+                                         final int number) {
++        // special handling for 'fake' final words.
++        if((start + 1 == buffer.sizeInWords()) && (buffer.getWord(start) == 0)) {
++            insertEmptyWord(false);
++            return;
++        }
+         int leftOverNumber = number;
+         while (leftOverNumber > 0) {
+             final int numberOfLiteralWords = this.rlw.getNumberOfLiteralWords();
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/javaewah32/EWAHCompressedBitmap32.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/javaewah32/EWAHCompressedBitmap32.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/googlecode/javaewah32/EWAHCompressedBitmap32.java	2026-01-02 02:44:09.841878764 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/googlecode/javaewah32/EWAHCompressedBitmap32.java	2026-01-02 02:41:38.777960342 +1100
+@@ -274,6 +274,11 @@
+     @Override
+     public void addStreamOfLiteralWords(final Buffer32 buffer, final int start,
+                                         final int number) {
++        // special handling for 'fake' final words.
++        if((start + 1 == buffer.sizeInWords()) && (buffer.getWord(start) == 0)) {
++            insertEmptyWord(false);
++            return;
++        }
+         int leftOverNumber = number;
+         while (leftOverNumber > 0) {
+             final int numberOfLiteralWords = this.rlw.getNumberOfLiteralWords();
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/googlecode/javaewah/EWAHCompressedBitmapTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/googlecode/javaewah/EWAHCompressedBitmapTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/googlecode/javaewah/EWAHCompressedBitmapTest.java	2026-01-02 02:44:09.845878761 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/googlecode/javaewah/EWAHCompressedBitmapTest.java	2026-01-02 02:41:38.781960340 +1100
+@@ -22,7 +22,7 @@
+  */
+ @SuppressWarnings("javadoc")
+ public class EWAHCompressedBitmapTest {
+-	
++
+     @Test
+     public void issue72a() {
+         EWAHCompressedBitmap main = new EWAHCompressedBitmap();
+@@ -73,7 +73,7 @@
+         other.set(82764);
+         Assert.assertEquals((long)other.getFirstSetBit(),(long)other.iterator().next());
+     }
+-    
++
+     @Test
+     public void issue73() {
+         EWAHCompressedBitmap main = new EWAHCompressedBitmap();
+@@ -94,6 +94,23 @@
+         other = other.or(main);
+         Assert.assertEquals((long)other.iterator().next(),(long)44002);
+     }
++    
++    @Test
++    public void issue70() {
++        EWAHCompressedBitmap one = new EWAHCompressedBitmap();
++        EWAHCompressedBitmap other = new EWAHCompressedBitmap();
++        one.set(16627);
++        other.set(52811);
++        other = other.and(one);
++
++        one = one.andNot(other);
++        one.set(16039);
++        other.set(78669);
++        other = other.or(one);
++        one = one.and(other);
++        other = other.andNot(one);
++        Assert.assertEquals((long)other.getFirstSetBit(),(long)other.iterator().next());
++    }
+ 
+ 	@Test
+ 	public void swaptest() {
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/googlecode/javaewah32/EWAHCompressedBitmap32Test.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/googlecode/javaewah32/EWAHCompressedBitmap32Test.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/googlecode/javaewah32/EWAHCompressedBitmap32Test.java	2026-01-02 02:44:09.845878761 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/googlecode/javaewah32/EWAHCompressedBitmap32Test.java	2026-01-02 02:41:38.781960340 +1100
+@@ -97,7 +97,24 @@
+         other.set(82764);
+         Assert.assertEquals((long)other.getFirstSetBit(),(long)other.iterator().next());
+     }
+-	
++
++    @Test
++    public void issue70() {
++        EWAHCompressedBitmap32 one = new EWAHCompressedBitmap32();
++        EWAHCompressedBitmap32 other = new EWAHCompressedBitmap32();
++        one.set(16627);
++        other.set(52811);
++        other = other.and(one);
++
++        one = one.andNot(other);
++        one.set(16039);
++        other.set(78669);
++        other = other.or(one);
++        one = one.and(other);
++        other = other.andNot(one);
++        Assert.assertEquals((long)other.getFirstSetBit(),(long)other.iterator().next());
++    }
++
+ 	@Test
+ 	public void swaptest() {
+ 		EWAHCompressedBitmap32 x = EWAHCompressedBitmap32.bitmapOf(1,2,3);

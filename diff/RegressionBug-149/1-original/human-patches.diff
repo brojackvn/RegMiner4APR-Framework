@@ -1,0 +1,42 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/googlecode/javaewah/EWAHCompressedBitmap.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/googlecode/javaewah/EWAHCompressedBitmap.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/googlecode/javaewah/EWAHCompressedBitmap.java	2026-01-02 02:37:22.922105844 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/googlecode/javaewah/EWAHCompressedBitmap.java	2026-01-02 02:35:02.930191230 +1100
+@@ -298,11 +298,6 @@
+     @Override
+     public void addStreamOfLiteralWords(final Buffer buffer, final int start,
+                                         final int number) {
+-        // special handling for 'fake' final words.
+-        if((start + 1 == buffer.sizeInWords()) && (buffer.getWord(start) == 0)) {
+-            insertEmptyWord(false);
+-            return;
+-        }
+         int leftOverNumber = number;
+         while (leftOverNumber > 0) {
+             final int numberOfLiteralWords = this.rlw.getNumberOfLiteralWords();
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/googlecode/javaewah32/EWAHCompressedBitmap32.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/googlecode/javaewah32/EWAHCompressedBitmap32.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/googlecode/javaewah32/EWAHCompressedBitmap32.java	2026-01-02 02:37:22.922105844 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/googlecode/javaewah32/EWAHCompressedBitmap32.java	2026-01-02 02:35:02.934191227 +1100
+@@ -274,11 +274,6 @@
+     @Override
+     public void addStreamOfLiteralWords(final Buffer32 buffer, final int start,
+                                         final int number) {
+-        // special handling for 'fake' final words.
+-        if((start + 1 == buffer.sizeInWords()) && (buffer.getWord(start) == 0)) {
+-            insertEmptyWord(false);
+-            return;
+-        }
+         int leftOverNumber = number;
+         while (leftOverNumber > 0) {
+             final int numberOfLiteralWords = this.rlw.getNumberOfLiteralWords();
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/googlecode/javaewah/EWAHCompressedBitmapTest.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/googlecode/javaewah/EWAHCompressedBitmapTest.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/googlecode/javaewah/EWAHCompressedBitmapTest.java	2026-01-02 02:37:22.926105842 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/googlecode/javaewah/EWAHCompressedBitmapTest.java	2026-01-02 02:42:20.337937642 +1100
+@@ -61,6 +61,7 @@
+         IntIterator intIterator = other.reverseIntIterator();
+         Assert.assertEquals((long)intIterator.next(),96118);
+     }
++    
+     @Test
+     public void issue68() {
+         EWAHCompressedBitmap one = new EWAHCompressedBitmap();

@@ -1,0 +1,13 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java	2026-01-02 01:49:17.947578513 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java	2026-01-01 23:31:27.350063557 +1100
+@@ -120,7 +120,7 @@
+                     continue;
+                 }
+                 // do not process labels not in the list
+-                if (labelIndices.containsKey(label))
++                if (!labelIndices.containsKey(label))
+                 {
+                     continue;
+                 }

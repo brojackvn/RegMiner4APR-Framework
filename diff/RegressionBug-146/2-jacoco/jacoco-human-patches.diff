@@ -1,0 +1,35 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/amihaiemil/eoyaml/extensions/MergedYamlMapping.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/amihaiemil/eoyaml/extensions/MergedYamlMapping.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/amihaiemil/eoyaml/extensions/MergedYamlMapping.java	2026-01-01 22:56:26.802044593 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/amihaiemil/eoyaml/extensions/MergedYamlMapping.java	2026-01-01 22:44:19.486138017 +1100
+@@ -202,9 +202,15 @@
+                         originalSeqBuilder = originalSeqBuilder.add(node);
+                     }
+                 }
++                final Comment newComment;
++                if (!changedSeq.comment().value().isEmpty()) {
++                    newComment = changedSeq.comment();
++                } else {
++                    newComment = originalSeq.comment();
++                }
+                 originalBuilder = originalBuilder.add(
+                     key,
+-                    originalSeqBuilder.build(originalSeq.comment().value())
++                    originalSeqBuilder.build(newComment.value())
+                 );
+             } else {
+                 final YamlNode newValue;
+@@ -220,7 +226,13 @@
+                 originalBuilder = originalBuilder.add(key, newValue);
+             }
+         }
+-        return originalBuilder.build(original.comment().value());
++        final Comment newComment;
++        if (overrideConflicts && !changed.comment().value().isEmpty()) {
++            newComment = changed.comment();
++        } else {
++            newComment = original.comment();
++        }
++        return originalBuilder.build(newComment.value());
+     }
+ 
+     /**

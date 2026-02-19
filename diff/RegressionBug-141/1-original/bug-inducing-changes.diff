@@ -1,0 +1,51 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/scijava/convert/NullConverter.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/scijava/convert/NullConverter.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/scijava/convert/NullConverter.java	2025-12-31 03:39:16.737812623 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/scijava/convert/NullConverter.java	2025-12-31 03:38:28.817812559 +1100
+@@ -31,6 +31,8 @@
+ 
+ package org.scijava.convert;
+ 
++import java.lang.reflect.Type;
++
+ import org.scijava.Priority;
+ import org.scijava.plugin.Plugin;
+ import org.scijava.util.ConversionUtils;
+@@ -55,8 +57,25 @@
+ public class NullConverter extends AbstractConverter<Object, Object> {
+ 
+ 	@Override
++	public boolean canConvert(final ConversionRequest request) {
++		if (request == null) return false;
++		if (request.destType() == null && request.destClass() == null) return false;
++		return request.sourceObject() == null && request.sourceClass() == null;
++	}
++
++	@Override
++	public boolean canConvert(final Object src, final Type dest) {
++		return src == null && dest != null;
++	}
++
++	@Override
+ 	public boolean canConvert(final Object src, final Class<?> dest) {
+-		return src == null;
++		return src == null && dest != null;
++	}
++
++	@Override
++	public boolean canConvert(final Class<?> src, final Class<?> dest) {
++		return src == null && dest != null;
+ 	}
+ 
+ 	@Override
+@@ -78,11 +97,4 @@
+ 		return Object.class;
+ 	}
+ 
+-	// -- Deprecated API --
+-
+-	@Override
+-	@Deprecated
+-	public boolean canConvert(final Class<?> src, final Class<?> dest) {
+-		return false;
+-	}
+ }

@@ -1,0 +1,20 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java	2026-01-02 01:50:39.323622622 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java	2026-01-02 01:51:07.395635518 +1100
+@@ -111,12 +111,19 @@
+         {
+             for (int x = 0; x < sizeX; x++)
+             {
+                 int label = (int) skeleton.getf(x, y);
+
+                 if (label == 0)
+                 {
+                     continue;
+                 }
++                if (labelIndices.containsKey(label))
++                {
++                    continue;
++                }
+ 
+                 int index = labelIndices.get(label);
+                 

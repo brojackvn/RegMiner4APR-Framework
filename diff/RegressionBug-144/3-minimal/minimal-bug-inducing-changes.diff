@@ -1,0 +1,37 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/github/bonigarcia/wdm/managers/ChromeDriverManager.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/github/bonigarcia/wdm/managers/ChromeDriverManager.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/io/github/bonigarcia/wdm/managers/ChromeDriverManager.java	2025-12-31 20:20:07.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/io/github/bonigarcia/wdm/managers/ChromeDriverManager.java	2025-12-31 20:19:38.000000000 +1100
+@@ -116,24 +115,18 @@
+         if (isUseMirror()) {
+             return getDriversFromMirror(getMirrorUrl().get(), driverVersion);
+         } else {
+-            if (!isNullOrEmpty(driverVersion) && Integer.parseInt(VersionDetector.getMajorVersion(driverVersion)) >= MIN_CHROMEDRIVER_IN_CFT) {
+-                String cftUrl = config.getChromeLastGoodVersionsUrl();
+-                LastGoodVersions versions = Parser.parseJson(httpClient, cftUrl,
+-                        LastGoodVersions.class);
+-                return versions.channels.stable.downloads.chromedriver.stream()
+-                        .map(platformUrl -> {
+-                            try {
+-                                return new URL(platformUrl.url);
+-                            } catch (MalformedURLException e) {
+-                                throw new WebDriverException(
+-                                        "Incorrect CfT URL " + platformUrl.url);
+-                            }
+-                        }).collect(Collectors.toList());
+-            } else {
+-                return emptyList();
+-            }
++            String cftUrl = config.getChromeLastGoodVersionsUrl();
++            LastGoodVersions versions = Parser.parseJson(getHttpClient(), cftUrl, LastGoodVersions.class);
++            return versions.channels.stable.downloads.chromedriver.stream()
++                    .map(platformUrl -> {
++                        try {
++                            return new URL(platformUrl.url);
++                        } catch (MalformedURLException e) {
++                            throw new WebDriverException(
++                                    "Incorrect CfT URL " + platformUrl.url);
++                        }
++                    }).collect(Collectors.toList());
+         }
+     }
+ 

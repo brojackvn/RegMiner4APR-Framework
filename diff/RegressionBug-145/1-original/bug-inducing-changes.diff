@@ -1,0 +1,12 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/pom.xml ./RegMiner4APR-Regression-Bugs/BIC/pom.xml
+--- ./RegMiner4APR-Regression-Bugs/WORKING/pom.xml	2026-01-01 02:13:37.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/pom.xml	2026-01-01 02:13:26.000000000 +1100
+@@ -63,7 +63,7 @@
+         <dependency>
+             <groupId>com.github.jsqlparser</groupId>
+             <artifactId>jsqlparser</artifactId>
+-            <version>2.0</version>
++            <version>3.2</version>
+         </dependency>
+         <dependency>
+             <groupId>org.mybatis</groupId>

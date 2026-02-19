@@ -1,0 +1,12 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/io/github/bonigarcia/wdm/WebDriverManager.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/io/github/bonigarcia/wdm/WebDriverManager.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/io/github/bonigarcia/wdm/WebDriverManager.java	2025-12-31 20:18:51.000000000 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/io/github/bonigarcia/wdm/WebDriverManager.java	2025-12-31 20:18:51.000000000 +1100
+@@ -164,7 +164,7 @@
+     protected static final String SLASH = "/";
+     protected static final String DASH = "-";
+     protected static final String LATEST_RELEASE = "LATEST_RELEASE";
+-    protected static final String CFT_LABEL = "chrome-for-testing";
++    protected static final String CFT_LABEL = "chrome-for-testing-public";
+     protected static final NamespaceContext S3_NAMESPACE_CONTEXT = new S3NamespaceContext();
+     protected static final String IN_DOCKER = "-in-docker";
+     protected static final String CLI_SERVER = "server";

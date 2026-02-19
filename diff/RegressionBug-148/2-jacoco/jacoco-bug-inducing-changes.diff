@@ -1,0 +1,56 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/onarandombox/MultiverseCore/utils/FileUtils.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/onarandombox/MultiverseCore/utils/FileUtils.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/onarandombox/MultiverseCore/utils/FileUtils.java	2026-01-02 02:18:11.615145123 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/onarandombox/MultiverseCore/utils/FileUtils.java	2026-01-02 02:14:35.303534607 +1100
+@@ -28,8 +32,8 @@
+      * @return true if the folder was successfully deleted.
+      */
+     public static boolean deleteFolder(File file) {
+-        try {
+-            org.apache.commons.io.FileUtils.deleteDirectory(file);
++        try (Stream<Path> files = Files.walk(file.toPath())) {
++            files.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+             return true;
+         } catch (IOException e) {
+             Logging.warning(e.getMessage());
+@@ -44,8 +48,11 @@
+      * @return true if the contents were successfully deleted
+      */
+     public static boolean deleteFolderContents(File file) {
+-        try {
+-            org.apache.commons.io.FileUtils.cleanDirectory(file);
++        try (Stream<Path> files = Files.walk(file.toPath())){
++            files.sorted(Comparator.reverseOrder())
++                    .map(Path::toFile)
++                    .filter(f -> !f.equals(file))
++                    .forEach(File::delete);
+             return true;
+         } catch (IOException e) {
+             Logging.warning(e.getMessage());
+@@ -53,8 +60,6 @@
+         }
+     }
+ 
+-    private static final int COPY_BLOCK_SIZE = 1024;
+
+     /**
+      * Helper method to copy the world-folder.
+      * @param source Source-File
+@@ -64,8 +69,16 @@
+      * @return if it had success
+      */
+     public static boolean copyFolder(File source, File target, Logger log) {
+-        try {
+-            org.apache.commons.io.FileUtils.copyDirectory(source, target);
++        Path sourcePath = source.toPath();
++        Path destPath = target.toPath();
++        try (Stream<Path> files = Files.walk(source.toPath())) {
++            files.forEachOrdered(src -> {
++                try {
++                    Files.copy(src, sourcePath.resolve(destPath.relativize(src)));
++                } catch (IOException e) {
++                    log.warning(e.getMessage());
++                }
++            });
+             return true;
+         } catch (IOException e) {
+             log.warning(e.getMessage());

@@ -1,0 +1,57 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/amihaiemil/eoyaml/extensions/MergedYamlMapping.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/amihaiemil/eoyaml/extensions/MergedYamlMapping.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/amihaiemil/eoyaml/extensions/MergedYamlMapping.java	2026-01-01 22:56:26.802044593 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/amihaiemil/eoyaml/extensions/MergedYamlMapping.java	2026-01-01 22:44:19.486138017 +1100
+@@ -51,7 +51,7 @@
+  *     );
+  * </pre>
+  * @author Mihai Andronache (amihaiemil@gmail.com)
+- * @version $Id: 77f09b9124e6b1b03870eedc9cd0d6ed30be7e1b $
++ * @version $Id: 6bd6766e8f3b6b1d1493457c9e082853aa3135f9 $
+  * @since 4.1.0
+  */
+ public final class MergedYamlMapping extends BaseYamlMapping {
+@@ -202,9 +202,15 @@
+                         originalSeqBuilder = originalSeqBuilder.add(node);
+                     }
+                 }
++                final Comment newComment;
++                if(!changedSeq.comment().value().isEmpty()){
++                    newComment = changedSeq.comment();
++                }else{
++                    newComment = originalSeq.comment();
++                }
+                 originalBuilder = originalBuilder.add(
+                     key,
+-                    originalSeqBuilder.build(originalSeq.comment().value())
++                    originalSeqBuilder.build(newComment.value())
+                 );
+             } else {
+                 final YamlNode newValue;
+@@ -220,7 +226,13 @@
+                 originalBuilder = originalBuilder.add(key, newValue);
+             }
+         }
+-        return originalBuilder.build(original.comment().value());
++        final Comment newComment;
++        if(overrideConflicts && !changed.comment().value().isEmpty()){
++            newComment = changed.comment();
++        }else{
++            newComment = original.comment();
++        }
++        return originalBuilder.build(newComment.value());
+     }
+ 
+     /**
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/amihaiemil/eoyaml/extensions/MergedYamlMappingTest.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/amihaiemil/eoyaml/extensions/MergedYamlMappingTest.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/amihaiemil/eoyaml/extensions/MergedYamlMappingTest.java	2026-01-19 20:05:53.976315945 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/amihaiemil/eoyaml/extensions/MergedYamlMappingTest.java	2026-01-19 20:05:47.452309568 +1100
+@@ -38,7 +38,7 @@
+ /**
+  * Unit tests for {@link MergedYamlMapping}.
+  * @author Mihai Andronache (amihaiemil.com)
+- * @version $Id: 8ef5221a48179683eef9029dfee41f8a03b802f0 $
++ * @version $Id: 06a892f7df012d4c2c5459f87f5525251176f2d6 $
+  * @since 4.1.0
+  */
+ public final class MergedYamlMappingTest {

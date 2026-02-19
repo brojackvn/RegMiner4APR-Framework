@@ -1,0 +1,315 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/extensions/MergedYamlMapping.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/extensions/MergedYamlMapping.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/com/amihaiemil/eoyaml/extensions/MergedYamlMapping.java	2026-01-01 23:12:09.573993236 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/com/amihaiemil/eoyaml/extensions/MergedYamlMapping.java	2026-01-01 23:04:13.153997039 +1100
+@@ -51,7 +51,7 @@
+  *     );
+  * </pre>
+  * @author Mihai Andronache (amihaiemil@gmail.com)
+- * @version $Id: 153341905ef1951cd922740f68f97826fc68483e $
++ * @version $Id: 77f09b9124e6b1b03870eedc9cd0d6ed30be7e1b $
+  * @since 4.1.0
+  */
+ public final class MergedYamlMapping extends BaseYamlMapping {
+@@ -142,8 +142,9 @@
+      * @param changed Changed mapping.
+      * @param overrideConflicts Should conflicting keys be overriden or not?
+      * @return Merged mapping.
++     * @checkstyle HiddenField (500 lines)
+      */
+-    private static YamlMapping merge(
++    private YamlMapping merge(
+         final YamlMapping original,
+         final YamlMapping changed,
+         final boolean overrideConflicts
+@@ -154,26 +155,102 @@
+         } else if (changed == null || changed.keys().isEmpty()) {
+             merged = original;
+         } else {
+-            YamlMappingBuilder builder = Yaml.createYamlMappingBuilder();
+-            final Set<YamlNode> changedKeys = changed.keys();
+-            for (final YamlNode key : original.keys()) {
+-                if(changedKeys.contains(key)) {
+-                    if(overrideConflicts) {
+-                        builder = builder.add(key, changed.value(key));
++            merged = this.recursiveMerge(original, changed, overrideConflicts);
++        }
++        return merged;
++    }
++
++    /**
++     * Recursively merge to mappings.
++     * @param original Original mapping.
++     * @param changed Changed mapping.
++     * @param overrideConflicts Should conflicting keys be overridden or not?
++     * @return Merged mapping.
++     * @checkstyle CyclomaticComplexity (200 lines)
++     * @checkstyle ExecutableStatementCount (200 lines)
++     */
++    private YamlMapping recursiveMerge(
++        final YamlMapping original,
++        final YamlMapping changed,
++        final boolean overrideConflicts
++    ) {
++        YamlMappingBuilder originalBuilder = this
++            .yamlMappingBuilderFrom(original);
++        final Set<YamlNode> changedKeys = changed.keys();
++        for(final YamlNode key : changedKeys) {
++            final YamlNode originalValue = original.value(key);
++            final YamlNode changedValue = changed.value(key);
++            if (changedValue instanceof YamlMapping
++                && originalValue instanceof YamlMapping) {
++                originalBuilder = originalBuilder.add(
++                    key,
++                    this.recursiveMerge(
++                        (YamlMapping) originalValue,
++                        (YamlMapping) changedValue,
++                        overrideConflicts
++                    )
++                );
++            } else if(overrideConflicts
++                && changedValue instanceof YamlSequence
++                && originalValue instanceof YamlSequence){
++                final YamlSequence originalSeq = (YamlSequence) originalValue;
++                final YamlSequence changedSeq = (YamlSequence) changedValue;
++                YamlSequenceBuilder originalSeqBuilder = this
++                    .yamlSequenceBuilderFrom(originalSeq);
++                for (final YamlNode node : changedSeq.values()) {
++                    if (!originalSeq.values().contains(node)) {
++                        originalSeqBuilder = originalSeqBuilder.add(node);
++                    }
++                }
++                originalBuilder = originalBuilder.add(
++                    key,
++                    originalSeqBuilder.build(originalSeq.comment().value())
++                );
++            } else {
++                final YamlNode newValue;
++                if (originalValue != null) {
++                    if (overrideConflicts) {
++                        newValue = changedValue;
+                     } else {
+-                        builder = builder.add(key, original.value(key));
++                        newValue = originalValue;
+                     }
+-                    changedKeys.remove(key);
+                 } else {
+-                    builder = builder.add(key, original.value(key));
++                    newValue = changedValue;
+                 }
++                originalBuilder = originalBuilder.add(key, newValue);
+             }
+-            for(final YamlNode key : changedKeys) {
+-                builder = builder.add(key, changed.value(key));
+-            }
+-            merged = builder.build(original.comment().value());
+         }
+-        return merged;
++        return originalBuilder.build(original.comment().value());
++    }
++
++    /**
++     * Create a {@link YamlSequenceBuilder} from a {@link YamlSequence} source.
++     * @param source YamlMapping source.
++     * @return Builder of YamlSequence.
++     */
++    private YamlSequenceBuilder yamlSequenceBuilderFrom(
++        final YamlSequence source
++    ) {
++        YamlSequenceBuilder builder = Yaml.createYamlSequenceBuilder();
++        for (final YamlNode node : source.values()) {
++            builder = builder.add(node);
++        }
++        return builder;
+     }
+ 
++    /**
++     * Create a {@link YamlMappingBuilder} from a {@link YamlMapping} source.
++     * @param source YamlMapping source.
++     * @return Builder of YamlMapping.
++     */
++    private YamlMappingBuilder yamlMappingBuilderFrom(
++        final YamlMapping source
++    ) {
++        YamlMappingBuilder builder = Yaml
++            .createYamlMappingBuilder();
++        for (final YamlNode key : source.keys()) {
++            builder = builder.add(key, source.value(key));
++        }
++        return builder;
++    }
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/amihaiemil/eoyaml/extensions/MergedYamlMappingTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/amihaiemil/eoyaml/extensions/MergedYamlMappingTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/com/amihaiemil/eoyaml/extensions/MergedYamlMappingTest.java	2026-01-19 20:05:40.084302368 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/com/amihaiemil/eoyaml/extensions/MergedYamlMappingTest.java	2026-01-01 23:04:13.157997039 +1100
+@@ -33,10 +33,12 @@
+ import org.hamcrest.Matchers;
+ import org.junit.Test;
+ 
++import java.io.IOException;
++
+ /**
+  * Unit tests for {@link MergedYamlMapping}.
+  * @author Mihai Andronache (amihaiemil.com)
+- * @version $Id: 7f2eb6404dbfbbca88f723338aa0d3e08f7b5781 $
++ * @version $Id: caaf92a2a79dd865b01ea59b37d8f3de8546ce3f $
+  * @since 4.1.0
+  */
+ public final class MergedYamlMappingTest {
+@@ -300,6 +302,157 @@
+         MatcherAssert.assertThat(
+             merged.toString(),
+             Matchers.equalTo(expected.toString())
++        );
++    }
++
++    /**
++     * Merges two simple mappings. Uses the request issue
++     * <a href="https://github.com/decorators-squad/eo-yaml/issues/420#issuecomment-731776176">example</a>
++     * as test case.
++     * @throws IOException If something goes wrong.
++     */
++    @Test
++    public void mergesSimpleMappings() throws IOException {
++        final YamlMapping original =  Yaml.createYamlInput(
++            new StringBuilder()
++                .append("Parameters:").append(System.lineSeparator())
++                .append("  Param1:").append(System.lineSeparator())
++                .append("    Type: x")
++                .toString()
++        ).readYamlMapping();
++        final YamlMapping changed =Yaml.createYamlInput(
++            new StringBuilder()
++                .append("Parameters:").append(System.lineSeparator())
++                .append("  Param2:").append(System.lineSeparator())
++                .append("    Type: y")
++                .toString()
++        ).readYamlMapping();
++        final YamlMapping merged = new MergedYamlMapping(
++            original, changed
++        );
++        final StringBuilder expected = new StringBuilder();
++        expected
++            .append("Parameters:").append(System.lineSeparator())
++            .append("  Param1:").append(System.lineSeparator())
++            .append("    Type: x").append(System.lineSeparator())
++            .append("  Param2:").append(System.lineSeparator())
++            .append("    Type: y");
++        MatcherAssert.assertThat(
++            merged.toString(),
++            Matchers.equalTo(expected.toString())
++        );
++    }
++
++    /**
++     * Merges two complex mappings with conflict override.
++     * @throws IOException If something goes wrong.
++     */
++    @Test
++    public void mergesComplexMappingsWithOverride() throws IOException {
++        final YamlMapping original = Yaml.createYamlInput(
++            new StringBuilder()
++                .append("Parameters:").append(System.lineSeparator())
++                .append("  Param1:").append(System.lineSeparator())
++                .append("    Type:").append(System.lineSeparator())
++                .append("      Prop1: x").append(System.lineSeparator())
++                .append("      Prop2:").append(System.lineSeparator())
++                .append("        -").append(System.lineSeparator())
++                .append("          foo: 1").append(System.lineSeparator())
++                .append("          bar: 2").append(System.lineSeparator())
++                .append("        - x").append(System.lineSeparator())
++                .append("        - y").append(System.lineSeparator())
++                .toString()
++        ).readYamlMapping();
++        final YamlMapping changed = Yaml.createYamlInput(
++            new StringBuilder()
++                .append("Parameters:").append(System.lineSeparator())
++                .append("  Param1:").append(System.lineSeparator())
++                .append("    Type:").append(System.lineSeparator())
++                .append("      Prop1: changedX").append(System.lineSeparator())
++                .append("      Prop2:").append(System.lineSeparator())
++                .append("        - x").append(System.lineSeparator())
++                .append("        - addedZ").append(System.lineSeparator())
++                .append("  Param2:").append(System.lineSeparator())
++                .append("    Type: y")
++                .toString()
++        ).readYamlMapping();
++        final YamlMapping merged = new MergedYamlMapping(
++            original, changed, true
++        );
++        final StringBuilder expected = new StringBuilder();
++        expected
++            .append("Parameters:").append(System.lineSeparator())
++            .append("  Param1:").append(System.lineSeparator())
++            .append("    Type:").append(System.lineSeparator())
++            .append("      Prop1: changedX").append(System.lineSeparator())
++            .append("      Prop2:").append(System.lineSeparator())
++            .append("        -").append(System.lineSeparator())
++            .append("          foo: 1").append(System.lineSeparator())
++            .append("          bar: 2").append(System.lineSeparator())
++            .append("        - x").append(System.lineSeparator())
++            .append("        - y").append(System.lineSeparator())
++            .append("        - addedZ").append(System.lineSeparator())
++            .append("  Param2:").append(System.lineSeparator())
++            .append("    Type: y");
++        MatcherAssert.assertThat(
++            merged.toString(),
++            Matchers.equalTo(expected.toString())
++        );
++    }
++
++    /**
++     * Merges two complex mappings with no conflict override.
++     * @throws IOException If something goes wrong.
++     */
++    @Test
++    public void mergesComplexMappingsWithNoOverride() throws IOException {
++        final YamlMapping original = Yaml.createYamlInput(
++            new StringBuilder()
++                .append("Parameters:").append(System.lineSeparator())
++                .append("  Param1:").append(System.lineSeparator())
++                .append("    Type:").append(System.lineSeparator())
++                .append("      Prop1: x").append(System.lineSeparator())
++                .append("      Prop2:").append(System.lineSeparator())
++                .append("        -").append(System.lineSeparator())
++                .append("          foo: 1").append(System.lineSeparator())
++                .append("          bar: 2").append(System.lineSeparator())
++                .append("        - x").append(System.lineSeparator())
++                .append("        - y").append(System.lineSeparator())
++                .toString()
++        ).readYamlMapping();
++        final YamlMapping changed = Yaml.createYamlInput(
++            new StringBuilder()
++                .append("Parameters:").append(System.lineSeparator())
++                .append("  Param1:").append(System.lineSeparator())
++                .append("    Type:").append(System.lineSeparator())
++                .append("      Prop1: changedX").append(System.lineSeparator())
++                .append("      Prop2:").append(System.lineSeparator())
++                .append("        - x").append(System.lineSeparator())
++                .append("        - addedZ").append(System.lineSeparator())
++                .append("  Param2:").append(System.lineSeparator())
++                .append("    Type: y")
++                .toString()
++        ).readYamlMapping();
++        final YamlMapping merged = new MergedYamlMapping(
++            original, changed
++        );
++        final StringBuilder expected = new StringBuilder();
++        expected
++            .append("Parameters:").append(System.lineSeparator())
++            .append("  Param1:").append(System.lineSeparator())
++            .append("    Type:").append(System.lineSeparator())
++            .append("      Prop1: x").append(System.lineSeparator())
++            .append("      Prop2:").append(System.lineSeparator())
++            .append("        -").append(System.lineSeparator())
++            .append("          foo: 1").append(System.lineSeparator())
++            .append("          bar: 2").append(System.lineSeparator())
++            .append("        - x").append(System.lineSeparator())
++            .append("        - y").append(System.lineSeparator())
++            .append("  Param2:").append(System.lineSeparator())
++            .append("    Type: y");
++        MatcherAssert.assertThat(
++            merged.toString(),
++            Matchers.equalTo(expected.toString())
+         );
+     }
+ 

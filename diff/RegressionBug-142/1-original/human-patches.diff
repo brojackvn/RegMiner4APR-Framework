@@ -1,0 +1,46 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/scijava/command/CommandModule.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/scijava/command/CommandModule.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/scijava/command/CommandModule.java	2025-12-31 18:52:48.912299208 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/scijava/command/CommandModule.java	2025-12-31 18:39:59.660254727 +1100
+@@ -86,7 +86,11 @@
+ 	@Parameter
+ 	private Context context;
+ 
+-	/** Reason for cancelation, or null if not canceled. */
++	/**
++	 * Reason for cancelation, or null if not canceled. Note that this field is
++	 * only relevant if the delegate {@link Command} is not itself
++	 * {@link Cancelable}.
++	 */
+ 	private String cancelReason;
+ 
+ 	/** Creates a command module for the given {@link PluginInfo}. */
+@@ -205,20 +209,26 @@
+ 
+ 	@Override
+ 	public boolean isCanceled() {
++		if (command instanceof Cancelable) {
++			return ((Cancelable) command).isCanceled();
++		}
+ 		return cancelReason != null;
+ 	}
+ 
+ 	@Override
+ 	public void cancel(final String reason) {
+-		cancelReason = reason == null ? "" : reason;
+ 		if (command instanceof Cancelable) {
+-			// propagate cancelation to the command instance itself
+ 			((Cancelable) command).cancel(reason);
++			return;
+ 		}
++		cancelReason = reason == null ? "" : reason;
+ 	}
+ 
+ 	@Override
+ 	public String getCancelReason() {
++		if (command instanceof Cancelable) {
++			return ((Cancelable) command).getCancelReason();
++		}
+ 		return cancelReason;
+ 	}
+ 

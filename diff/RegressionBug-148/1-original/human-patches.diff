@@ -1,0 +1,92 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/onarandombox/MultiverseCore/utils/FileUtils.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/onarandombox/MultiverseCore/utils/FileUtils.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/onarandombox/MultiverseCore/utils/FileUtils.java	2026-01-02 02:10:38.835648425 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/com/onarandombox/MultiverseCore/utils/FileUtils.java	2026-01-02 01:57:46.487724877 +1100
+@@ -7,16 +7,22 @@
+ 
+ package com.onarandombox.MultiverseCore.utils;
+ 
+-import com.dumptruckman.minecraft.util.Logging;
++import static java.nio.file.StandardCopyOption.COPY_ATTRIBUTES;
+ 
+ import java.io.File;
+ import java.io.IOException;
++import java.nio.file.FileVisitResult;
+ import java.nio.file.Files;
+ import java.nio.file.Path;
++import java.nio.file.SimpleFileVisitor;
++import java.nio.file.attribute.BasicFileAttributes;
+ import java.util.Comparator;
++import java.util.logging.Level;
+ import java.util.logging.Logger;
+ import java.util.stream.Stream;
+ 
++import com.dumptruckman.minecraft.util.Logging;
++
+ /**
+  * File-utilities.
+  */
+@@ -69,20 +75,42 @@
+      * @return if it had success
+      */
+     public static boolean copyFolder(File source, File target, Logger log) {
+-        Path sourcePath = source.toPath();
+-        Path destPath = target.toPath();
+-        try (Stream<Path> files = Files.walk(source.toPath())) {
+-            files.forEachOrdered(src -> {
+-                try {
+-                    Files.copy(src, sourcePath.resolve(destPath.relativize(src)));
+-                } catch (IOException e) {
+-                    log.warning(e.getMessage());
+-                }
+-            });
++        Path sourceDir = source.toPath();
++        Path targetDir = target.toPath();
++
++        try {
++            Files.walkFileTree(sourceDir, new CopyDirFileVisitor(sourceDir, targetDir));
+             return true;
+         } catch (IOException e) {
+-            log.warning(e.getMessage());
++            log.log(Level.WARNING, "Unable to copy directory", e);
+             return false;
+         }
+     }
++
++    private static class CopyDirFileVisitor extends SimpleFileVisitor<Path> {
++
++        private final Path sourceDir;
++        private final Path targetDir;
++
++        private CopyDirFileVisitor(Path sourceDir, Path targetDir) {
++            this.sourceDir = sourceDir;
++            this.targetDir = targetDir;
++        }
++
++        @Override
++        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
++            Path newDir = targetDir.resolve(sourceDir.relativize(dir));
++            if (!Files.isDirectory(newDir)) {
++                Files.createDirectory(newDir);
++            }
++            return FileVisitResult.CONTINUE;
++        }
++
++        @Override
++        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
++            Path targetFile = targetDir.resolve(sourceDir.relativize(file));
++            Files.copy(file, targetFile, COPY_ATTRIBUTES);
++            return FileVisitResult.CONTINUE;
++        }
++    }
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/onarandombox/MultiverseCore/utils/FileUtilsTest.java ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/onarandombox/MultiverseCore/utils/FileUtilsTest.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/test/java/com/onarandombox/MultiverseCore/utils/FileUtilsTest.java	2026-01-02 02:20:00.818988342 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/test/java/com/onarandombox/MultiverseCore/utils/FileUtilsTest.java	2026-01-02 02:19:17.507047887 +1100
+@@ -117,4 +117,4 @@
+ 
+         assertFalse(FileUtils.copyFolder(parentDir.toFile(), targetDir.toFile(), Logging.getLogger()));
+     }
+-}
+\ No newline at end of file
++}

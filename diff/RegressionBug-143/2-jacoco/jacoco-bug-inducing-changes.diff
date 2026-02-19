@@ -1,0 +1,26 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/scijava/command/CommandModuleItem.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/scijava/command/CommandModuleItem.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/scijava/command/CommandModuleItem.java	2025-12-31 19:49:40.297625203 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/scijava/command/CommandModuleItem.java	2025-12-31 20:09:56.917973008 +1100
+@@ -136,20 +135,17 @@
+ 	@Override
+ 	public Number getStepSize() {
+-		final Class<T> saneType = ConversionUtils.getNonprimitiveType(getType());
+-		return NumberUtils.toNumber(getParameter().stepSize(), saneType);
++		return tValue(getParameter().stepSize(), Number.class);
+ 	}
+ 
+ 	@Override
+@@ -201,4 +197,15 @@
+ 		return field.getName();
+ 	}
+ 
++	private T tValue(final String value) {
++		return tValue(value, getType());
++	}
+
++	private <D> D tValue(final String value, final Class<D> type) {
++		final Class<D> saneType = ConversionUtils.getNonprimitiveType(type);
++		return ConversionUtils.convert(value, saneType);
++	}
++
+ }

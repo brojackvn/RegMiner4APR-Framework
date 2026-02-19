@@ -1,0 +1,57 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/scijava/module/ModuleRunner.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/scijava/module/ModuleRunner.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/scijava/module/ModuleRunner.java	2025-12-31 18:51:04.820292208 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/scijava/module/ModuleRunner.java	2025-12-31 19:23:20.944623791 +1100
+@@ -156,20 +156,19 @@
+ 		final ModulePreprocessor canceler = preProcess();
+ 		if (canceler != null) {
+ 			// module execution was canceled by preprocessor
+-			cancel(title, canceler.getCancelReason());
++			final String reason = canceler.getCancelReason();
++			cancel(reason);
++			cleanupAndBroadcastCancelation(title, reason);
+ 			return;
+ 		}
+ 
+ 		// execute module
+ 		if (es != null) es.publish(new ModuleExecutingEvent(module));
+ 		module.run();
+-		if (module instanceof Cancelable) {
+-			final Cancelable cancelable = (Cancelable) module;
+-			if (cancelable.isCanceled()) {
+-				cancel(title, cancelable.getCancelReason());
+-				return;
+-			}
++		if (isCanceled()) {
++			cleanupAndBroadcastCancelation(title, getCancelReason());
++			return;
+ 		}
+ 		if (es != null) es.publish(new ModuleExecutedEvent(module));
+ 
+@@ -183,7 +182,9 @@
+ 
+ 	// -- Helper methods --
+ 
+-	private void cancel(final String title, final String reason) {
++	private void cleanupAndBroadcastCancelation(final String title, final String reason) {
+ 		if (ss != null) ss.showStatus("Canceling command: " + title);
+ 		module.cancel();
+ 		if (es != null) es.publish(new ModuleCanceledEvent(module, reason));
+@@ -193,4 +194,18 @@
+ 		}
+ 	}
+ 
++	private boolean isCanceled() {
++		return module instanceof Cancelable && ((Cancelable) module).isCanceled();
++	}
+
++	private String getCancelReason() {
++		return module instanceof Cancelable ?
++			((Cancelable) module).getCancelReason() : null;
++	}
+
++	private void cancel(final String reason) {
++		if (!(module instanceof Cancelable)) return;
++		((Cancelable) module).cancel(reason);
++	}
++
+ }

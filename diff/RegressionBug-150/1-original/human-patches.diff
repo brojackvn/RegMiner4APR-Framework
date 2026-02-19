@@ -1,0 +1,16 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/au/edu/wehi/idsv/AssemblyEvidenceSource.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/au/edu/wehi/idsv/AssemblyEvidenceSource.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/au/edu/wehi/idsv/AssemblyEvidenceSource.java	2026-01-02 04:46:04.208816715 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/au/edu/wehi/idsv/AssemblyEvidenceSource.java	2026-01-02 04:41:29.992843808 +1100
+@@ -417,9 +417,9 @@
+ 	}
+ 	@Override
+ 	public int getMinConcordantFragmentSize() {
+-		int minSourceFragSize = source.stream().mapToInt(s -> s.getMinConcordantFragmentSize()).max().orElse(0);
++		int minSourceFragSize = source.stream().mapToInt(s -> s.getMinConcordantFragmentSize()).min().orElse(0);
+ 		if (getFile().exists()) {
+-			minSourceFragSize = Math.max(super.getMaxConcordantFragmentSize(), minSourceFragSize);
++			minSourceFragSize = Math.min(super.getMinConcordantFragmentSize(), minSourceFragSize);
+ 		}
+ 		return minSourceFragSize;
+ 	}

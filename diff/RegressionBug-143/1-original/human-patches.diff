@@ -1,0 +1,20 @@
+Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/scijava/command/CommandModuleItem.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/scijava/command/CommandModuleItem.java
+--- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/scijava/command/CommandModuleItem.java	2025-12-31 20:08:20.333971323 +1100
++++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/org/scijava/command/CommandModuleItem.java	2025-12-31 19:47:06.553549312 +1100
+@@ -145,7 +145,14 @@
+ 
+ 	@Override
+ 	public Number getStepSize() {
+-		return tValue(getParameter().stepSize(), Number.class);
++		final String value = getParameter().stepSize();
++		try {
++			final double stepSize = Double.parseDouble(value);
++			return stepSize;
++		}
++		catch (final NumberFormatException exc) {
++			return tValue(value, Number.class);
++		}
+ 	}
+ 
+ 	@Override

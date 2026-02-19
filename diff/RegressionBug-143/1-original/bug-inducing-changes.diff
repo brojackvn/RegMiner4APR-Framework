@@ -1,0 +1,70 @@
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/scijava/command/CommandModuleItem.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/scijava/command/CommandModuleItem.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/scijava/command/CommandModuleItem.java	2025-12-31 19:49:40.297625203 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/scijava/command/CommandModuleItem.java	2025-12-31 20:09:56.917973008 +1100
+@@ -46,7 +46,6 @@
+ import org.scijava.plugin.Parameter;
+ import org.scijava.util.ConversionUtils;
+ import org.scijava.util.GenericUtils;
+-import org.scijava.util.NumberUtils;
+ 
+ /**
+  * {@link ModuleItem} implementation describing an input or output of a command.
+@@ -136,20 +135,17 @@
+ 
+ 	@Override
+ 	public T getMinimumValue() {
+-		final Class<T> saneType = ConversionUtils.getNonprimitiveType(getType());
+-		return ConversionUtils.convert(getParameter().min(), saneType);
++		return tValue(getParameter().min());
+ 	}
+ 
+ 	@Override
+ 	public T getMaximumValue() {
+-		final Class<T> saneType = ConversionUtils.getNonprimitiveType(getType());
+-		return ConversionUtils.convert(getParameter().max(), saneType);
++		return tValue(getParameter().max());
+ 	}
+ 
+ 	@Override
+ 	public Number getStepSize() {
+-		final Class<T> saneType = ConversionUtils.getNonprimitiveType(getType());
+-		return NumberUtils.toNumber(getParameter().stepSize(), saneType);
++		return tValue(getParameter().stepSize(), Number.class);
+ 	}
+ 
+ 	@Override
+@@ -161,7 +157,7 @@
+ 	public List<T> getChoices() {
+ 		final ArrayList<T> choices = new ArrayList<T>();
+ 		for (final String choice : getParameter().choices()) {
+-			choices.add(ConversionUtils.convert(choice, getType()));
++			choices.add(tValue(choice));
+ 		}
+ 		return choices;
+ 	}
+@@ -201,4 +197,15 @@
+ 		return field.getName();
+ 	}
+ 
++	// -- Helper methods --
++
++	private T tValue(final String value) {
++		return tValue(value, getType());
++	}
++
++	private <D> D tValue(final String value, final Class<D> type) {
++		final Class<D> saneType = ConversionUtils.getNonprimitiveType(type);
++		return ConversionUtils.convert(value, saneType);
++	}
++
+ }
+diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/scijava/command/InvalidCommandTest.java ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/scijava/command/InvalidCommandTest.java
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/test/java/org/scijava/command/InvalidCommandTest.java	2025-12-31 19:49:40.337625222 +1100
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/test/java/org/scijava/command/InvalidCommandTest.java	2025-12-31 20:12:41.169985531 +1100
+@@ -148,4 +148,4 @@
+ 
+ 	}
+ 
+-}
++}
+\ No newline at end of file
