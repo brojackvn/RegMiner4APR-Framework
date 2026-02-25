@@ -170,3 +170,5 @@ others/
 maven-repo/
 github-mining.ipynb
 regression-validation/jdk-7u80-linux-x64.tar
+diff/fix_name_file.py
+diff/create_folder.sh
