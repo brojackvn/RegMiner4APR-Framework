@@ -49,6 +49,9 @@ def compile_command(working_dir):
         if bug_id == "RegressionBug-23":
             command = ["xvfb-run", "mvn", "clean", "compile", "-Drat.skip", "-Dcheckstyle.skip"]
             compile_testcases_command = ["xvfb-run", "mvn", "test-compile", "-Drat.skip", "-Dcheckstyle.skip"]
+        elif bug_id == "RegressionBug-129":
+            command = ["mvn", "clean", "compile", "-pl", "spring-data-rest-webmvc"]
+            compile_testcases_command = ["mvn", "test-compile", "-pl", "spring-data-rest-webmvc"]
         else:
             command = ["mvn", "clean", "compile", "-Drat.skip", "-Dcheckstyle.skip"]
             compile_testcases_command = ["mvn", "test-compile", "-Drat.skip", "-Dcheckstyle.skip"]
