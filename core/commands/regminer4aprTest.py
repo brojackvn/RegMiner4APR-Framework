@@ -4,7 +4,7 @@ import subprocess
 import threading
 import time
 from core.utils.test_report import get_test_identifiers_and_exception
-from core.utils.jdk import check_jdk_version
+from core.utils.jdk import check_jdk_version, is_jdk_version_required
 from core.commands.regminer4aprCompile import compile_command
 
 def test_command(working_dir, test_case = None):
@@ -33,24 +33,15 @@ def test_command(working_dir, test_case = None):
             failing_tests = metadata.get("failing_test_identifiers")
             passing_tests = metadata.get("passing_test_identifiers")
 
-    # Prepare environment
-    env = os.environ.copy()
-    # Determine the clean command based on the build system
-    if int(java_version) == 8:
-        java_home = "/usr/lib/jvm/java-8-openjdk-amd64"
-    elif int(java_version) == 11:
-        java_home = "/usr/lib/jvm/java-11-openjdk-amd64"
-    else:
-        print(f"Error: Unsupported Java version: {java_version}")
+    # Check Java version and inform the user about the required Java version
+    if is_jdk_version_required(int(java_version)) == 1:
         return 1
-    env["JAVA_HOME"] = java_home
-    env["PATH"] = f"{java_home}/bin:" + env["PATH"]
 
     # Clean the project
     if build_system == "maven":
-        subprocess.call(["mvn", "clean"], env=env, cwd=working_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.call(["mvn", "clean"], cwd=working_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     elif build_system == "gradle":
-        subprocess.call(["./gradlew", "clean"], env=env, cwd=working_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.call(["./gradlew", "clean"], cwd=working_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     
     # Run test cases
     if test_case is not None:
@@ -101,7 +92,7 @@ def test_command(working_dir, test_case = None):
     else:
         # Compile the project
         if compile_command(working_dir) == 1:
-            return 
+            return 1
         
         # Determine the test command based on the build system
         if build_system == "maven":
@@ -119,13 +110,13 @@ def test_command(working_dir, test_case = None):
         # RegressionBug-144 run only the failing tests individually due to timeout issues
         if bug_id == "RegressionBug-144":
             for test_case in failing_tests:
-                status = run_single_test(working_dir, test_case, build_system, env, bug_id)
+                status = run_single_test(working_dir, test_case, build_system, bug_id)
                 if status == -1:
                     print(f"Error: Timeout while running test case {test_case}")
                     return 1
         else:
             for test_case in failing_tests:
-                status = run_single_test(working_dir, test_case, build_system, env, bug_id)
+                status = run_single_test(working_dir, test_case, build_system, bug_id)
                 if status == -1:
                     print(f"Error: Timeout while running test case {test_case}")
                     return 1
@@ -134,7 +125,7 @@ def test_command(working_dir, test_case = None):
             print(f"Running all test cases at working directory: {working_dir}")
             print("=" * 80)
             try:
-                subprocess.call(command, cwd=working_dir, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.call(command, cwd=working_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             except subprocess.TimeoutExpired:
                 print(f"Error: Timeout while running all test cases")
                 return 1
@@ -171,7 +162,7 @@ def test_command(working_dir, test_case = None):
                     print(f"Message: {test_detail['message']}")
             return 1
 
-def run_single_test(working_dir, test_case, build_system, env, bug_id):
+def run_single_test(working_dir, test_case, build_system, bug_id):
     # Determine the compile command based on the build system
     if build_system == "maven":
         if bug_id == "RegressionBug-23":
@@ -191,7 +182,7 @@ def run_single_test(working_dir, test_case, build_system, env, bug_id):
             single_test_command = ["./gradlew", "test", "-Dtest=" + test_case]
     
     try :
-        status = subprocess.call(single_test_command, env=env, cwd=working_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        status = subprocess.call(single_test_command, cwd=working_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return 0 if status == 0 else 1
     except subprocess.TimeoutExpired:
         return -1

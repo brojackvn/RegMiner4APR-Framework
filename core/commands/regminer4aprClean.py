@@ -1,7 +1,7 @@
 import os
 import json
 import subprocess
-from core.utils.jdk import check_jdk_version
+from core.utils.jdk import check_jdk_version, is_jdk_version_required
 
 def clean_command(working_dir):
     if check_jdk_version() == 1:
@@ -27,18 +27,9 @@ def clean_command(working_dir):
         build_system = metadata.get("build_system")
         java_version = metadata.get("java_version")
 
-    # Prepare environment
-    env = os.environ.copy()
-    # Determine the clean command based on the build system
-    if int(java_version) == 8:
-        java_home = "/usr/lib/jvm/java-8-openjdk-amd64"
-    elif int(java_version) == 11:
-        java_home = "/usr/lib/jvm/java-11-openjdk-amd64"
-    else:
-        print(f"Error: Unsupported Java version: {java_version}")
+    # Check Java version and inform the user about the required Java version
+    if is_jdk_version_required(int(java_version)) == 1:
         return 1
-    env["JAVA_HOME"] = java_home
-    env["PATH"] = f"{java_home}/bin:" + env["PATH"]
 
     if build_system == "maven":
         command = ["mvn", "clean"]
@@ -49,7 +40,7 @@ def clean_command(working_dir):
     print("=" * 80)
     print(f"Cleaning compiled files at working directory: {os.path.abspath(working_dir)}")
     print("-" * 40)
-    clean_result = subprocess.run(command, cwd=os.path.abspath(working_dir), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    clean_result = subprocess.run(command, cwd=os.path.abspath(working_dir), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     if clean_result.returncode != 0:
         print(f"Error: Cleaning compiled files at working directory!")

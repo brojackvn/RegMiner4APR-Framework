@@ -4,7 +4,7 @@ import json
 import subprocess
 import threading
 import time 
-from core.utils.jdk import check_jdk_version
+from core.utils.jdk import check_jdk_version, is_jdk_version_required
 
 def compile_command(working_dir):
     if check_jdk_version() == 1:
@@ -24,26 +24,16 @@ def compile_command(working_dir):
     if not os.path.exists(metadata_file):
         print(f"Error: working directory {working_dir} is not the regression bug directory!")
         return 1
-    
+
     with open(metadata_file, 'r') as file:
         metadata = json.load(file)
         bug_id = metadata.get("bug_id")
         build_system = metadata.get("build_system")
         java_version = metadata.get("java_version")
 
-    # Prepare environment
-    env = os.environ.copy()
-
-    # Determine the compile command based on the build system
-    if int(java_version) == 8:
-        java_home = "/usr/lib/jvm/java-8-openjdk-amd64"
-    elif int(java_version) == 11:
-        java_home = "/usr/lib/jvm/java-11-openjdk-amd64"
-    else:
-        print(f"Error: Unsupported Java version: {java_version}")
+    # Check Java version and inform the user about the required Java version
+    if is_jdk_version_required(int(java_version)) == 1:
         return 1
-    env["JAVA_HOME"] = java_home
-    env["PATH"] = f"{java_home}/bin:" + env["PATH"]
 
     if build_system == "maven":
         if bug_id == "RegressionBug-23":
@@ -63,9 +53,11 @@ def compile_command(working_dir):
     print("=" * 80)
     print(f"Compiling at working directory: {os.path.abspath(working_dir)}")
     print("-" * 40)
-    compile_result = subprocess.run(command, cwd=os.path.abspath(working_dir), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    compile_result = subprocess.run(command, cwd=os.path.abspath(working_dir), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
     if compile_result.returncode != 0:
+        print(f"Return code: {compile_result.returncode}")
+        print(f"{compile_result.stderr}")
         print(f"Error: Compiling at working directory!")
         print("-" * 40)      
         print(compile_result.stdout)  # Print the actual error message
@@ -77,7 +69,7 @@ def compile_command(working_dir):
         print(f"Compiling test classes at working directory: {os.path.abspath(working_dir)}")
         print("-" * 40)
         # Compile the test classes
-        if subprocess.call(compile_testcases_command, cwd=os.path.abspath(working_dir), env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
+        if subprocess.call(compile_testcases_command, cwd=os.path.abspath(working_dir), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) != 0:
             print(f"Error: Compiling test classes!")
             return 1
         else:
