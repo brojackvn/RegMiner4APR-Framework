@@ -1,13 +1,13 @@
-Only in ./RegMiner4APR-Regression-Bugs/BUGGY: generated-dependencies
-diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java
---- ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java	2026-01-02 01:49:17.947578513 +1100
-+++ ./RegMiner4APR-Regression-Bugs/BFC/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java	2026-01-01 23:31:27.350063557 +1100
-@@ -120,7 +120,7 @@
-                     continue;
-                 }
-                 // do not process labels not in the list
--                if (labelIndices.containsKey(label))
-+                if (!labelIndices.containsKey(label))
-                 {
-                     continue;
-                 }
+Only in /home/student.unimelb.edu.au/anhh1/working-space/APR/TOSEM-25/RegMiner4APR-Benchmark-Storage/RegressionBug-147/BUGGY: generated-dependencies
+diff -r -U 3 '--exclude=meta-data-commit-level.json' /home/student.unimelb.edu.au/anhh1/working-space/APR/TOSEM-25/RegMiner4APR-Benchmark-Storage/RegressionBug-147/BUGGY/src/main/java/mikera/matrixx/Matrix.java /home/student.unimelb.edu.au/anhh1/working-space/APR/TOSEM-25/RegMiner4APR-Benchmark-Storage/RegressionBug-147/BFC/src/main/java/mikera/matrixx/Matrix.java
+--- /home/student.unimelb.edu.au/anhh1/working-space/APR/TOSEM-25/RegMiner4APR-Benchmark-Storage/RegressionBug-147/BUGGY/src/main/java/mikera/matrixx/Matrix.java	2026-04-03 02:04:38.038537917 +1100
++++ /home/student.unimelb.edu.au/anhh1/working-space/APR/TOSEM-25/RegMiner4APR-Benchmark-Storage/RegressionBug-147/BFC/src/main/java/mikera/matrixx/Matrix.java	2026-04-03 02:01:53.362415458 +1100
+@@ -551,7 +551,7 @@
+ 
+ 	@Override
+ 	public void set(AVector a) {
+-		if ((rowCount() != a.length())) { throw new IllegalArgumentException(
++		if ((columnCount() != a.length())) { throw new IllegalArgumentException(
+ 				ErrorMessages.incompatibleBroadcast(a, this)); }
+ 		a.getElements(data, 0);
+ 		for (int i = 1; i < rows; i++) {

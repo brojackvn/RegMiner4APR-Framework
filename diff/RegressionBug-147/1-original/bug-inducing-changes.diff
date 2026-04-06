@@ -1,24 +1,784 @@
-diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java
---- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java	2026-01-02 01:50:39.323622622 +1100
-+++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java	2026-01-02 01:51:07.395635518 +1100
-@@ -111,12 +111,19 @@
-         {
-             for (int x = 0; x < sizeX; x++)
-             {
--                // label of current pixel 
-+                // label of current pixel
-                 int label = (int) skeleton.getf(x, y);
-+                
-+                // do not process background pixels
-                 if (label == 0)
-                 {
-                     continue;
-                 }
-+                // do not process labels not in the list
-+                if (labelIndices.containsKey(label))
-+                {
-+                    continue;
-+                }
+diff -r -U 3 RegressionBug-147/BIC/pom.xml
+--- RegressionBug-147/WORKING/pom.xml	2026-04-03 02:09:55.578719399 +1100
++++ RegressionBug-147/BIC/pom.xml	2026-04-03 02:08:00.114659898 +1100
+@@ -1,7 +1,7 @@
+ <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+ 	<modelVersion>4.0.0</modelVersion>
+ 	<artifactId>vectorz</artifactId>
+-	<version>0.32.1-SNAPSHOT</version>
++	<version>0.33.1-SNAPSHOT</version>
  
-                 int index = labelIndices.get(label);
-                 
+ 	<name>Vectorz</name>
+ 	<description>Fast double-precision vector and matrix maths library for Java</description>
+diff -r -U 3 RegressionBug-147/BIC/src/main/java/mikera/matrixx/algo/Determinant.java
+--- RegressionBug-147/WORKING/src/main/java/mikera/matrixx/algo/Determinant.java	2026-04-03 02:09:55.578719399 +1100
++++ RegressionBug-147/BIC/src/main/java/mikera/matrixx/algo/Determinant.java	2026-04-03 02:08:00.122659902 +1100
+@@ -32,31 +32,61 @@
+ 			throw new UnsupportedOperationException(ErrorMessages.nonSquareMatrix(m));
+ 		}
+ 
+-		if (rc==1) return m.unsafeGet(0,0);
+-		if (rc==2) return m.unsafeGet(0,0)*m.unsafeGet(1,1)-m.unsafeGet(1,0)*m.unsafeGet(0,1);
+-		if (rc==3) {
+-			return new Matrix33(m).determinant();
++		if (rc<=4) {
++			// much faster for small matrices
++			if (rc<=3) return calculateSmallDeterminant(m,rc);
++
++			// benchmarks show naive method is slightly better for
++			// size 4 matrices?
++			return naiveDeterminant(m.toMatrix(),rc);
+ 		}
+ 		
+-		return smartDeterminant(m);		
++		// general determinant uses LUP decomposition
++		return calculateLUPDeterminant(m);		
+ 	}
+ 	
+-	static double smartDeterminant(AMatrix m) {
++	/**
++	 * Determinant implemented using the LUP decomposition
++	 * 
++	 * @param m
++	 * @return
++	 */
++	static double calculateLUPDeterminant(AMatrix m) {
+ 		ILUPResult lup=SimpleLUP.decompose(m);
+ 		double det=lup.getL().diagonalProduct()*lup.getU().diagonalProduct()*lup.getP().determinant();
+ 		return det;
+ 	}
+ 	
++	/**
++	 * Calculates the determinant of a small square matrix via direct computation
++	 * @return
++	 */
++	static double calculateSmallDeterminant(AMatrix m, int rc) {
++		if (rc==1) return m.unsafeGet(0,0);
++		if (rc==2) return m.unsafeGet(0,0)*m.unsafeGet(1,1)-m.unsafeGet(1,0)*m.unsafeGet(0,1);
++		if (rc==3) {
++			return new Matrix33(m).determinant();
++		}
++		throw new UnsupportedOperationException("Small determinant calculation on size "+rc+" not possible");
++	}
++	
++	/**
++	 * Calculate determinant using naive method (brute force)
++	 */
+ 	@SuppressWarnings("unused")
+ 	static double naiveDeterminant(Matrix m) {
+-		int rc = m.rowCount();
++		return naiveDeterminant(m,m.rowCount());
++	}
++	
++	static double naiveDeterminant(AMatrix m, int rc) {
+ 		int[] inds = new int[rc];
+ 		for (int i = 0; i < rc; i++) {
+ 			inds[i] = i;
+ 		}
+-		return calcDeterminant(m,inds, 0);
++		return calcDeterminant(m.toMatrix(),inds, 0);
+ 	}
+ 
++
+ 	private static double calcDeterminant(Matrix m, int[] inds, int offset) {
+ 		int rc = m.rowCount();
+ 		if (offset == (rc - 1))
+Only in RegressionBug-147/BIC/src/main/java/mikera/matrixx/algo: Inverse.java
+diff -r -U 3 '--exclude=meta-data-commit-level.json' RegressionBug-147/WORKING/src/main/java/mikera/matrixx/AMatrix.java RegressionBug-147/BIC/src/main/java/mikera/matrixx/AMatrix.java
+--- RegressionBug-147/WORKING/src/main/java/mikera/matrixx/AMatrix.java	2026-04-03 02:09:55.578719399 +1100
++++ RegressionBug-147/BIC/src/main/java/mikera/matrixx/AMatrix.java	2026-04-03 02:08:00.118659899 +1100
+@@ -15,6 +15,7 @@
+ import mikera.arrayz.impl.JoinedArray;
+ import mikera.arrayz.impl.SliceArray;
+ import mikera.matrixx.algo.Determinant;
++import mikera.matrixx.algo.Inverse;
+ import mikera.matrixx.algo.Multiplications;
+ import mikera.matrixx.impl.ADenseArrayMatrix;
+ import mikera.matrixx.impl.IFastColumns;
+@@ -1358,10 +1359,16 @@
+ 		return Arrayz.create(al);
+ 	}
+ 
++	/**
++	 * Computes the inverse of a matrix. Returns null if the matrix is singular.
++	 * 
++	 * Throws an Exception is the matrix is not square
++	 * @param m
++	 * @return
++	 */
+ 	@Override
+ 	public AMatrix inverse() {
+-		AMatrix result = Matrixx.createInverse(this);
+-		return result;
++		return Inverse.calculate(this);
+ 	}
+ 	
+ 	/**
+Only in RegressionBug-147/BIC/src/main/java/mikera/matrixx/decompose/impl/lu: DecomposeLUP.java
+diff -r -U 3 '--exclude=meta-data-commit-level.json' RegressionBug-147/WORKING/src/main/java/mikera/matrixx/decompose/impl/lu/SimpleLUP.java RegressionBug-147/BIC/src/main/java/mikera/matrixx/decompose/impl/lu/SimpleLUP.java
+--- RegressionBug-147/WORKING/src/main/java/mikera/matrixx/decompose/impl/lu/SimpleLUP.java	2026-04-03 02:09:55.578719399 +1100
++++ RegressionBug-147/BIC/src/main/java/mikera/matrixx/decompose/impl/lu/SimpleLUP.java	2026-04-03 02:08:00.122659902 +1100
+@@ -99,16 +99,16 @@
+ 
+ 		for (int i = 0; i < n; i++) {
+ 			for (int j = 0; j < i; j++) {
+-				l.set(i, j, m.get(i, j));
++				l.unsafeSet(i, j, m.get(i, j));
+ 			}
+-			l.set(i, i, 1.0);
++			l.unsafeSet(i, i, 1.0);
+ 		}
+ 
+ 		// clear low elements to ensure upper triangle only is populated
+ 		Matrix u = m;
+ 		for (int i = 0; i < n; i++) {
+ 			for (int j = 0; j < i; j++) {
+-				u.set(i, j, 0.0);
++				u.unsafeSet(i, j, 0.0);
+ 			}
+ 		}
+ 
+diff -r -U 3 '--exclude=meta-data-commit-level.json' RegressionBug-147/WORKING/src/main/java/mikera/matrixx/decompose/QR.java RegressionBug-147/BIC/src/main/java/mikera/matrixx/decompose/QR.java
+--- RegressionBug-147/WORKING/src/main/java/mikera/matrixx/decompose/QR.java	2026-04-03 02:09:55.578719399 +1100
++++ RegressionBug-147/BIC/src/main/java/mikera/matrixx/decompose/QR.java	2026-04-03 02:08:00.122659902 +1100
+@@ -34,6 +34,21 @@
+  */
+ public class QR {
+ 
++	/**
++	 * Computes the QR factorisation of a matrix A such that:
++	 * 
++	 *   A = Q.R
++	 *   
++	 * Where:
++	 * 
++	 *   Q is an orthogonal matrix
++	 *   R is an upper triangular matrix
++	 * 
++	 * If A is rectangular (m x n where m>n) then Q will also be (m x n)
++	 * 
++	 * @param matrix
++	 * @return
++	 */
+ 	public static IQRResult decompose(AMatrix matrix) {
+ 		return decomposeInternal(Matrix.create(matrix));
+ 	}
+@@ -42,8 +57,9 @@
+ 		return decomposeInternal(matrix.clone());
+ 	}
+ 	
+-	// perform decomposition. Destructively modifies the input Matrix
+-	private static IQRResult decomposeInternal(Matrix matrix) {
++	// Perform decomposition on a Matrix. 
++	// Destructively modifies the input Matrix
++	static IQRResult decomposeInternal(Matrix matrix) {
+ 		int rc = matrix.rowCount();
+ 		int cc = matrix.columnCount();
+ 
+diff -r -U 3 '--exclude=meta-data-commit-level.json' RegressionBug-147/WORKING/src/main/java/mikera/matrixx/impl/IdentityMatrix.java RegressionBug-147/BIC/src/main/java/mikera/matrixx/impl/IdentityMatrix.java
+--- RegressionBug-147/WORKING/src/main/java/mikera/matrixx/impl/IdentityMatrix.java	2026-04-03 02:09:55.578719399 +1100
++++ RegressionBug-147/BIC/src/main/java/mikera/matrixx/impl/IdentityMatrix.java	2026-04-03 02:08:00.126659904 +1100
+@@ -192,7 +192,7 @@
+ 	@Override 
+ 	public Matrix innerProduct(Matrix a) {
+ 		if(a.rowCount()!=this.dimensions) throw new IllegalArgumentException(ErrorMessages.mismatch(this, a));
+-		return a.clone();
++		return a.copy();
+ 	}
+ 	
+ 	@Override 
+diff -r -U 3 '--exclude=meta-data-commit-level.json' RegressionBug-147/WORKING/src/main/java/mikera/matrixx/Matrix11.java RegressionBug-147/BIC/src/main/java/mikera/matrixx/Matrix11.java
+--- RegressionBug-147/WORKING/src/main/java/mikera/matrixx/Matrix11.java	2026-04-03 02:09:55.578719399 +1100
++++ RegressionBug-147/BIC/src/main/java/mikera/matrixx/Matrix11.java	2026-04-03 02:08:00.118659899 +1100
+@@ -22,6 +22,10 @@
+ 		this.value=value;
+ 	}
+ 
++	public Matrix11(AMatrix m) {
++		this.value=m.unsafeGet(0, 0);
++	}
++
+ 	@Override
+ 	public int rowCount() {
+ 		return 1;
+@@ -84,6 +88,12 @@
+ 	}
+ 	
+ 	@Override
++	public Matrix11 inverse() {
++		if (value==0.0) return null;
++		return new Matrix11(1.0/value);
++	}
++	
++	@Override
+ 	public double trace() {
+ 		return value;
+ 	}
+diff -r -U 3 '--exclude=meta-data-commit-level.json' RegressionBug-147/WORKING/src/main/java/mikera/matrixx/Matrix22.java RegressionBug-147/BIC/src/main/java/mikera/matrixx/Matrix22.java
+--- RegressionBug-147/WORKING/src/main/java/mikera/matrixx/Matrix22.java	2026-04-03 02:09:55.578719399 +1100
++++ RegressionBug-147/BIC/src/main/java/mikera/matrixx/Matrix22.java	2026-04-03 02:08:00.118659899 +1100
+@@ -39,7 +39,7 @@
+ 		if (m instanceof Matrix22) {
+ 			set((Matrix22) m);
+ 		} else {
+-			set(m);
++			unsafeSet(m);
+ 		}
+ 	}
+ 	
+@@ -57,6 +57,13 @@
+ 		m11=m.unsafeGet(1,1);		
+ 	}
+ 	
++	public void unsafeSet(AMatrix m) {
++		m00=m.unsafeGet(0,0);
++		m01=m.unsafeGet(0,1);
++		m10=m.unsafeGet(1,0);
++		m11=m.unsafeGet(1,1);		
++	}
++	
+ 	public static Matrix22 create(double a, double b, double c, double d) {
+ 		return new Matrix22(a,b,c,d);
+ 	}
+@@ -131,7 +138,7 @@
+ 	@Override
+ 	public Matrix22 inverse() {
+ 		double det=determinant();
+-		if (det==0.0) throw new IllegalArgumentException("Matrix has zero determinant: not invertible");
++		if (det==0.0) return null;
+ 		double invDet=1.0/det;
+ 		return new Matrix22( invDet*m11, -invDet*m01,
+ 				            -invDet*m10,  invDet*m00);		
+diff -r -U 3 '--exclude=meta-data-commit-level.json' RegressionBug-147/WORKING/src/main/java/mikera/matrixx/Matrix33.java RegressionBug-147/BIC/src/main/java/mikera/matrixx/Matrix33.java
+--- RegressionBug-147/WORKING/src/main/java/mikera/matrixx/Matrix33.java	2026-04-03 02:09:55.578719399 +1100
++++ RegressionBug-147/BIC/src/main/java/mikera/matrixx/Matrix33.java	2026-04-03 02:08:00.122659902 +1100
+@@ -47,9 +47,6 @@
+ 	}
+ 
+ 	public Matrix33(AMatrix m) {
+-		if((m.rowCount()!=3)||(m.columnCount()!=3)) {
+-			throw new IllegalArgumentException(ErrorMessages.mismatch(this, m));
+-		}
+ 		m00=m.unsafeGet(0,0);
+ 		m01=m.unsafeGet(0,1);
+ 		m02=m.unsafeGet(0,2);
+@@ -173,7 +170,7 @@
+ 			for (int j=0; j<3; j++) {
+ 				double acc=0.0;
+ 				for (int k=0; k<3; k++) {
+-					acc+=this.get(i, k)*a.get(k, j);
++					acc+=this.unsafeGet(i, k)*a.unsafeGet(k, j);
+ 				}
+ 				r.set(i,j,acc);
+ 			}
+@@ -303,7 +300,7 @@
+ 	@Override
+ 	public Matrix33 inverse() {
+ 		double det=determinant();
+-		if (det==0.0) throw new IllegalArgumentException("Matrix has zero determinant: not invertible");
++		if (det==0.0) return null;
+ 		double invDet=1.0/det;
+ 		return new Matrix33(
+ 				invDet*((m11*m22-m12*m21)),
+diff -r -U 3 '--exclude=meta-data-commit-level.json' RegressionBug-147/WORKING/src/main/java/mikera/matrixx/Matrix.java RegressionBug-147/BIC/src/main/java/mikera/matrixx/Matrix.java
+--- RegressionBug-147/WORKING/src/main/java/mikera/matrixx/Matrix.java	2026-04-03 02:09:55.578719399 +1100
++++ RegressionBug-147/BIC/src/main/java/mikera/matrixx/Matrix.java	2026-04-03 02:08:00.118659899 +1100
+@@ -25,9 +25,9 @@
+ 
+ /**
+  * Standard MxN matrix class backed by a densely packed double[] array
+- *
++ * 
+  * This is the most efficient Vectorz type for dense 2D matrices.
+- *
++ * 
+  * @author Mike
+  */
+ public final class Matrix extends ADenseArrayMatrix {
+@@ -50,6 +50,7 @@
+ 
+ 	/**
+ 	 * Creates a new Matrix with a copy of all data from the source matrix
++	 * 
+ 	 * @param m
+ 	 */
+ 	public Matrix(AMatrix m) {
+@@ -106,6 +107,16 @@
+ 		return m;
+ 	}
+ 
++	public static Matrix create(AVector... data) {
++		int rc = data.length;
++		int cc = (rc == 0) ? 0 : data[0].length();
++		Matrix m = create(rc, cc);
++		for (int i = 0; i < rc; i++) {
++			m.setRow(i, data[i]);
++		}
++		return m;
++	}
++
+ 	@Override
+ 	public boolean isFullyMutable() {
+ 		return true;
+@@ -169,7 +180,7 @@
+ 
+ 	@Override
+ 	public Matrix transposeInnerProduct(Matrix s) {
+-		Matrix r= toMatrixTranspose();
++		Matrix r = toMatrixTranspose();
+ 		return Multiplications.multiply(r, s);
+ 	}
+ 
+@@ -466,6 +477,14 @@
+ 		}
+ 	}
+ 
++	@Override
++	public void add(AMatrix m) {
++		if ((rowCount() != m.rowCount()) || (columnCount() != m.columnCount()))
++			throw new IllegalArgumentException(
++					ErrorMessages.incompatibleShapes(this, m));
++		m.addToArray(data, 0);
++	}
++
+ 	public void add(Matrix m) {
+ 		if ((rowCount() != m.rowCount()) || (columnCount() != m.columnCount()))
+ 			throw new IllegalArgumentException(
+@@ -495,23 +514,8 @@
+ 	}
+ 
+ 	@Override
+-	public void add(AMatrix m) {
+-		if (m instanceof Matrix) {
+-			add((Matrix) m);
+-			return;
+-		}
+-		int rc = rowCount();
+-		int cc = columnCount();
+-		if (!((rc == m.rowCount()) && (cc == m.columnCount()))) { throw new IllegalArgumentException(
+-				ErrorMessages.mismatch(this, m)); }
+-		m.addToArray(data, 0);
+-	}
+-
+-	@Override
+ 	public void multiply(double factor) {
+-		for (int i = 0; i < data.length; i++) {
+-			data[i] *= factor;
+-		}
++		DoubleArrays.multiply(data, factor);
+ 	}
+ 
+ 	@Override
+@@ -522,6 +526,16 @@
+ 	}
+ 
+ 	@Override
++	public void set(AVector a) {
++		if ((rowCount() != a.length())) { throw new IllegalArgumentException(
++				ErrorMessages.incompatibleBroadcast(a, this)); }
++		a.getElements(data, 0);
++		for (int i = 1; i < rows; i++) {
++			System.arraycopy(data, 0, data, i * cols, cols);
++		}
++	}
++
++	@Override
+ 	public void getElements(double[] dest, int offset) {
+ 		System.arraycopy(data, 0, dest, offset, data.length);
+ 	}
+@@ -555,11 +569,16 @@
+ 	public void clamp(double min, double max) {
+ 		DoubleArrays.clamp(data, 0, data.length, min, max);
+ 	}
+-	
++
+ 	@Override
+ 	public Matrix clone() {
+ 		return new Matrix(rows, cols, DoubleArrays.copyOf(data));
+ 	}
++	
++	@Override
++	public Matrix copy() {
++		return clone();
++	}
+ 
+ 	@Override
+ 	public Matrix exactClone() {
+@@ -613,23 +632,25 @@
+ 	}
+ 
+ 	/**
+-	 * Creates a Matrix which contains ones along the main diagonal
+-	 * and zeros everywhere else. If square, is equal to the identity matrix.
+-	 *
+-	 * @param numRows Number of rows in the matrix.
+-	 * @param numCols NUmber of columns in the matrix.
++	 * Creates a Matrix which contains ones along the main diagonal and zeros
++	 * everywhere else. If square, is equal to the identity matrix.
++	 * 
++	 * @param numRows
++	 *            Number of rows in the matrix.
++	 * @param numCols
++	 *            NUmber of columns in the matrix.
+ 	 * @return A matrix with diagonal elements equal to one.
+ 	 */
+ 	public static Matrix createIdentity(int numRows, int numCols) {
+-	  Matrix ret = create(numRows, numCols);
++		Matrix ret = create(numRows, numCols);
+ 
+-	  int small = numRows < numCols ? numRows : numCols;
++		int small = numRows < numCols ? numRows : numCols;
+ 
+-	  for (int i = 0; i < small; i++) {
+-	    ret.set(i, i, 1.0);
+-	  }
++		for (int i = 0; i < small; i++) {
++			ret.unsafeSet(i, i, 1.0);
++		}
+ 
+-	  return ret;
++		return ret;
+ 	}
+ 
+ 	/**
+@@ -639,17 +660,17 @@
+ 	 * a<sub>ij</sub> = 0 if i &ne; j<br>
+ 	 * a<sub>ij</sub> = 1 if i = j<br>
+ 	 * </p>
+-	 *
++	 * 
+ 	 * @return A new instance of an identity matrix.
+ 	 */
+-	public static Matrix createIdentity(int width) {
+-	  Matrix ret = create(width, width);
++	public static Matrix createIdentity(int dims) {
++		Matrix ret = create(dims, dims);
+ 
+-	  for (int i = 0; i < width; i++) {
+-	    ret.set(i, i, 1.0);
+-	  }
++		for (int i = 0; i < dims; i++) {
++			ret.unsafeSet(i, i, 1.0);
++		}
+ 
+-	  return ret;
++		return ret;
+ 	}
+ 
+ }
+diff -r -U 3 '--exclude=meta-data-commit-level.json' RegressionBug-147/WORKING/src/main/java/mikera/matrixx/Matrixx.java RegressionBug-147/BIC/src/main/java/mikera/matrixx/Matrixx.java
+--- RegressionBug-147/WORKING/src/main/java/mikera/matrixx/Matrixx.java	2026-04-03 02:09:55.578719399 +1100
++++ RegressionBug-147/BIC/src/main/java/mikera/matrixx/Matrixx.java	2026-04-03 02:08:00.122659902 +1100
+@@ -303,146 +303,6 @@
+ 		return m;
+ 	}
+ 
+-	static Matrix createInverse(AMatrix m) {
+-		if (!m.isSquare()) { throw new IllegalArgumentException(
+-				"Matrix must be square for inverse!"); }
+-
+-		int dims = m.rowCount();
+-
+-		Matrix am = new Matrix(m);
+-		int[] rowPermutations = new int[dims];
+-
+-		// perform LU-based inverse on matrix
+-		decomposeLU(am, rowPermutations);
+-		return backSubstituteLU(am, rowPermutations);
+-	}
+-
+-	/**
+-	 * Computes LU decomposition of a matrix, returns true if successful (i.e.
+-	 * if matrix is non-singular)
+-	 */
+-	private static void decomposeLU(Matrix am, int[] permutations) {
+-		int dims = permutations.length;
+-		double[] data = am.data;
+-
+-		double rowFactors[] = new double[dims];
+-		calcRowFactors(data, rowFactors);
+-
+-		for (int col = 0; col < dims; col++) {
+-			// Scan upper diagonal matrix
+-			for (int row = 0; row < col; row++) {
+-				int dataIndex = (dims * row) + col;
+-				double acc = data[dataIndex];
+-				for (int i = 0; i < row; i++) {
+-					acc -= data[(dims * row) + i] * data[(dims * i) + col];
+-				}
+-				data[dataIndex] = acc;
+-			}
+-
+-			// Find index of largest pivot
+-			int maxIndex = 0;
+-			double maxValue = Double.NEGATIVE_INFINITY;
+-			for (int row = col; row < dims; row++) {
+-				int dataIndex = (dims * row) + col;
+-				double acc = data[dataIndex];
+-				for (int i = 0; i < col; i++) {
+-					acc -= data[(dims * row) + i] * data[(dims * i) + col];
+-				}
+-				data[dataIndex] = acc;
+-
+-				double value = rowFactors[row] * Math.abs(acc);
+-				if (value > maxValue) {
+-					maxValue = value;
+-					maxIndex = row;
+-				}
+-			}
+-
+-			if (col != maxIndex) {
+-				am.swapRows(col, maxIndex);
+-				rowFactors[maxIndex] = rowFactors[col];
+-			}
+-
+-			permutations[col] = maxIndex;
+-
+-			if (data[(dims * col) + col] == 0.0) { throw new IllegalArgumentException(
+-					ErrorMessages.singularMatrix()); }
+-
+-			// Scale lower diagonal matrix using values on diagonal
+-			double diagonalValue = data[(dims * col) + col];
+-			double factor = 1.0 / diagonalValue;
+-			int offset = dims * (col + 1) + col;
+-			for (int i = 0; i < ((dims - 1) - col); i++) {
+-				data[(dims * i) + offset] *= factor;
+-			}
+-		}
+-	}
+-
+-	/**
+-	 * Utility function to calculate scale factors for each row
+-	 */
+-	private static void calcRowFactors(double[] data, double[] factorsOut) {
+-		int dims = factorsOut.length;
+-		for (int row = 0; row < dims; row++) {
+-			double maxValue = 0.0;
+-
+-			// find maximum value in the row
+-			for (int col = 0; col < dims; col++) {
+-				maxValue = Math.max(maxValue, Math.abs(data[row * dims + col]));
+-			}
+-
+-			if (maxValue == 0.0) { throw new IllegalArgumentException(
+-					ErrorMessages.singularMatrix()); }
+-
+-			// scale factor for row should reduce maximum absolute value to 1.0
+-			factorsOut[row] = 1.0 / maxValue;
+-		}
+-	}
+-
+-	private static Matrix backSubstituteLU(Matrix am, int[] permutations) {
+-		int dims = permutations.length;
+-		double[] dataIn = am.data;
+-
+-		// create identity matrix in output
+-		Matrix result = new Matrix(Matrixx.createImmutableIdentityMatrix(dims));
+-		double[] dataOut = result.data;
+-
+-		for (int col = 0; col < dims; col++) {
+-			int rowIndex = -1;
+-
+-			// Forward substitution phase
+-			for (int row = 0; row < dims; row++) {
+-				int pRow = permutations[row];
+-				double acc = dataOut[(dims * pRow) + col];
+-				dataOut[(dims * pRow) + col] = dataOut[(dims * row) + col];
+-				if (rowIndex >= 0) {
+-					for (int i = rowIndex; i <= row - 1; i++) {
+-						acc -= dataIn[(row * dims) + i]
+-								* dataOut[(dims * i) + col];
+-					}
+-				} else if (acc != 0.0) {
+-					rowIndex = row;
+-				}
+-				dataOut[(dims * row) + col] = acc;
+-			}
+-
+-			// Back substitution phase
+-			for (int row = 0; row < dims; row++) {
+-				int irow = (dims - 1 - row);
+-				int offset = dims * irow;
+-				double total = 0.0;
+-				for (int i = 0; i < row; i++) {
+-					total += dataIn[offset + ((dims - 1) - i)]
+-							* dataOut[(dims * ((dims - 1) - i)) + col];
+-				}
+-				double diagonalValue = dataIn[offset + irow];
+-				dataOut[(dims * irow) + col] = (dataOut[(dims * irow) + col] - total)
+-						/ diagonalValue;
+-			}
+-		}
+-
+-		return result;
+-	}
+-
+ 	/**
+ 	 * Creates an empty (zero-filled) mutable matrix of the specified size
+ 	 * 
+@@ -474,6 +334,17 @@
+ 		data.copyTo(0, m.data, 0, n);
+ 		return m;
+ 	}
++	
++	/**
++	 * Computes the inverse of a matrix. Returns null if the matrix is singular.
++	 * 
++	 * Throws an Exception is the matrix is not square
++	 * @param m
++	 * @return
++	 */
++	public AMatrix createInverse(AMatrix m) {
++		return m.inverse();
++	}
+ 
+ 	/**
+ 	 * Creates a zero-filled matrix with the specified number of dimensions for both rows and columns
+@@ -566,13 +437,12 @@
+ 		}
+ 	}
+ 
+-	public static Matrix createFromVectors(AVector... data) {
++	public static AMatrix createFromVectors(AVector... data) {
+ 		int rc = data.length;
+ 		int cc = (rc == 0) ? 0 : data[0].length();
+-		Matrix m = Matrix.create(rc, cc);
+-		// TODO: should use getElements?
++		AMatrix m = newMatrix(rc, cc);
+ 		for (int i = 0; i < rc; i++) {
+-			m.getRowView(i).set(data[i]);
++			m.setRow(i, data[i]);
+ 		}
+ 		return m;
+ 	}
+@@ -581,9 +451,8 @@
+ 		int rc = data.size();
+ 		int cc = (rc == 0) ? 0 : data.get(0).length();
+ 		AMatrix m = newMatrix(rc, cc);
+-		// TODO: should use getElements?
+ 		for (int i = 0; i < rc; i++) {
+-			m.getRowView(i).set(data.get(i));
++			m.setRow(i,data.get(i));
+ 		}
+ 		return m;
+ 	}
+diff -r -U 3 '--exclude=meta-data-commit-level.json' RegressionBug-147/WORKING/src/main/java/mikera/vectorz/BitVector.java RegressionBug-147/BIC/src/main/java/mikera/vectorz/BitVector.java
+--- RegressionBug-147/WORKING/src/main/java/mikera/vectorz/BitVector.java	2026-04-03 02:09:55.578719399 +1100
++++ RegressionBug-147/BIC/src/main/java/mikera/vectorz/BitVector.java	2026-04-03 02:08:00.130659906 +1100
+@@ -196,4 +196,10 @@
+ 	public BitVector exactClone() {
+ 		return new BitVector(this);
+ 	}
++
++	@Override
++	public void addAt(int i, double v) {
++		// TODO Auto-generated method stub
++		
++	}
+ }
+diff -r -U 3 '--exclude=meta-data-commit-level.json' RegressionBug-147/WORKING/src/main/java/mikera/vectorz/impl/IndexedSubVector.java RegressionBug-147/BIC/src/main/java/mikera/vectorz/impl/IndexedSubVector.java
+--- RegressionBug-147/WORKING/src/main/java/mikera/vectorz/impl/IndexedSubVector.java	2026-04-03 02:09:55.578719399 +1100
++++ RegressionBug-147/BIC/src/main/java/mikera/vectorz/impl/IndexedSubVector.java	2026-04-03 02:08:00.134659908 +1100
+@@ -94,4 +94,9 @@
+ 			if ((indexes[i]<0)||(indexes[i]>=slen)) throw new VectorzException("Indexes out of range");
+ 		}
+ 	}
++
++	@Override
++	public void addAt(int i, double v) {
++		data.addAt(indexes[i], v);
++	}
+ }
+diff -r -U 3 '--exclude=meta-data-commit-level.json' RegressionBug-147/WORKING/src/main/java/mikera/vectorz/impl/WrappedScalarVector.java RegressionBug-147/BIC/src/main/java/mikera/vectorz/impl/WrappedScalarVector.java
+--- RegressionBug-147/WORKING/src/main/java/mikera/vectorz/impl/WrappedScalarVector.java	2026-04-03 02:09:55.578719399 +1100
++++ RegressionBug-147/BIC/src/main/java/mikera/vectorz/impl/WrappedScalarVector.java	2026-04-03 02:08:00.138659911 +1100
+@@ -84,4 +84,9 @@
+ 	public AScalar getWrappedObject() {
+ 		return scalar;
+ 	}
++
++	@Override
++	public void addAt(int i, double v) {
++		scalar.add(v);
++	}
+ }
+diff -r -U 3 '--exclude=meta-data-commit-level.json' RegressionBug-147/WORKING/src/main/java/mikera/vectorz/impl/WrappedSubVector.java RegressionBug-147/BIC/src/main/java/mikera/vectorz/impl/WrappedSubVector.java
+--- RegressionBug-147/WORKING/src/main/java/mikera/vectorz/impl/WrappedSubVector.java	2026-04-03 02:09:55.582719401 +1100
++++ RegressionBug-147/BIC/src/main/java/mikera/vectorz/impl/WrappedSubVector.java	2026-04-03 02:08:00.138659911 +1100
+@@ -134,4 +134,9 @@
+ 	public WrappedSubVector exactClone() {
+ 		return new WrappedSubVector(wrapped.exactClone(),offset,length);
+ 	}
++
++	@Override
++	public void addAt(int i, double v) {
++		wrapped.addAt(offset+i,v);
++	}
+ }
+diff -r -U 3 '--exclude=meta-data-commit-level.json' RegressionBug-147/WORKING/src/main/java/mikera/vectorz/util/VectorBuilder.java RegressionBug-147/BIC/src/main/java/mikera/vectorz/util/VectorBuilder.java
+--- RegressionBug-147/WORKING/src/main/java/mikera/vectorz/util/VectorBuilder.java	2026-04-03 02:09:55.582719401 +1100
++++ RegressionBug-147/BIC/src/main/java/mikera/vectorz/util/VectorBuilder.java	2026-04-03 02:08:00.138659911 +1100
+@@ -100,4 +100,9 @@
+ 		return new VectorBuilder(data.clone(),length);
+ 	}
+ 
++	@Override
++	public void addAt(int i, double v) {
++		data[i]+=v;
++	}
++
+ }
+Only in RegressionBug-147/BIC/src/test/java/mikera/matrixx/algo: BenchmarkDeterminant.java
+diff -r -U 3 '--exclude=meta-data-commit-level.json' RegressionBug-147/WORKING/src/test/java/mikera/matrixx/algo/TestDeterminant.java RegressionBug-147/BIC/src/test/java/mikera/matrixx/algo/TestDeterminant.java
+--- RegressionBug-147/WORKING/src/test/java/mikera/matrixx/algo/TestDeterminant.java	2026-04-03 02:09:55.582719401 +1100
++++ RegressionBug-147/BIC/src/test/java/mikera/matrixx/algo/TestDeterminant.java	2026-04-03 02:08:00.142659912 +1100
+@@ -20,13 +20,13 @@
+ 	@Test
+ 	public void testDetEquivalence3() {
+ 		Matrix m=Matrixx.createRandomSquareMatrix(3);
+-		assertEquals(Determinant.naiveDeterminant(m),Determinant.smartDeterminant(m),0.0001);
++		assertEquals(Determinant.naiveDeterminant(m),Determinant.calculateLUPDeterminant(m),0.0001);
+ 	}
+ 	
+ 	@Test
+ 	public void testDetEquivalence4() {
+ 		Matrix m=Matrixx.createRandomSquareMatrix(4);
+-		assertEquals(Determinant.naiveDeterminant(m),Determinant.smartDeterminant(m),0.0001);
++		assertEquals(Determinant.naiveDeterminant(m),Determinant.calculateLUPDeterminant(m),0.0001);
+ 	}
+ 
+ }
+diff -r -U 3 '--exclude=meta-data-commit-level.json' RegressionBug-147/WORKING/src/test/java/mikera/matrixx/decompose/impl/qr/TestHouseholderQR.java RegressionBug-147/BIC/src/test/java/mikera/matrixx/decompose/impl/qr/TestHouseholderQR.java
+--- RegressionBug-147/WORKING/src/test/java/mikera/matrixx/decompose/impl/qr/TestHouseholderQR.java	2026-04-03 02:09:55.582719401 +1100
++++ RegressionBug-147/BIC/src/test/java/mikera/matrixx/decompose/impl/qr/TestHouseholderQR.java	2026-04-03 02:08:00.142659912 +1100
+@@ -74,8 +74,10 @@
+ 		AMatrix q = result.getQ();
+ 		AMatrix r = result.getR();
+ 
++		assertTrue(q.isSameShape(a));
+ 		assertTrue(r.isUpperTriangular());
+ 		assertTrue(q.innerProduct(r).epsilonEquals(a));
+ 		assertTrue(q.hasOrthonormalColumns());
++		
+ 	}
+ }
+diff -r -U 3 '--exclude=meta-data-commit-level.json' RegressionBug-147/WORKING/src/test/java/mikera/matrixx/TestMatrixx.java RegressionBug-147/BIC/src/test/java/mikera/matrixx/TestMatrixx.java
+--- RegressionBug-147/WORKING/src/test/java/mikera/matrixx/TestMatrixx.java	2026-04-03 02:09:55.582719401 +1100
++++ RegressionBug-147/BIC/src/test/java/mikera/matrixx/TestMatrixx.java	2026-04-03 02:08:00.142659912 +1100
+@@ -7,6 +7,7 @@
+ import mikera.indexz.Indexz;
+ import mikera.matrixx.AMatrix;
+ import mikera.matrixx.Matrixx;
++import mikera.matrixx.algo.Inverse;
+ import mikera.matrixx.impl.AVectorMatrix;
+ import mikera.matrixx.impl.BandedMatrix;
+ import mikera.matrixx.impl.BlockDiagonalMatrix;
+@@ -47,6 +48,8 @@
+ 		AMatrix mi=m.inverse();
+ 		assertEquals(1.0,m.determinant()*mi.determinant(),0.001);
+ 		
++		assertTrue(mi.epsilonEquals(Inverse.calculate(m)));
++		
+ 		AVector mv=m.transform(v);
+ 		AVector mimv=mi.transform(mv);
+ 		

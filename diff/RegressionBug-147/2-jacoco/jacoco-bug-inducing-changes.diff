@@ -1,20 +1,19 @@
-diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java
---- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java	2026-01-02 01:50:39.323622622 +1100
-+++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/inra/ijpb/measure/region2d/AverageThickness.java	2026-01-02 01:51:07.395635518 +1100
-@@ -111,12 +111,19 @@
-         {
-             for (int x = 0; x < sizeX; x++)
-             {
-                 int label = (int) skeleton.getf(x, y);
-
-                 if (label == 0)
-                 {
-                     continue;
-                 }
-+                if (labelIndices.containsKey(label))
-+                {
-+                    continue;
-+                }
+diff -r -U 3 RegressionBug-147/WORKING/src/main/java/mikera/matrixx/Matrix.java RegressionBug-147/BIC/src/main/java/mikera/matrixx/Matrix.java
+--- RegressionBug-147/WORKING/src/main/java/mikera/matrixx/Matrix.java	2026-04-03 02:09:55.578719399 +1100
++++ RegressionBug-147/BIC/src/main/java/mikera/matrixx/Matrix.java	2026-04-03 02:08:00.118659899 +1100
+@@ -522,6 +526,16 @@
+ 	}
  
-                 int index = labelIndices.get(label);
-                 
+ 	@Override
++	public void set(AVector a) {
++		if ((rowCount() != a.length())) { throw new IllegalArgumentException(
++				ErrorMessages.incompatibleBroadcast(a, this)); }
++		a.getElements(data, 0);
++		for (int i = 1; i < rows; i++) {
++			System.arraycopy(data, 0, data, i * cols, cols);
++		}
++	}
+ 
+ 	@Override
+ 	public void getElements(double[] dest, int offset) {
+
