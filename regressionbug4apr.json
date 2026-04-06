@@ -2679,22 +2679,16 @@
     },
     "147": {
         "bug_id": "RegressionBug-147",
-        "github_repository": "ijpb/MorphoLibJ",
-        "bfcID": "cadc595a698e0f831e38ba341d5ce56643d7759a",
-        "buggyID": "8385d145d4689c0c096818b7ef03dccf4caea1fd",
-        "bicID": "8385d145d4689c0c096818b7ef03dccf4caea1fd",
-        "workingID": "3ad88b5663c4fdcf500b6e2acf63863b98a91671",
+        "github_repository": "mikera/vectorz",
+        "bfcID": "bf64ef5380420debd169b9bcb933730a8d2dc967",
+        "buggyID": "aa23783051c5567a18f303de1e3ed28312105b21",
+        "bicID": "9db4296f020a9b268bef5a6f700f1ef641f3cd02",
+        "workingID": "3a4a20a3f9b2a5b7fd4aba706b7901b70f8cea51",
         "failing_tests": {
-            "inra.ijpb.measure.region2d.AverageThicknessTest#test_process_rectangle": [
+            "mikera.matrixx.TestMatrix#testSet": [
                 {
-                    "type": "java.lang.AssertionError",
-                    "message": ""
-                }
-            ],
-            "inra.ijpb.measure.region2d.AverageThicknessTest#test_process_ThinLines_TouchingLabels": [
-                {
-                    "type": "java.lang.AssertionError",
-                    "message": ""
+                    "type": "java.lang.IllegalArgumentException",
+                    "message": ": Can't broadcast Vector with shape [3] to shape of Matrix with shape [2,3]"
                 }
             ]
         }
