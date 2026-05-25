@@ -25,7 +25,6 @@ diff -r -U 3 ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/org/jsoup/nodes/
 -        NodeList(int initialCapacity) {
 +    private static final class NodeList extends ChangeNotifyingArrayList<Node> {
 +        private final Element owner;
-+
 +        NodeList(Element owner, int initialCapacity) {
              super(initialCapacity);
 +            this.owner = owner;
