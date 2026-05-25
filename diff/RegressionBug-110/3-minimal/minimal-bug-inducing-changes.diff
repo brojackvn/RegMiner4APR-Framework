@@ -99,12 +99,12 @@ diff -r -U 3 ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/node
              }
          }
      }
-+
+
 +    private final class NodeList extends ChangeNotifyingArrayList<Node> {
 +        NodeList(int initialCapacity) {
 +            super(initialCapacity);
 +        }
-+
+
 +        public void onContentsChanged() {
 +            nodelistChanged();
 +        }
