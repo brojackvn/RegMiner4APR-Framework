@@ -1,6 +1,6 @@
 diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Element.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Element.java
---- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Element.java	2024-09-08 01:36:20.341852205 +1000
-+++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Element.java	2024-09-08 01:36:20.333852149 +1000
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Element.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Element.java
 @@ -37,10 +38,13 @@
   * @author Jonathan Hedley, jonathan@hedley.net
   */
@@ -90,6 +90,7 @@ diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/
 diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/LeafNode.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/LeafNode.java
 --- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/LeafNode.java
 +++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/LeafNode.java
+@@ -0,0 +0,0 @@
 +   @Override
 +    public int childNodeSize() {
 +        return 0;
@@ -100,8 +101,8 @@ diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/
 +        throw new UnsupportedOperationException("Leaf Nodes do not have child nodes.");
 +    }
 diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Node.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Node.java
---- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Node.java	2024-09-08 01:36:20.345852233 +1000
-+++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Node.java	2024-09-08 01:36:20.333852149 +1000
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/Node.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/Node.java
 @@ -201,17 +190,19 @@
          }
      }
@@ -146,8 +147,8 @@ diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/
          if (siblings.size() > index)
              return siblings.get(index);
 diff -r -u ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/TextNode.java ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/TextNode.java
---- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/TextNode.java	2024-09-08 01:36:20.345852233 +1000
-+++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/TextNode.java	2024-09-08 01:36:20.333852149 +1000
+--- ./RegMiner4APR-Regression-Bugs/WORKING/src/main/java/org/jsoup/nodes/TextNode.java
++++ ./RegMiner4APR-Regression-Bugs/BIC/src/main/java/org/jsoup/nodes/TextNode.java
 @@ -1,33 +1,36 @@ 
       @param text raw text
       @see #createFromEncoded(String)
