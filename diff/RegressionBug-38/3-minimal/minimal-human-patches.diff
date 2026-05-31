@@ -5,8 +5,9 @@ diff -r -u ./RegMiner4APR-Regression-Bugs/BUGGY/src/main/java/com/univocity/pars
  					process.execute(buffer, length);
  				}
  			} finally {
+-				inputAnalysisProcesses = null;
 +				if(length > 4) {
-					inputAnalysisProcesses = null;
++					inputAnalysisProcesses = null;
 +				}
  			}
  		}
